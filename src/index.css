@@ -1,5 +1,7 @@
 @tailwind base;
+
 @tailwind components;
+
 @tailwind utilities;
 
 @font-face {
@@ -52,7 +54,9 @@
   font-family: "Rawline", Arial, sans-serif;
   color: var(--navy);
   background: var(--bg);
-  font-synthesis: none
+  font-synthesis: none;
+  --danger: #9B1C31;
+  --danger-soft: #FFF1F3
 }
 
 * {
@@ -61,8 +65,9 @@
 
 body {
   margin: 0;
-  min-width: 1180px;
-  background: var(--bg)
+  min-width: 320px;
+  background: var(--bg);
+  overflow-x: hidden
 }
 
 button,
@@ -118,10 +123,6 @@ p {
   flex: none
 }
 
-.muted {
-  color: var(--slate)
-}
-
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 1.3px;
@@ -138,29 +139,6 @@ p {
   color: var(--navy)
 }
 
-.logo-mark {
-  height: 42px;
-  width: 42px;
-  border: 1.5px solid currentColor;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 22px;
-  position: relative
-}
-
-.logo-mark:after {
-  content: "";
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-right: 1.5px solid;
-  border-bottom: 1.5px solid;
-  right: 5px;
-  bottom: 5px
-}
-
 .logo strong {
   display: block;
   font-size: 17px;
@@ -175,7 +153,10 @@ p {
 }
 
 .logo-dark {
-  color: var(--white)
+  color: var(--white);
+  background: transparent;
+  padding: 0;
+  border-radius: 0
 }
 
 .btn {
@@ -203,7 +184,8 @@ p {
   border-color: var(--line)
 }
 
-.btn-success {
+.btn-success,
+.badge-success {
   background: var(--green);
   color: var(--navy)
 }
@@ -235,10 +217,6 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 4px
-}
-
-.centered {
-  margin: auto
 }
 
 .icon-btn {
@@ -276,7 +254,8 @@ textarea {
   background: var(--white);
   border-radius: 8px;
   color: var(--navy);
-  outline: none
+  outline: none;
+  max-width: 100%
 }
 
 input,
@@ -317,20 +296,6 @@ textarea:focus {
   text-align: right
 }
 
-.check {
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--slate)
-}
-
-.check input {
-  height: 15px;
-  width: 15px;
-  accent-color: var(--navy)
-}
-
 .badge {
   display: inline-flex;
   align-items: center;
@@ -349,11 +314,6 @@ textarea:focus {
 
 .badge-active {
   background: var(--sage);
-  color: var(--navy)
-}
-
-.badge-success {
-  background: var(--green);
   color: var(--navy)
 }
 
@@ -425,7 +385,11 @@ textarea:focus {
   font-size: 11px;
   color: #AAB9BE;
   position: relative;
-  z-index: 1
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px
 }
 
 .login-form-area {
@@ -448,12 +412,6 @@ textarea:focus {
 
 .login-card>.btn {
   width: 100%
-}
-
-.form-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between
 }
 
 .divider {
@@ -491,18 +449,6 @@ textarea:focus {
   grid-template-columns: 1fr auto;
   gap: 8px;
   margin-top: 12px
-}
-
-.security {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  background: var(--soft);
-  border-radius: 8px;
-  color: var(--slate);
-  font-size: 11px;
-  line-height: 1.5
 }
 
 .repo-link {
@@ -675,20 +621,6 @@ textarea:focus {
   font-size: 12px
 }
 
-.notification-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--green);
-  position: absolute;
-  border-radius: 50%;
-  margin: -15px 0 0 15px
-}
-
-.avatar-small {
-  width: 36px;
-  height: 36px
-}
-
 .mobile-title {
   display: none
 }
@@ -699,7 +631,6 @@ textarea:focus {
   margin: 0 auto
 }
 
-.welcome,
 .page-title {
   display: flex;
   justify-content: space-between;
@@ -707,7 +638,6 @@ textarea:focus {
   margin-bottom: 26px
 }
 
-.welcome>div>p:last-child,
 .page-title>div>p:last-child {
   color: var(--slate);
   margin-top: 7px
@@ -765,23 +695,12 @@ textarea:focus {
   font-size: 11px
 }
 
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr);
-  gap: 20px;
-  margin-bottom: 20px
-}
-
 .section-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 20px;
   margin-bottom: 19px
-}
-
-.featured-card {
-  background: linear-gradient(120deg, var(--white), #F0F5EF)
 }
 
 .steps {
@@ -836,25 +755,6 @@ textarea:focus {
   color: var(--slate)
 }
 
-.next-step {
-  background: var(--white);
-  border: 1px solid var(--line);
-  padding: 13px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px
-}
-
-.next-step div {
-  flex: 1
-}
-
-.next-step p {
-  font-size: 11px;
-  color: var(--slate)
-}
-
 .activity-list {
   display: flex;
   flex-direction: column
@@ -892,108 +792,6 @@ textarea:focus {
   margin-top: 3px
 }
 
-.quick-card {
-  display: flex;
-  align-items: center;
-  gap: 30px;
-  margin-top: 20px
-}
-
-.quick-actions {
-  display: flex;
-  gap: 10px;
-  margin-left: auto
-}
-
-.quick-actions button {
-  border: 1px solid var(--line);
-  background: var(--white);
-  border-radius: 8px;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  color: var(--navy);
-  font-size: 12px
-}
-
-.quick-actions button:hover {
-  background: var(--mint)
-}
-
-.quick-actions span {
-  min-width: 120px;
-  text-align: left
-}
-
-.dev-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px dashed var(--sage);
-  color: var(--slate);
-  background: var(--bg);
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 10px;
-  margin-top: 14px
-}
-
-.dev-note span {
-  background: var(--slate);
-  color: var(--white);
-  font-size: 8px;
-  padding: 3px 5px;
-  border-radius: 3px
-}
-
-.table .tr {
-  display: grid;
-  grid-template-columns: 1.3fr 1fr 1fr .7fr 30px;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 11px
-}
-
-.table .th {
-  color: var(--slate);
-  font-size: 10px;
-  font-weight: 600
-}
-
-.defense-list>div {
-  display: grid;
-  grid-template-columns: 48px 1fr 20px;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line)
-}
-
-.date-box {
-  background: var(--soft);
-  border-radius: 7px;
-  padding: 6px;
-  text-align: center
-}
-
-.date-box strong,
-.date-box span,
-.defense-list div>div:nth-child(2)>strong,
-.defense-list div>div:nth-child(2)>span {
-  display: block;
-  font-size: 11px
-}
-
-.date-box span,
-.defense-list div>div:nth-child(2)>span {
-  font-size: 9px;
-  color: var(--slate);
-  margin-top: 2px
-}
-
 .inline-alert {
   background: var(--soft);
   padding: 11px;
@@ -1004,20 +802,6 @@ textarea:focus {
   color: var(--navy);
   font-size: 11px;
   margin-top: 13px
-}
-
-.health-list>div {
-  display: flex;
-  justify-content: space-between;
-  padding: 11px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px
-}
-
-.health-list span {
-  display: flex;
-  align-items: center;
-  gap: 8px
 }
 
 .status-dot {
@@ -1078,17 +862,6 @@ textarea:focus {
   color: var(--slate);
   font-size: 10px;
   margin-top: 2px
-}
-
-.content-aside {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr);
-  gap: 20px;
-  align-items: start
-}
-
-.wide-aside {
-  grid-template-columns: minmax(0, 2.2fr) 340px
 }
 
 .stack {
@@ -1191,13 +964,6 @@ textarea:focus {
   color: var(--slate)
 }
 
-.processing {
-  font-size: 10px;
-  display: flex;
-  gap: 6px;
-  align-items: center
-}
-
 .progress {
   height: 7px;
   border-radius: 10px;
@@ -1211,20 +977,6 @@ textarea:focus {
   height: 100%;
   background: var(--sage);
   border-radius: 10px
-}
-
-.upload-demo {
-  display: flex;
-  gap: 5px;
-  justify-content: center
-}
-
-.upload-demo button {
-  border: 0;
-  background: transparent;
-  font-size: 9px;
-  text-decoration: underline;
-  color: var(--slate)
 }
 
 .document-row {
@@ -1316,18 +1068,6 @@ textarea:focus {
   border: 0;
   border-top: 1px solid var(--line);
   margin: 17px 0
-}
-
-.mini-history p {
-  font-size: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line)
-}
-
-.mini-history span {
-  display: block;
-  color: var(--slate);
-  font-size: 9px
 }
 
 .filterbar {
@@ -1428,12 +1168,6 @@ textarea:focus {
   background: none;
   color: var(--slate);
   padding: 0
-}
-
-.approval-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(310px, 1fr);
-  gap: 20px
 }
 
 .pdf-viewer {
@@ -1591,15 +1325,6 @@ textarea:focus {
   gap: 8px
 }
 
-.selected-work {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 13px
-}
-
 .file-icon {
   width: 42px;
   height: 42px;
@@ -1607,22 +1332,6 @@ textarea:focus {
   background: var(--soft);
   display: grid;
   place-items: center
-}
-
-.selected-work>div:nth-child(2) {
-  flex: 1
-}
-
-.selected-work strong,
-.selected-work span {
-  display: block;
-  font-size: 12px
-}
-
-.selected-work span {
-  font-size: 10px;
-  color: var(--slate);
-  margin-top: 4px
 }
 
 .segmented {
@@ -1669,37 +1378,6 @@ textarea:focus {
   margin-top: 3px
 }
 
-.week-calendar {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px
-}
-
-.week-calendar>div {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 9px;
-  min-height: 90px
-}
-
-.week-calendar strong,
-.week-calendar span {
-  display: block;
-  font-size: 9px
-}
-
-.week-calendar span {
-  margin-top: 20px;
-  color: var(--slate)
-}
-
-.week-calendar .busy {
-  background: var(--navy);
-  color: var(--white);
-  padding: 5px;
-  border-radius: 4px
-}
-
 .validation-list>div {
   display: flex;
   gap: 10px;
@@ -1714,11 +1392,6 @@ textarea:focus {
 
 .validation-list .ok>.icon {
   background: var(--green)
-}
-
-.validation-list .conflict>.icon {
-  background: var(--navy);
-  color: var(--white)
 }
 
 .validation-list>div>.icon {
@@ -1738,22 +1411,6 @@ textarea:focus {
   font-size: 9px;
   margin-top: 3px;
   color: var(--slate)
-}
-
-.validation>.btn {
-  width: 100%;
-  margin-top: 9px
-}
-
-.debug-check {
-  margin-top: 13px
-}
-
-.panel-note {
-  text-align: center;
-  color: var(--slate);
-  font-size: 9px;
-  margin-top: 10px
 }
 
 .token-banner {
@@ -1781,30 +1438,6 @@ textarea:focus {
   font-size: 9px;
   color: var(--slate);
   margin-top: 3px
-}
-
-.defense-meta {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 20px
-}
-
-.defense-meta>span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 11px;
-  padding-right: 15px;
-  border-right: 1px solid var(--line)
-}
-
-.defense-meta .btn {
-  margin-left: auto
 }
 
 .grade-field>div {
@@ -1859,31 +1492,8 @@ textarea:focus {
   background: #F8FAF9
 }
 
-.evaluator-list {
-  margin-top: 15px
-}
-
-.evaluator-list>div {
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 9px;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line)
-}
-
-.evaluator-list strong,
-.evaluator-list span {
-  display: block;
-  font-size: 10px
-}
-
-.evaluator-list span {
-  color: var(--slate);
-  font-size: 9px
-}
-
-.public-page {
+.public-page,
+.external-workspace {
   min-height: 100vh;
   background: var(--bg)
 }
@@ -2094,65 +1704,6 @@ textarea:focus {
 .empty-state p {
   color: var(--slate);
   margin: 8px 0 18px
-}
-
-.detail-preview {
-  margin-top: 30px;
-  position: relative;
-  border: 2px dashed var(--sage)
-}
-
-.preview-label {
-  position: absolute;
-  top: -12px;
-  left: 18px;
-  background: var(--sage);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 8px;
-  font-weight: 700
-}
-
-.detail-preview .section-head {
-  margin-top: 9px
-}
-
-.detail-preview h2 {
-  margin: 10px 0 4px
-}
-
-.preview-grid {
-  display: grid;
-  grid-template-columns: 1fr 240px;
-  gap: 20px;
-  margin-bottom: 16px
-}
-
-.preview-grid h4 {
-  margin-bottom: 6px
-}
-
-.mini-pdf {
-  background: var(--soft);
-  padding: 15px;
-  border-radius: 8px;
-  display: grid;
-  grid-template-columns: 38px 1fr;
-  align-items: center
-}
-
-.mini-pdf .icon {
-  grid-row: 1/3
-}
-
-.mini-pdf strong,
-.mini-pdf span {
-  font-size: 10px
-}
-
-.mini-pdf span {
-  font-size: 9px;
-  color: var(--slate)
 }
 
 footer {
@@ -2433,9 +1984,9 @@ footer>span {
   font-weight: 700
 }
 
-@media(max-width:1200px) {
+@media (max-width:1200px) {
   body {
-    min-width: 1024px
+    min-width: 320px
   }
 
   .sidebar {
@@ -2447,7 +1998,8 @@ footer>span {
     width: calc(100% - 220px)
   }
 
-  .page-content {
+  .page-content,
+  .repo-main {
     padding-left: 30px;
     padding-right: 30px
   }
@@ -2455,18 +2007,10 @@ footer>span {
   .topbar {
     padding: 0 30px
   }
-
-  .quick-actions button span {
-    min-width: 80px
-  }
-
-  .repo-main {
-    padding-left: 30px;
-    padding-right: 30px
-  }
 }
 
 /* Identidade institucional oficial */
+
 .logo {
   display: flex;
   align-items: center;
@@ -2481,22 +2025,9 @@ footer>span {
   height: auto
 }
 
-.logo-dark {
-  background: transparent;
-  padding: 0;
-  border-radius: 0
-}
-
 .sidebar>.logo {
   width: 190px;
   padding: 2px 8px
-}
-
-.brand-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px
 }
 
 .brand-footer a {
@@ -2547,16 +2078,6 @@ footer .logo {
 }
 
 /* Responsive layout */
-body {
-  min-width: 320px;
-  overflow-x: hidden
-}
-
-input,
-select,
-textarea {
-  max-width: 100%
-}
 
 .sidebar-header {
   display: flex;
@@ -2584,27 +2105,17 @@ textarea {
   min-width: 0
 }
 
-@media(max-width:1200px) {
-  body {
-    min-width: 320px
-  }
-
+@media (max-width:1200px) {
   .kpi-grid.four {
     grid-template-columns: repeat(2, 1fr)
   }
 
-  .dashboard-grid,
   .charts-grid {
     grid-template-columns: 1fr
   }
-
-  .content-aside,
-  .approval-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, .6fr)
-  }
 }
 
-@media(max-width:900px) {
+@media (max-width:900px) {
   .sidebar {
     width: 280px;
     transform: translateX(-100%);
@@ -2668,12 +2179,6 @@ textarea {
 
   .page-content {
     padding: 28px 24px 48px
-  }
-
-  .content-aside,
-  .wide-aside,
-  .approval-layout {
-    grid-template-columns: 1fr
   }
 
   .sticky-panel {
@@ -2753,7 +2258,7 @@ textarea {
   }
 }
 
-@media(max-width:600px) {
+@media (max-width:600px) {
   h1 {
     font-size: 24px
   }
@@ -2815,7 +2320,6 @@ textarea {
     min-height: 44px
   }
 
-  .welcome,
   .page-title {
     align-items: flex-start;
     flex-direction: column;
@@ -2823,7 +2327,6 @@ textarea {
     margin-bottom: 22px
   }
 
-  .welcome>.btn,
   .page-title>.btn {
     width: 100%
   }
@@ -2831,10 +2334,6 @@ textarea {
   .kpi-grid,
   .kpi-grid.four {
     grid-template-columns: 1fr;
-    gap: 12px
-  }
-
-  .dashboard-grid {
     gap: 12px
   }
 
@@ -2854,36 +2353,6 @@ textarea {
   .step small {
     font-size: 8px;
     overflow-wrap: anywhere
-  }
-
-  .next-step {
-    align-items: flex-start;
-    flex-wrap: wrap
-  }
-
-  .next-step .btn {
-    width: 100%
-  }
-
-  .table .th {
-    display: none
-  }
-
-  .table .tr:not(.th) {
-    grid-template-columns: 1fr auto;
-    padding: 14px 0;
-    gap: 7px 10px
-  }
-
-  .table .tr:not(.th)>span:nth-child(2),
-  .table .tr:not(.th)>span:nth-child(3),
-  .table .tr:not(.th)>span:nth-child(4) {
-    grid-column: 1
-  }
-
-  .table .tr:not(.th)>.icon-btn {
-    grid-column: 2;
-    grid-row: 1/5
   }
 
   .stepper {
@@ -3075,19 +2544,6 @@ textarea {
     width: 100%
   }
 
-  .selected-work {
-    align-items: flex-start;
-    flex-wrap: wrap
-  }
-
-  .selected-work>div:nth-child(2) {
-    min-width: calc(100% - 56px)
-  }
-
-  .selected-work>.btn {
-    width: 100%
-  }
-
   .member-list>div {
     grid-template-columns: 38px 1fr auto
   }
@@ -3101,14 +2557,6 @@ textarea {
     justify-self: start
   }
 
-  .week-calendar {
-    grid-template-columns: repeat(2, 1fr)
-  }
-
-  .week-calendar>div:last-child {
-    grid-column: 1/-1
-  }
-
   .token-banner {
     align-items: flex-start;
     flex-wrap: wrap
@@ -3116,22 +2564,6 @@ textarea {
 
   .token-banner>.badge {
     margin-left: 29px
-  }
-
-  .defense-meta {
-    align-items: stretch;
-    flex-direction: column
-  }
-
-  .defense-meta>span {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    padding: 0 0 10px
-  }
-
-  .defense-meta .btn {
-    margin-left: 0;
-    width: 100%
   }
 
   .public-header {
@@ -3269,14 +2701,6 @@ textarea {
     padding: 40px 18px
   }
 
-  .detail-preview .section-head>.btn {
-    width: 100%
-  }
-
-  .preview-grid {
-    grid-template-columns: 1fr
-  }
-
   footer {
     align-items: flex-start;
     flex-direction: column;
@@ -3334,7 +2758,7 @@ textarea {
   }
 }
 
-@media(max-width:360px) {
+@media (max-width:360px) {
   .sidebar {
     width: calc(100% - 28px)
   }
@@ -3364,13 +2788,8 @@ textarea {
     min-width: 28px
   }
 
-  .week-calendar,
   .swatches {
     grid-template-columns: 1fr
-  }
-
-  .week-calendar>div:last-child {
-    grid-column: auto
   }
 
   .brand-copy h1 {
@@ -3379,10 +2798,6 @@ textarea {
 }
 
 /* Workflow redesign */
-:root {
-  --danger: #9B1C31;
-  --danger-soft: #FFF1F3
-}
 
 .eyebrow,
 .course {
@@ -3469,10 +2884,6 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 20px
-}
-
-.wizard-card .section-head p.muted {
-  margin-top: 6px
 }
 
 .wizard-card .upload-zone {
@@ -3758,11 +3169,6 @@ textarea {
   text-align: left
 }
 
-.external-workspace {
-  min-height: 100vh;
-  background: var(--bg)
-}
-
 .external-header {
   height: 72px;
   padding: 0 32px;
@@ -3972,7 +3378,8 @@ textarea {
   gap: 18px
 }
 
-.drawer-head {
+.drawer-head,
+.course-card-head {
   display: flex;
   justify-content: space-between;
   align-items: center
@@ -4073,8 +3480,7 @@ textarea {
   width: 100%
 }
 
-@media(max-width:1100px) {
-
+@media (max-width:1100px) {
   .review-split,
   .schedule-layout,
   .evaluation-split {
@@ -4108,7 +3514,7 @@ textarea {
   }
 }
 
-@media(max-width:760px) {
+@media (max-width:760px) {
   .wizard-stepper {
     grid-template-columns: 1fr
   }
@@ -4211,8 +3617,7 @@ textarea {
   }
 }
 
-@media(max-width:480px) {
-
+@media (max-width:480px) {
   .review-pdf .pdf-page,
   .evaluation-reader .pdf-page {
     height: 350px
@@ -4250,9 +3655,6 @@ textarea {
 }
 
 /* Focused dashboards and administration */
-.dashboard-heading {
-  margin-bottom: 22px
-}
 
 .student-hero {
   padding: 28px;
@@ -4454,7 +3856,6 @@ textarea {
   font-variant-numeric: tabular-nums
 }
 
-.admin-filterbar,
 .course-controls {
   display: flex;
   gap: 10px;
@@ -4462,7 +3863,6 @@ textarea {
   margin-bottom: 18px
 }
 
-.admin-filterbar .top-search,
 .course-controls .top-search {
   max-width: none
 }
@@ -4781,12 +4181,6 @@ textarea {
   gap: 16px
 }
 
-.course-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center
-}
-
 .course-code {
   display: grid;
   place-items: center;
@@ -4913,6 +4307,7 @@ textarea {
 }
 
 /* Public repository hero */
+
 .repo-hero {
   min-height: 360px;
   padding: 0 48px;
@@ -4947,13 +4342,6 @@ textarea {
   color: var(--navy)
 }
 
-.repo-hero p.repo-hero-subtitle {
-  margin: 12px 0 28px;
-  color: var(--slate);
-  font-size: 16px;
-  line-height: 1.55
-}
-
 .repo-hero .hero-search {
   width: 100%;
   padding: 6px;
@@ -4962,7 +4350,7 @@ textarea {
   box-shadow: 0 8px 28px rgba(1, 25, 54, .12)
 }
 
-@media(max-width:767px) {
+@media (max-width:767px) {
   .repo-hero {
     min-height: 300px;
     padding: 28px 16px;
@@ -4988,17 +4376,12 @@ textarea {
     letter-spacing: -.7px
   }
 
-  .repo-hero p.repo-hero-subtitle {
-    margin: 12px 0 24px;
-    font-size: 15px
-  }
-
   .repo-hero .hero-search {
     text-align: left
   }
 }
 
-@media(max-width:480px) {
+@media (max-width:480px) {
   .repo-hero .hero-search {
     align-items: stretch;
     flex-wrap: wrap
@@ -5013,7 +4396,7 @@ textarea {
   }
 }
 
-@media(max-width:1200px) {
+@media (max-width:1200px) {
   .course-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr))
   }
@@ -5027,8 +4410,7 @@ textarea {
   }
 }
 
-@media(max-width:900px) {
-
+@media (max-width:900px) {
   .advisor-dashboard,
   .admin-dashboard {
     grid-template-columns: 1fr
@@ -5038,14 +4420,12 @@ textarea {
     grid-template-columns: 1fr 1fr
   }
 
-  .admin-filterbar,
   .course-controls,
   .user-filters {
     display: grid;
     grid-template-columns: 1fr 1fr
   }
 
-  .admin-filterbar .top-search,
   .course-controls .top-search,
   .user-filters .top-search {
     grid-column: 1/-1
@@ -5121,7 +4501,7 @@ textarea {
   }
 }
 
-@media(max-width:600px) {
+@media (max-width:600px) {
   .student-hero {
     padding: 18px
   }
@@ -5166,13 +4546,11 @@ textarea {
     grid-template-columns: 1fr
   }
 
-  .admin-filterbar,
   .course-controls,
   .user-filters {
     grid-template-columns: 1fr
   }
 
-  .admin-filterbar .btn,
   .course-controls .btn,
   .user-filters .btn {
     width: 100%
