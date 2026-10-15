@@ -26,7 +26,7 @@ export default function LoginView({ go }: { go: (p: Page) => void }) {
       </section>
       <section className="login-form-area">
         <div className="login-card">
-          <h2 className="login-access-title">ACESSO AO SISTEMA</h2>
+          <h2 className="login-access-title">Login institucional</h2>
           <Button onClick={() => go("dashboard")}>
             Entrar com conta institucional <Icon name="arrow" size={16} />
           </Button>
