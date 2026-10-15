@@ -247,7 +247,7 @@ export default function DefenseScheduling({
                     Convidar externo
                   </Button>
                 </div>
-                <div className="member-list committee-list">
+                <div className="member-list">
                   {committee.map((member) => (
                     <div key={`${member.name}-${member.role}`}>
                       <div className="avatar">{member.initials}</div>

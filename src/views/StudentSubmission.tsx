@@ -27,7 +27,7 @@ export default function StudentSubmission() {
   return (
     <div className="page-content">
       <PageTitle eyebrow="Minha monografia" title="Submissão de monografia" />
-      <div className="stepper wizard-stepper">
+      <div className="stepper">
         {[
           ["Metadados", "Dados acadêmicos"],
           ["PDF e integridade", "Arquivo principal"],
@@ -167,7 +167,7 @@ export default function StudentSubmission() {
           <Card>
             <p className="eyebrow">Etapa 3 de 3</p>
             <h2>Acompanhamento</h2>
-            <div className="timeline tracking-timeline">
+            <div className="timeline">
               {[
                 "Rascunho",
                 "Enviada ao orientador",

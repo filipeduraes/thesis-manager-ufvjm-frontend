@@ -124,9 +124,9 @@ export default function PublicRepository({
               </Button>
             </div>
           ) : (
-            <div className="work-list results-grid">
+            <div className="work-list">
               {repositoryWorks.map((w) => (
-                <article className="work-card thesis-card" key={w.title}>
+                <article className="work-card" key={w.title}>
                   <div className="work-year">
                     <strong>{w.year}</strong>
                     <span>Defesa</span>

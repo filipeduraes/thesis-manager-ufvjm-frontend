@@ -16,7 +16,7 @@ export default function StudentDashboard({ go }: Props) {
           </div>
           <Badge tone="active">Em avaliação</Badge>
         </div>
-        <div className="steps compact-steps">
+        <div className="steps">
           {["Rascunho", "Aprovação", "Banca", "Avaliação", "Publicada"].map(
             (label, index) => (
               <div className={`step ${index < 2 ? "done" : ""}`} key={label}>
