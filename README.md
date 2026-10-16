@@ -1,70 +1,84 @@
-# Getting Started with Create React App
+# Thesis Manager UFVJM Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend do sistema de gerenciamento de Trabalhos de Conclusão de Curso (TCC), desenvolvido com React.
 
-## Available Scripts
+## 1. Requisitos
 
-In the project directory, you can run:
+O projeto utiliza Node.js, npm e Git. As instruções abaixo consideram distribuições Linux baseadas em Ubuntu, como Ubuntu e Linux Mint.
 
-### `npm start`
+Para instalar todas as ferramentas necessárias, abra o terminal e execute:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```bash
+sudo apt update
+sudo apt install nodejs npm git
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 2. Clonar o repositório
 
-### `npm test`
+Clone o repositório e entre na pasta do projeto:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+git clone https://github.com/filipeduraes/thesis-manager-ufvjm-frontend.git
+cd thesis-manager-ufvjm-frontend
+```
 
-### `npm run build`
+Substitua `<URL_DO_REPOSITORIO>` pelo endereço do repositório Git.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## 3. Instalar as dependências
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Na raiz do projeto, execute:
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```bash
+npm install
+```
 
-### `npm run eject`
+Esse comando instala as dependências necessárias para executar e desenvolver a aplicação.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## 4. Configurar variáveis de ambiente
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Caso o projeto utilize variáveis de ambiente, crie um arquivo `.env` na raiz do frontend e configure as variáveis necessárias para a aplicação.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Mantenha credenciais e outros dados sensíveis privados. Não versione arquivos `.env` que contenham informações confidenciais.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 5. Executar o projeto
 
-## Learn More
+Para iniciar o servidor de desenvolvimento, execute:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+npm run dev
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Após a inicialização, o terminal exibirá o endereço local da aplicação. Acesse esse endereço pelo navegador.
 
-### Code Splitting
+Para interromper o servidor, pressione `Ctrl + C` no terminal.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 6. Gerar a versão de produção
 
-### Analyzing the Bundle Size
+Para compilar o projeto para produção, execute:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+```bash
+npm run build
+```
 
-### Making a Progressive Web App
+Para testar localmente a versão compilada, caso o projeto ofereça esse script, execute:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```bash
+npm run preview
+```
 
-### Advanced Configuration
+## 7. Desenvolvimento
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Para atualizar sua cópia local do repositório e instalar as dependências, execute:
 
-### Deployment
+```bash
+git pull
+npm install
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+Em seguida, inicie o servidor de desenvolvimento:
 
-### `npm run build` fails to minify
+```bash
+npm run dev
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Consulte a seção `scripts` do arquivo `package.json` para verificar os comandos disponíveis no projeto.
