@@ -8,6 +8,12 @@ interface ExternalEvaluationProps {
   goLogin: () => void
   goBack: () => void
   onSubmitted?: (defenseId?: string) => void
+  externalSession?: {
+    name: string
+    email: string
+    institution: string
+    expiresAt: string
+  } | null
 }
 
 export default function ExternalEvaluation({
@@ -16,6 +22,7 @@ export default function ExternalEvaluation({
   goLogin,
   goBack,
   onSubmitted,
+  externalSession,
 }: ExternalEvaluationProps) {
   // TODO: API Integration - GET /api/v1/external-evaluations/session
   // Response: { thesis: Thesis, tokenExpiresAt: string, evaluation?: Evaluation }
@@ -25,6 +32,37 @@ export default function ExternalEvaluation({
   )
   const isInternal = mode === "internal"
   const leaveEvaluation = isInternal ? goBack : goLogin
+  if (externalSession) {
+    return (
+      <main className="external-workspace">
+        <header className="external-header">
+          <Logo />
+          <span>Acesso temporário de banca</span>
+          <Button variant="ghost" icon="logout" onClick={goLogin}>
+            Encerrar sessão
+          </Button>
+        </header>
+        <div className="external-content">
+          <div className="institutional-banner session-banner">
+            <Icon name="lock" />
+            <div>
+              <strong>Sessão autenticada</strong>
+              <span>{externalSession.name} · {externalSession.email}</span>
+              {externalSession.institution && <span>{externalSession.institution}</span>}
+            </div>
+            <Badge tone="success">Ativa</Badge>
+          </div>
+          <Card className="evaluation-form">
+            <h1>Acesso de membro externo confirmado</h1>
+            <p>
+              A sessão expira em {new Date(externalSession.expiresAt).toLocaleString("pt-BR")}.
+              A API ainda não oferece consulta de defesa nem envio de avaliação, então esta tela não registra pareceres.
+            </p>
+          </Card>
+        </div>
+      </main>
+    )
+  }
   // TODO: API Integration - POST /api/v1/external-evaluations
   // Request: { grade, feedback, decision }; Response: { evaluationId, submittedAt }
   return (

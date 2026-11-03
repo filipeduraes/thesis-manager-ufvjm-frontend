@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AppShell } from "./components/layout"
+import { authApi, codeToProfile, type SessionPayload } from "./api/client"
 import type { Page, Profile } from "./types"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
@@ -28,77 +29,132 @@ const routeTitles: Partial<Record<Page, string>> = {
 }
 
 export default function App() {
-  // TODO: API Integration - GET /api/v1/session
-  // Response: { profile: Profile, permissions: string[] }
   const [page, setPage] = useState<Page>("login")
+  const [session, setSession] = useState<SessionPayload | null>(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [error, setError] = useState("")
   const [profile, setProfile] = useState<Profile>("Aluno")
   const [mobileMenu, setMobileMenu] = useState(false)
   const [reviewStudent, setReviewStudent] = useState<string>()
-  const [evaluationMode, setEvaluationMode] = useState<"external" | "internal">(
-    "external",
-  )
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
   const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
 
   const title = useMemo(() => routeTitles[page] ?? "", [page])
+  const availableProfiles = (session?.roles ?? []).map((role) =>
+    codeToProfile(role.code),
+  )
 
-  // TODO: API Integration - PATCH /api/v1/session/active-profile
-  // Request: { profile: Profile }; Response: { profile: Profile }
-  const changeProfile = (nextProfile: Profile) => {
-    setProfile(nextProfile)
-    setReviewStudent(undefined)
-
-    if (nextProfile === "Aluno" && page === "reports") {
-      setPage("dashboard")
+  const refreshSession = async () => {
+    const current = await authApi.getSession()
+    setSession(current)
+    if (current.authenticated) {
+      setProfile(codeToProfile(current.role))
+      setPage(current.authType === "external" ? "evaluation" : "dashboard")
+    } else {
+      setPage("login")
     }
+    return current
+  }
 
-    if (
-      nextProfile !== "Administrador" &&
-      ["users", "courses", "audit", "style"].includes(page)
-    ) {
-      setPage("dashboard")
+  useEffect(() => {
+    let mounted = true
+    const authError = new URLSearchParams(window.location.search).get("erro")
+    if (authError) setError("O acesso institucional não foi autorizado. Use sua conta Google Workspace da UFVJM.")
+    authApi
+      .getSession()
+      .then((current) => {
+        if (!mounted) return
+        setSession(current)
+        if (current.authenticated) {
+          setProfile(codeToProfile(current.role))
+          setPage(current.authType === "external" ? "evaluation" : "dashboard")
+        }
+      })
+      .catch((reason: unknown) => {
+        if (mounted) setError(reason instanceof Error ? reason.message : "Falha ao consultar a sessão.")
+      })
+      .finally(() => {
+        if (mounted) setSessionLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const beginGoogleLogin = async () => {
+    setLoginLoading(true)
+    setError("")
+    try {
+      await authApi.beginGoogleLogin()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível iniciar o login.")
+      setLoginLoading(false)
     }
   }
 
-  // TODO: API Integration - route transitions will consume server-provided
-  // authorization metadata from GET /api/v1/session.
+  const exchangeToken = async (token: string) => {
+    await authApi.exchangeExternalToken(token)
+    const current = await refreshSession()
+    if (!current.authenticated) throw new Error("Não foi possível iniciar a sessão externa.")
+  }
+
+  const logout = async () => {
+    try {
+      await authApi.logout()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível encerrar a sessão no servidor.")
+    } finally {
+      setSession(null)
+      setPage("login")
+      setProfile("Aluno")
+    }
+  }
+
+  const changeProfile = async (nextProfile: Profile) => {
+    try {
+      await authApi.setActiveProfile(nextProfile)
+      setProfile(nextProfile)
+      setReviewStudent(undefined)
+      if (nextProfile === "Aluno" && page === "reports") setPage("dashboard")
+      if (nextProfile !== "Administrador" && ["users", "courses", "audit", "style"].includes(page)) {
+        setPage("dashboard")
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível trocar o perfil.")
+    }
+  }
+
   const navigate = (nextPage: Page) => {
     setReviewStudent(undefined)
     setPage(nextPage)
-  }
-
-  if (page === "login") {
-    return (
-      <LoginView
-        go={(nextPage) => {
-          if (nextPage === "evaluation") {
-            setEvaluationMode("external")
-            setEvaluationDefense(undefined)
-          }
-          setPage(nextPage)
-        }}
-      />
-    )
   }
 
   if (page === "repository") {
     return <PublicRepository go={setPage} />
   }
 
-  if (page === "evaluation") {
+  if (sessionLoading) return <main className="login-page" aria-live="polite">Carregando sessão…</main>
+
+  if (!session?.authenticated || !session.user) {
+    return (
+      <LoginView
+        go={setPage}
+        loginGoogle={beginGoogleLogin}
+        exchangeToken={exchangeToken}
+        loading={loginLoading}
+        error={error}
+      />
+    )
+  }
+
+  if (session.authType === "external") {
     return (
       <ExternalEvaluation
-        mode={evaluationMode}
-        defenseId={evaluationDefense}
-        goLogin={() => setPage("login")}
-        goBack={() => setPage("schedule")}
-        onSubmitted={(defenseId) => {
-          if (defenseId) {
-            setEvaluatedDefenses((current) =>
-              current.includes(defenseId) ? current : [...current, defenseId],
-            )
-          }
-        }}
+        mode="external"
+        goLogin={() => void logout()}
+        goBack={() => void logout()}
+        externalSession={session.externalInvitation}
       />
     )
   }
@@ -107,13 +163,17 @@ export default function App() {
     <AppShell
       page={page}
       profile={profile}
+      profiles={availableProfiles.length ? availableProfiles : [profile]}
       title={title}
       menuOpen={mobileMenu}
       navigate={navigate}
-      logout={() => setPage("login")}
-      setProfile={changeProfile}
+      logout={() => void logout()}
+      setProfile={(nextProfile) => void changeProfile(nextProfile)}
       setMenuOpen={setMobileMenu}
+      userName={session.user.name}
+      userInitials={session.user.initials}
     >
+      {error && <div className="success-notice" role="alert">{error}</div>}
       {page === "dashboard" && (
         <DashboardView
           profile={profile}
@@ -125,17 +185,25 @@ export default function App() {
         />
       )}
       {page === "submission" && <StudentSubmission />}
-      {page === "approval" && (
-        <AdvisorApproval initialStudent={reviewStudent} />
-      )}
+      {page === "approval" && <AdvisorApproval initialStudent={reviewStudent} />}
       {page === "schedule" && (
         <DefenseScheduling
           canEvaluate={profile === "Orientador" || profile === "Coordenador"}
           evaluatedDefenseIds={evaluatedDefenses}
           onEvaluate={(defenseId) => {
-            setEvaluationMode("internal")
             setEvaluationDefense(defenseId)
             setPage("evaluation")
+          }}
+        />
+      )}
+      {page === "evaluation" && (
+        <ExternalEvaluation
+          mode="internal"
+          defenseId={evaluationDefense}
+          goLogin={() => void logout()}
+          goBack={() => setPage("schedule")}
+          onSubmitted={(defenseId) => {
+            if (defenseId) setEvaluatedDefenses((current) => current.includes(defenseId) ? current : [...current, defenseId])
           }}
         />
       )}

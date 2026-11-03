@@ -6,6 +6,9 @@ interface AppShellProps {
   children: ReactNode
   page: Page
   profile: Profile
+  profiles: Profile[]
+  userName: string
+  userInitials: string
   title: string
   menuOpen: boolean
   navigate: (page: Page) => void
@@ -17,6 +20,9 @@ export default function AppShell({
   children,
   page,
   profile,
+  profiles,
+  userName,
+  userInitials,
   title,
   menuOpen,
   navigate,
@@ -28,6 +34,8 @@ export default function AppShell({
     <div className="app-shell">
       <Sidebar
         profile={profile}
+        userName={userName}
+        userInitials={userInitials}
         page={page}
         go={navigate}
         logout={logout}
@@ -44,6 +52,7 @@ export default function AppShell({
       <div className="app-main">
         <Topbar
           profile={profile}
+          profiles={profiles}
           setProfile={setProfile}
           openMenu={() => setMenuOpen(true)}
         />

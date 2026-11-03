@@ -1,7 +1,38 @@
+import { useState } from "react"
 import type { Page } from "../types"
 import { Button, Icon, Logo } from "../components/common"
 
-export default function LoginView({ go }: { go: (p: Page) => void }) {
+interface LoginViewProps {
+  go: (page: Page) => void
+  loginGoogle: () => Promise<void>
+  exchangeToken: (token: string) => Promise<void>
+  loading: boolean
+  error: string
+}
+
+export default function LoginView({
+  go,
+  loginGoogle,
+  exchangeToken,
+  loading,
+  error,
+}: LoginViewProps) {
+  const [token, setToken] = useState("")
+  const [working, setWorking] = useState(false)
+  const [localError, setLocalError] = useState("")
+
+  const submitToken = async () => {
+    setWorking(true)
+    setLocalError("")
+    try {
+      await exchangeToken(token)
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : "Token inválido.")
+    } finally {
+      setWorking(false)
+    }
+  }
+
   return (
     <main className="login-page">
       <section className="login-brand">
@@ -27,9 +58,10 @@ export default function LoginView({ go }: { go: (p: Page) => void }) {
       <section className="login-form-area">
         <div className="login-card">
           <h2 className="login-access-title">Login institucional</h2>
-          <Button onClick={() => go("dashboard")}>
-            Entrar com conta institucional <Icon name="arrow" size={16} />
+          <Button disabled={loading} onClick={loginGoogle}>
+            {loading ? "Conectando…" : "Entrar com conta institucional"} <Icon name="arrow" size={16} />
           </Button>
+          {(error || localError) && <p role="alert">{error || localError}</p>}
           <div className="divider">
             <span>ou</span>
           </div>
@@ -39,9 +71,18 @@ export default function LoginView({ go }: { go: (p: Page) => void }) {
               <p>Use o token temporário enviado por e-mail.</p>
             </div>
             <div className="token-row">
-              <input placeholder="Ex.: UFVJM-8H4K-22" />
-              <Button variant="secondary" onClick={() => go("evaluation")}>
-                Acessar com token
+              <input
+                value={token}
+                onChange={(event) => setToken(event.target.value.toUpperCase())}
+                placeholder="Ex.: UFVJM-ABCD-EFGH-IJKL-MNPQ"
+                autoComplete="one-time-code"
+              />
+              <Button
+                variant="secondary"
+                disabled={!token.trim() || working}
+                onClick={submitToken}
+              >
+                {working ? "Validando…" : "Acessar com token"}
               </Button>
             </div>
           </div>

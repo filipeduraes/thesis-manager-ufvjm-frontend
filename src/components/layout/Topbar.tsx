@@ -1,12 +1,12 @@
-import { profiles } from "../../data/navigation"
 import type { Profile } from "../../types"
 import { Icon } from "../../components/common"
 interface TopbarProps {
   profile: Profile
+  profiles: Profile[]
   setProfile: (profile: Profile) => void
   openMenu: () => void
 }
-export default function Topbar({ profile, setProfile, openMenu }: TopbarProps) {
+export default function Topbar({ profile, profiles, setProfile, openMenu }: TopbarProps) {
   return (
     <header className="topbar">
       <button

@@ -4,6 +4,8 @@ import { Icon, Logo } from "../../components/common"
 
 interface SidebarProps {
   profile: Profile
+  userName: string
+  userInitials: string
   page: Page
   go: (page: Page) => void
   logout: () => void
@@ -12,6 +14,8 @@ interface SidebarProps {
 }
 export default function Sidebar({
   profile,
+  userName,
+  userInitials,
   page,
   go,
   logout,
@@ -34,9 +38,9 @@ export default function Sidebar({
         </button>
       </div>
       <div className="profile-pill">
-        <div className="avatar">AM</div>
+        <div className="avatar">{userInitials}</div>
         <div>
-          <strong>Ana Martins</strong>
+          <strong>{userName}</strong>
           <span>{profile}</span>
         </div>
       </div>

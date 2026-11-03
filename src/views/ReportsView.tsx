@@ -1,8 +1,6 @@
 import {
-  Badge,
   Button,
   Card,
-  Icon,
   Kpi,
   PageTitle,
   SelectField,

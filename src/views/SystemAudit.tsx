@@ -1,16 +1,42 @@
-import { auditEvents } from "../data/mockData"
+import { useCallback, useEffect, useState } from "react"
+import { adminApi, type AuditRecord } from "../api/client"
 import {
   Badge,
   Button,
   Card,
   Icon,
   PageTitle,
-  Pagination,
 } from "../components/common"
 
 export default function SystemAudit() {
-  // TODO: API Integration - GET /api/v1/admin/audit-logs
-  // Query: { from, to, role, category, q }; Response: { logs: AuditLog[], total }
+  const [events, setEvents] = useState<AuditRecord[]>([])
+  const [from, setFrom] = useState("")
+  const [to, setTo] = useState("")
+  const [role, setRole] = useState("")
+  const [query, setQuery] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const loadEvents = useCallback(async () => {
+    setLoading(true)
+    setError("")
+    try {
+      const params = new URLSearchParams()
+      if (from) params.set("from", from)
+      if (to) params.set("to", to)
+      if (role) params.set("role", role)
+      if (query) params.set("q", query)
+      const suffix = params.size ? `?${params.toString()}` : ""
+      const response = await adminApi.auditLogs(suffix)
+      setEvents(response.results)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível carregar a auditoria.")
+    } finally {
+      setLoading(false)
+    }
+  }, [from, to, role, query])
+
+  useEffect(() => { void loadEvents() }, [loadEvents])
   return (
     <div className="page-content">
       <PageTitle
@@ -25,43 +51,33 @@ export default function SystemAudit() {
       <Card className="audit-filters">
         <label className="field">
           <span>Período inicial</span>
-          <input type="date" defaultValue="2025-06-01" />
+          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
         </label>
         <label className="field">
           <span>Período final</span>
-          <input type="date" defaultValue="2025-06-17" />
+          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
         </label>
         <label className="field">
           <span>Perfil</span>
-          <select>
-            <option>Todos os perfis</option>
-            <option>Aluno</option>
-            <option>Orientador</option>
-            <option>Coordenador</option>
-            <option>Administrador</option>
-            <option>Sistema</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>Categoria</span>
-          <select>
-            <option>Todas as ações</option>
-            <option>Submissão</option>
-            <option>Aprovação</option>
-            <option>Agendamento</option>
-            <option>Avaliação</option>
-            <option>Acesso e perfil</option>
+          <select value={role} onChange={(event) => setRole(event.target.value)}>
+            <option value="">Todos os perfis</option>
+            <option value="STUDENT">Aluno</option>
+            <option value="ADVISOR">Orientador</option>
+            <option value="COORDINATOR">Coordenador</option>
+            <option value="ADMIN">Administrador</option>
+            <option value="Sistema">Sistema</option>
           </select>
         </label>
         <div className="field audit-search">
           <span>Palavra-chave</span>
           <div className="input-wrap">
             <Icon name="search" />
-            <input placeholder="Usuário, entidade ou ação" />
+            <input placeholder="Usuário, entidade ou ação" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
         </div>
-        <Button>Aplicar filtros</Button>
+        <Button onClick={() => void loadEvents()}>Aplicar filtros</Button>
       </Card>
+      {error && <div className="success-notice" role="alert">{error}</div>}
       <Card className="audit-card">
         <div className="section-head">
           <div>
@@ -78,13 +94,13 @@ export default function SystemAudit() {
             <span>Origem</span>
             <span>Hash</span>
           </div>
-          {auditEvents.map((event) => (
+          {loading ? <p>Carregando eventos…</p> : events.map((event) => (
             <div
               className="admin-row"
-              key={`${event.timestamp}-${event.action}`}
+              key={event.id}
             >
               <span data-label="Data e hora">
-                <strong>{event.timestamp}</strong>
+                <strong>{new Date(event.timestamp).toLocaleString("pt-BR")}</strong>
               </span>
               <span data-label="Ator">
                 <strong>{event.actor}</strong>
@@ -106,7 +122,7 @@ export default function SystemAudit() {
             </div>
           ))}
         </div>
-        <Pagination />
+        {events.length === 0 && !loading && <p>Nenhum evento encontrado.</p>}
       </Card>
     </div>
   )

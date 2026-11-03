@@ -36,7 +36,7 @@ Esse comando instala as dependências necessárias para executar e desenvolver a
 
 ## 4. Configurar variáveis de ambiente
 
-Caso o projeto utilize variáveis de ambiente, crie um arquivo `.env` na raiz do frontend e configure as variáveis necessárias para a aplicação.
+Copie `.env.example` para `.env` e configure `REACT_APP_API_BASE_URL` com a origem do backend, sem `/api/v1` no final. O frontend envia cookies com `credentials: include`; configure no backend CORS e CSRF para a origem do frontend.
 
 Mantenha credenciais e outros dados sensíveis privados. Não versione arquivos `.env` que contenham informações confidenciais.
 
