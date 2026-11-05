@@ -6,7 +6,15 @@ interface TopbarProps {
   setProfile: (profile: Profile) => void
   openMenu: () => void
 }
-export default function Topbar({ profile, profiles, setProfile, openMenu }: TopbarProps) {
+import type { Profile } from "../../types"
+import { Icon } from "../../components/common"
+
+interface TopbarProps {
+  profile: Profile
+  openMenu: () => void
+}
+
+export default function Topbar({ profile, openMenu }: TopbarProps) {
   return (
     <header className="topbar">
       <button
@@ -16,6 +24,7 @@ export default function Topbar({ profile, profiles, setProfile, openMenu }: Topb
       >
         <Icon name="menu" />
       </button>
+
       {profile !== "Aluno" && (
         <div className="top-search">
           <Icon name="search" />
@@ -23,17 +32,6 @@ export default function Topbar({ profile, profiles, setProfile, openMenu }: Topb
           <kbd>⌘ K</kbd>
         </div>
       )}
-      <div className="profile-switch">
-        <span>Visualizar como</span>
-        <select
-          value={profile}
-          onChange={(event) => setProfile(event.target.value as Profile)}
-        >
-          {profiles.map((item) => (
-            <option key={item}>{item}</option>
-          ))}
-        </select>
-      </div>
     </header>
   )
 }

@@ -52,8 +52,6 @@ export default function AppShell({
       <div className="app-main">
         <Topbar
           profile={profile}
-          profiles={profiles}
-          setProfile={setProfile}
           openMenu={() => setMenuOpen(true)}
         />
         <div className="mobile-title">{title}</div>
