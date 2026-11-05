@@ -1,11 +1,4 @@
-import type { Profile } from "../../types"
-import { Icon } from "../../components/common"
-interface TopbarProps {
-  profile: Profile
-  profiles: Profile[]
-  setProfile: (profile: Profile) => void
-  openMenu: () => void
-}
+
 import type { Profile } from "../../types"
 import { Icon } from "../../components/common"
 
