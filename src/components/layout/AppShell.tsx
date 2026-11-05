@@ -20,14 +20,12 @@ export default function AppShell({
   children,
   page,
   profile,
-  profiles,
   userName,
   userInitials,
   title,
   menuOpen,
   navigate,
   logout,
-  setProfile,
   setMenuOpen,
 }: AppShellProps) {
   return (
