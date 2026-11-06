@@ -11,7 +11,10 @@ export class ApiError extends Error {
   }
 }
 
+let sessionCsrfToken = ""
+
 function csrfToken(): string {
+  if (sessionCsrfToken) return sessionCsrfToken
   const cookie = document.cookie
     .split(";")
     .map((part) => part.trim())
@@ -54,6 +57,7 @@ export interface SessionUser {
   roleCode: string | null
   profile: string
   initials: string
+  avatarUrl: string | null
 }
 
 export interface SessionPayload {
@@ -64,6 +68,7 @@ export interface SessionPayload {
   profile: string | null
   roles: Array<{ code: string; label: string }>
   permissions: string[]
+  csrfToken: string
   externalInvitation: {
     id: string
     name: string
@@ -74,7 +79,11 @@ export interface SessionPayload {
 }
 
 export const authApi = {
-  getSession: () => apiRequest<SessionPayload>("/session"),
+  async getSession(): Promise<SessionPayload> {
+    const session = await apiRequest<SessionPayload>("/session")
+    sessionCsrfToken = session.csrfToken ?? ""
+    return session
+  },
   async beginGoogleLogin(): Promise<void> {
     const { url } = await apiRequest<{ url: string }>("/auth/google/start")
     window.location.assign(url)
@@ -85,11 +94,6 @@ export const authApi = {
       body: JSON.stringify({ token }),
     }),
   logout: () => apiRequest<void>("/session", { method: "DELETE" }),
-  setActiveProfile: (profile: Profile) =>
-    apiRequest<{ role: string; profile: string }>("/session/active-profile", {
-      method: "PATCH",
-      body: JSON.stringify({ role: profileToCode[profile] }),
-    }),
 }
 
 export const profileToCode: Record<Profile, string> = {

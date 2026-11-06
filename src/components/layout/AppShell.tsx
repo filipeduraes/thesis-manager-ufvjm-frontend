@@ -6,14 +6,13 @@ interface AppShellProps {
   children: ReactNode
   page: Page
   profile: Profile
-  profiles: Profile[]
   userName: string
   userInitials: string
+  userAvatarUrl: string | null
   title: string
   menuOpen: boolean
   navigate: (page: Page) => void
   logout: () => void
-  setProfile: (profile: Profile) => void
   setMenuOpen: (open: boolean) => void
 }
 export default function AppShell({
@@ -22,6 +21,7 @@ export default function AppShell({
   profile,
   userName,
   userInitials,
+  userAvatarUrl,
   title,
   menuOpen,
   navigate,
@@ -34,6 +34,7 @@ export default function AppShell({
         profile={profile}
         userName={userName}
         userInitials={userInitials}
+        userAvatarUrl={userAvatarUrl}
         page={page}
         go={navigate}
         logout={logout}

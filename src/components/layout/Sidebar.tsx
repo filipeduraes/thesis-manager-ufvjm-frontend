@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { menuByProfile } from "../../data/navigation"
 import type { Page, Profile } from "../../types"
 import { Icon, Logo } from "../../components/common"
@@ -6,16 +7,42 @@ interface SidebarProps {
   profile: Profile
   userName: string
   userInitials: string
+  userAvatarUrl: string | null
   page: Page
   go: (page: Page) => void
   logout: () => void
   open: boolean
   close: () => void
 }
+
+function UserAvatar({ url, initials }: { url: string | null; initials: string }) {
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setFailed(false)
+  }, [url])
+
+  return (
+    <div className="avatar">
+      {url && !failed ? (
+        <img
+          src={url}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        initials
+      )}
+    </div>
+  )
+}
+
 export default function Sidebar({
   profile,
   userName,
   userInitials,
+  userAvatarUrl,
   page,
   go,
   logout,
@@ -38,7 +65,7 @@ export default function Sidebar({
         </button>
       </div>
       <div className="profile-pill">
-        <div className="avatar">{userInitials}</div>
+        <UserAvatar url={userAvatarUrl} initials={userInitials} />
         <div>
           <strong>{userName}</strong>
           <span>{profile}</span>

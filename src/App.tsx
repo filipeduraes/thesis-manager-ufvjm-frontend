@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { AppShell } from "./components/layout"
 import { authApi, codeToProfile, type SessionPayload } from "./api/client"
-import type { Page, Profile } from "./types"
+import { menuByProfile } from "./data/navigation"
+import type { Page } from "./types"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
 import AdvisorApproval from "./views/AdvisorApproval"
@@ -34,22 +35,28 @@ export default function App() {
   const [sessionLoading, setSessionLoading] = useState(true)
   const [loginLoading, setLoginLoading] = useState(false)
   const [error, setError] = useState("")
-  const [profile, setProfile] = useState<Profile>("Aluno")
   const [mobileMenu, setMobileMenu] = useState(false)
   const [reviewStudent, setReviewStudent] = useState<string>()
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
   const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
 
-  const title = useMemo(() => routeTitles[page] ?? "", [page])
-  const availableProfiles = (session?.roles ?? []).map((role) =>
-    codeToProfile(role.code),
-  )
+  const profile = codeToProfile(session?.role)
+  const allowedPages = useMemo(() => {
+    const pages = new Set<Page>(menuByProfile[profile].map((item) => item.page))
+    if (profile === "Orientador" || profile === "Coordenador") {
+      pages.add("evaluation")
+    }
+    return pages
+  }, [profile])
+  const title = useMemo(() => {
+    const menuItem = menuByProfile[profile].find((item) => item.page === page)
+    return menuItem?.label ?? routeTitles[page] ?? ""
+  }, [page, profile])
 
   const refreshSession = async () => {
     const current = await authApi.getSession()
     setSession(current)
     if (current.authenticated) {
-      setProfile(codeToProfile(current.role))
       setPage(current.authType === "external" ? "evaluation" : "dashboard")
     } else {
       setPage("login")
@@ -67,7 +74,6 @@ export default function App() {
         if (!mounted) return
         setSession(current)
         if (current.authenticated) {
-          setProfile(codeToProfile(current.role))
           setPage(current.authType === "external" ? "evaluation" : "dashboard")
         }
       })
@@ -81,6 +87,11 @@ export default function App() {
       mounted = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!session?.authenticated || session.authType === "external") return
+    if (!allowedPages.has(page)) setPage("dashboard")
+  }, [allowedPages, page, session?.authenticated, session?.authType])
 
   const beginGoogleLogin = async () => {
     setLoginLoading(true)
@@ -107,27 +118,12 @@ export default function App() {
     } finally {
       setSession(null)
       setPage("login")
-      setProfile("Aluno")
-    }
-  }
-
-  const changeProfile = async (nextProfile: Profile) => {
-    try {
-      await authApi.setActiveProfile(nextProfile)
-      setProfile(nextProfile)
-      setReviewStudent(undefined)
-      if (nextProfile === "Aluno" && page === "reports") setPage("dashboard")
-      if (nextProfile !== "Administrador" && ["users", "courses", "audit", "style"].includes(page)) {
-        setPage("dashboard")
-      }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível trocar o perfil.")
     }
   }
 
   const navigate = (nextPage: Page) => {
     setReviewStudent(undefined)
-    setPage(nextPage)
+    setPage(allowedPages.has(nextPage) ? nextPage : "dashboard")
   }
 
   if (page === "repository") {
@@ -163,15 +159,14 @@ export default function App() {
     <AppShell
       page={page}
       profile={profile}
-      profiles={availableProfiles.length ? availableProfiles : [profile]}
       title={title}
       menuOpen={mobileMenu}
       navigate={navigate}
       logout={() => void logout()}
-      setProfile={(nextProfile) => void changeProfile(nextProfile)}
       setMenuOpen={setMobileMenu}
       userName={session.user.name}
       userInitials={session.user.initials}
+      userAvatarUrl={session.user.avatarUrl}
     >
       {error && <div className="success-notice" role="alert">{error}</div>}
       {page === "dashboard" && (
@@ -180,7 +175,7 @@ export default function App() {
           go={navigate}
           review={(student) => {
             setReviewStudent(student)
-            setPage("approval")
+            navigate("approval")
           }}
         />
       )}
@@ -192,7 +187,7 @@ export default function App() {
           evaluatedDefenseIds={evaluatedDefenses}
           onEvaluate={(defenseId) => {
             setEvaluationDefense(defenseId)
-            setPage("evaluation")
+            navigate("evaluation")
           }}
         />
       )}
@@ -201,7 +196,7 @@ export default function App() {
           mode="internal"
           defenseId={evaluationDefense}
           goLogin={() => void logout()}
-          goBack={() => setPage("schedule")}
+          goBack={() => navigate("schedule")}
           onSubmitted={(defenseId) => {
             if (defenseId) setEvaluatedDefenses((current) => current.includes(defenseId) ? current : [...current, defenseId])
           }}
