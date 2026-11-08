@@ -5,8 +5,63 @@ import {
   Button,
   Card,
   Icon,
+  Modal,
   PageTitle,
 } from "../components/common"
+
+const ENTITY_LABELS: Record<string, string> = {
+  User: "Usuário",
+  Course: "Curso",
+  Department: "Departamento",
+  UserCourseAssignment: "Vínculo de curso",
+  ExternalInvitation: "Convite externo",
+  SessionAudit: "Sessão",
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Administrador",
+  COORDINATOR: "Coordenador",
+  ADVISOR: "Orientador",
+  STUDENT: "Aluno",
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  roles: "Perfis",
+  role: "Perfil",
+  course: "Curso",
+  courseId: "Curso",
+  is_active: "Status",
+  status: "Status",
+  name: "Nome",
+  email: "E-mail",
+  userName: "Usuário",
+  userEmail: "E-mail do usuário",
+  code: "Código",
+  department: "Departamento",
+  departmentName: "Departamento",
+  coordinatorEmail: "Coordenador",
+  coordinator_email: "Coordenador",
+  institution: "Instituição",
+}
+
+function entityLabel(type: string): string {
+  return ENTITY_LABELS[type] ?? type
+}
+
+function formatScalar(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—"
+  if (typeof value === "boolean") return value ? "Ativo/Sim" : "Inativo/Não"
+  if (Array.isArray(value)) return value.map((item) => ROLE_LABELS[String(item)] ?? formatScalar(item)).join(", ")
+  if (typeof value === "object") return JSON.stringify(value, null, 2)
+  return String(value)
+}
+
+function formatTransition(value: { from?: unknown; to?: unknown }): { before: string; after: string } {
+  return {
+    before: formatScalar(value.from),
+    after: formatScalar(value.to),
+  }
+}
 
 export default function SystemAudit() {
   const [events, setEvents] = useState<AuditRecord[]>([])
@@ -15,36 +70,63 @@ export default function SystemAudit() {
   const [role, setRole] = useState("")
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState("")
+  const [selected, setSelected] = useState<AuditRecord | null>(null)
+
+  const buildQuery = useCallback(() => {
+    const params = new URLSearchParams()
+    if (from) params.set("from", from)
+    if (to) params.set("to", to)
+    if (role) params.set("role", role)
+    if (query) params.set("q", query)
+    return params.size ? `?${params.toString()}` : ""
+  }, [from, query, role, to])
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
     setError("")
     try {
-      const params = new URLSearchParams()
-      if (from) params.set("from", from)
-      if (to) params.set("to", to)
-      if (role) params.set("role", role)
-      if (query) params.set("q", query)
-      const suffix = params.size ? `?${params.toString()}` : ""
-      const response = await adminApi.auditLogs(suffix)
+      const response = await adminApi.auditLogs(buildQuery())
       setEvents(response.results)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar a auditoria.")
     } finally {
       setLoading(false)
     }
-  }, [from, to, role, query])
+  }, [buildQuery])
 
   useEffect(() => { void loadEvents() }, [loadEvents])
+
+  const exportLogs = async () => {
+    setExporting(true)
+    setError("")
+    try {
+      await adminApi.exportAuditLogs(buildQuery())
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível exportar o log.")
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const changeEntries = (record: AuditRecord | null) => {
+    if (!record) return []
+    return Object.entries(record.changes ?? {}).map(([key, value]) => ({
+      key,
+      label: FIELD_LABELS[key] ?? key,
+      value,
+    }))
+  }
+
   return (
     <div className="page-content">
       <PageTitle
         eyebrow="Segurança e operações"
         title="Auditoria do sistema"
         action={
-          <Button variant="secondary" icon="download">
-            Exportar log
+          <Button variant="secondary" icon="download" onClick={() => void exportLogs()} disabled={exporting}>
+            {exporting ? "Exportando…" : "Exportar log"}
           </Button>
         }
       />
@@ -91,13 +173,24 @@ export default function SystemAudit() {
             <span>Ator</span>
             <span>Ação</span>
             <span>Entidade</span>
-            <span>Origem</span>
+            <span>Origem da rede</span>
             <span>Hash</span>
           </div>
           {loading ? <p>Carregando eventos…</p> : events.map((event) => (
             <div
               className="admin-row"
               key={event.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelected(event)}
+              onKeyDown={(keyboardEvent) => {
+                if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+                  keyboardEvent.preventDefault()
+                  setSelected(event)
+                }
+              }}
+              style={{ cursor: "pointer" }}
+              title="Clique para ver detalhes"
             >
               <span data-label="Data e hora">
                 <strong>{new Date(event.timestamp).toLocaleString("pt-BR")}</strong>
@@ -106,11 +199,12 @@ export default function SystemAudit() {
                 <strong>{event.actor}</strong>
                 <small>{event.role}</small>
               </span>
-              <span data-label="Ação">{event.action}</span>
+              <span data-label="Ação">{event.summary ?? event.action}</span>
               <span data-label="Entidade">
-                <code>{event.entityId}</code>
+                <strong>{entityLabel(event.entityType)}</strong>
+                <small><code>{event.entityId}</code></small>
               </span>
-              <span data-label="Origem">
+              <span data-label="Origem da rede">
                 <Badge tone="light">
                   <Icon name="lock" size={11} />
                   {event.origin}
@@ -124,6 +218,66 @@ export default function SystemAudit() {
         </div>
         {events.length === 0 && !loading && <p>Nenhum evento encontrado.</p>}
       </Card>
+
+      {selected && (
+        <Modal className="admin-modal">
+          <div className="section-head">
+            <div>
+              <p className="eyebrow">Detalhes da auditoria</p>
+              <h2>{selected.summary ?? selected.action}</h2>
+            </div>
+            <button className="icon-btn" onClick={() => setSelected(null)} aria-label="Fechar">
+              <Icon name="close" />
+            </button>
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div><strong>Data e hora:</strong> {new Date(selected.timestamp).toLocaleString("pt-BR")}</div>
+            <div><strong>Ator:</strong> {selected.actor} ({selected.role})</div>
+            <div><strong>Canal:</strong> {selected.channel ?? "—"}</div>
+            <div><strong>Ação:</strong> {selected.actionLabel ?? selected.actionCode ?? selected.action}</div>
+            <div><strong>Entidade:</strong> {entityLabel(selected.entityType)} <code>{selected.entityId}</code></div>
+            <div><strong>Origem da rede:</strong> {selected.origin}{selected.ipAddress ? ` · IP ${selected.ipAddress}` : ""}</div>
+            <div><strong>Hash:</strong> <code>{selected.hash}</code></div>
+            <div>
+              <strong>Antes e depois / alterações</strong>
+              {changeEntries(selected).length > 0 || Object.keys(selected.metadata ?? {}).length > 0 ? (
+                <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                  {changeEntries(selected).map((entry) => {
+                    const value = entry.value
+                    if (value && typeof value === "object" && !Array.isArray(value) && "from" in (value as Record<string, unknown>) && "to" in (value as Record<string, unknown>)) {
+                      const transition = formatTransition(value as { from?: unknown; to?: unknown })
+                      return (
+                        <div key={entry.key} style={{ display: "grid", gap: 4, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                          <span style={{ fontSize: 12, opacity: 0.8 }}>{entry.label}</span>
+                          <div><strong>Antes:</strong> {transition.before}</div>
+                          <div><strong>Depois:</strong> {transition.after}</div>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={entry.key} style={{ display: "grid", gap: 2, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                        <span style={{ fontSize: 12, opacity: 0.8 }}>{entry.label}</span>
+                        <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{formatScalar(value)}</code>
+                      </div>
+                    )
+                  })}
+                  {Object.entries(selected.metadata ?? {}).map(([key, value]) => (
+                    <div key={`meta-${key}`} style={{ display: "grid", gap: 2, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                      <span style={{ fontSize: 12, opacity: 0.8 }}>{FIELD_LABELS[key] ?? `Metadado: ${key}`}</span>
+                      <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{formatScalar(value)}</code>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ marginTop: 8 }}>Nenhum detalhe adicional registrado para este evento.</p>
+              )}
+            </div>
+          </div>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={() => setSelected(null)}>Fechar</Button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

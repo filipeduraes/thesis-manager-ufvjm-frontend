@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { AppShell } from "./components/layout"
 import { authApi, codeToProfile, type SessionPayload } from "./api/client"
-import { menuByProfile } from "./data/navigation"
+import { menuByProfile, menuForProfiles, profilesFromCodes } from "./data/navigation"
 import type { Page } from "./types"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
@@ -40,18 +40,32 @@ export default function App() {
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
   const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
 
-  const profile = codeToProfile(session?.role)
+  const roleCodes = session?.user?.roles?.map((role) => role.code) ?? []
+  const activeProfiles = useMemo(() => {
+    const fromRoles = profilesFromCodes(roleCodes)
+    if (fromRoles.length > 0) return fromRoles
+    return [codeToProfile(session?.user?.roleCode)]
+  }, [roleCodes.join("|"), session?.user?.roleCode])
+  const profile = activeProfiles[0] ?? "Aluno"
+  const profileLabel = activeProfiles.join(", ") || session?.user?.roleLabel || "Aluno"
+  const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles.join("|")])
+  const showSearch = activeProfiles.some((item) => item !== "Aluno")
+  const canEvaluate = activeProfiles.includes("Orientador") || activeProfiles.includes("Coordenador")
+
   const allowedPages = useMemo(() => {
-    const pages = new Set<Page>(menuByProfile[profile].map((item) => item.page))
-    if (profile === "Orientador" || profile === "Coordenador") {
-      pages.add("evaluation")
+    const pages = new Set<Page>()
+    for (const item of menuItems) pages.add(item.page)
+    for (const activeProfile of activeProfiles) {
+      for (const item of menuByProfile[activeProfile] ?? []) pages.add(item.page)
     }
+    if (canEvaluate) pages.add("evaluation")
     return pages
-  }, [profile])
+  }, [activeProfiles.join("|"), canEvaluate, menuItems])
+
   const title = useMemo(() => {
-    const menuItem = menuByProfile[profile].find((item) => item.page === page)
+    const menuItem = menuItems.find((item) => item.page === page)
     return menuItem?.label ?? routeTitles[page] ?? ""
-  }, [page, profile])
+  }, [menuItems, page])
 
   const refreshSession = async () => {
     const current = await authApi.getSession()
@@ -66,8 +80,15 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true
-    const authError = new URLSearchParams(window.location.search).get("erro")
-    if (authError) setError("O acesso institucional não foi autorizado. Use sua conta Google Workspace da UFVJM.")
+    const params = new URLSearchParams(window.location.search)
+    const authError = params.get("erro")
+    if (authError) {
+      setError("O acesso institucional não foi autorizado. Use sua conta Google Workspace da UFVJM.")
+      params.delete("erro")
+      const nextSearch = params.toString()
+      const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`
+      window.history.replaceState({}, "", nextUrl)
+    }
     authApi
       .getSession()
       .then((current) => {
@@ -75,6 +96,7 @@ export default function App() {
         setSession(current)
         if (current.authenticated) {
           setPage(current.authType === "external" ? "evaluation" : "dashboard")
+          if (authError) setError("")
         }
       })
       .catch((reason: unknown) => {
@@ -158,7 +180,9 @@ export default function App() {
   return (
     <AppShell
       page={page}
-      profile={profile}
+      profileLabel={profileLabel}
+      menuItems={menuItems}
+      showSearch={showSearch}
       title={title}
       menuOpen={mobileMenu}
       navigate={navigate}
@@ -183,7 +207,7 @@ export default function App() {
       {page === "approval" && <AdvisorApproval initialStudent={reviewStudent} />}
       {page === "schedule" && (
         <DefenseScheduling
-          canEvaluate={profile === "Orientador" || profile === "Coordenador"}
+          canEvaluate={canEvaluate}
           evaluatedDefenseIds={evaluatedDefenses}
           onEvaluate={(defenseId) => {
             setEvaluationDefense(defenseId)

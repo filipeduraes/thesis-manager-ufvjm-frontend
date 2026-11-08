@@ -1,11 +1,14 @@
 import type { ReactNode } from "react"
-import type { Page, Profile } from "../../types"
+import type { NavigationItem, Page } from "../../types"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
+
 interface AppShellProps {
   children: ReactNode
   page: Page
-  profile: Profile
+  profileLabel: string
+  menuItems: NavigationItem[]
+  showSearch: boolean
   userName: string
   userInitials: string
   userAvatarUrl: string | null
@@ -15,10 +18,13 @@ interface AppShellProps {
   logout: () => void
   setMenuOpen: (open: boolean) => void
 }
+
 export default function AppShell({
   children,
   page,
-  profile,
+  profileLabel,
+  menuItems,
+  showSearch,
   userName,
   userInitials,
   userAvatarUrl,
@@ -31,7 +37,8 @@ export default function AppShell({
   return (
     <div className="app-shell">
       <Sidebar
-        profile={profile}
+        profileLabel={profileLabel}
+        menuItems={menuItems}
         userName={userName}
         userInitials={userInitials}
         userAvatarUrl={userAvatarUrl}
@@ -50,7 +57,7 @@ export default function AppShell({
       )}
       <div className="app-main">
         <Topbar
-          profile={profile}
+          showSearch={showSearch}
           openMenu={() => setMenuOpen(true)}
         />
         <div className="mobile-title">{title}</div>

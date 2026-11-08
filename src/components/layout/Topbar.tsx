@@ -1,13 +1,12 @@
 
-import type { Profile } from "../../types"
 import { Icon } from "../../components/common"
 
 interface TopbarProps {
-  profile: Profile
+  showSearch: boolean
   openMenu: () => void
 }
 
-export default function Topbar({ profile, openMenu }: TopbarProps) {
+export default function Topbar({ showSearch, openMenu }: TopbarProps) {
   return (
     <header className="topbar">
       <button
@@ -18,7 +17,7 @@ export default function Topbar({ profile, openMenu }: TopbarProps) {
         <Icon name="menu" />
       </button>
 
-      {profile !== "Aluno" && (
+      {showSearch && (
         <div className="top-search">
           <Icon name="search" />
           <input placeholder="Buscar monografia, aluno ou orientador..." />

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
-import { menuByProfile } from "../../data/navigation"
-import type { Page, Profile } from "../../types"
+import type { NavigationItem, Page } from "../../types"
 import { Icon, Logo } from "../../components/common"
 
 interface SidebarProps {
-  profile: Profile
+  profileLabel: string
+  menuItems: NavigationItem[]
   userName: string
   userInitials: string
   userAvatarUrl: string | null
@@ -39,7 +39,8 @@ function UserAvatar({ url, initials }: { url: string | null; initials: string })
 }
 
 export default function Sidebar({
-  profile,
+  profileLabel,
+  menuItems,
   userName,
   userInitials,
   userAvatarUrl,
@@ -68,11 +69,11 @@ export default function Sidebar({
         <UserAvatar url={userAvatarUrl} initials={userInitials} />
         <div>
           <strong>{userName}</strong>
-          <span>{profile}</span>
+          <span>{profileLabel}</span>
         </div>
       </div>
       <nav>
-        {menuByProfile[profile].map((item, index) => (
+        {menuItems.map((item, index) => (
           <button
             key={`${item.label}-${index}`}
             className={page === item.page ? "active" : ""}

@@ -3,78 +3,156 @@ import {
   adminApi,
   codeToProfile,
   profileToCode,
+  type AdminCourse,
+  type AdminUser,
   type ExternalInvitationRecord,
+  type PaginatedResponse,
 } from "../api/client"
-import type { User, Profile } from "../types"
-import {
-  Badge,
-  Button,
-  Card,
-  Icon,
-  Modal,
-  PageTitle,
-} from "../components/common"
+import type { Profile, User } from "../types"
+import { Badge, Button, Card, Icon, Modal, PageTitle } from "../components/common"
 
 type UserAction = "edit" | "remove" | null
 
+const PAGE_SIZE = 10
+const ROLE_OPTIONS: Profile[] = ["Aluno", "Orientador", "Coordenador", "Administrador"]
+
+function toUser(user: AdminUser): User & { avatarUrl?: string | null; roles?: Array<{ code: string; label: string }> } {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: codeToProfile(user.roleCode),
+    status: user.status,
+    initials: user.initials,
+    avatarUrl: user.avatarUrl,
+    course: user.course ?? undefined,
+    courseId: user.courseId ?? undefined,
+    lastAccess: user.lastAccess ?? undefined,
+    affiliation: "",
+    roles: user.roles,
+  }
+}
+
+function rolesFromUser(user: User & { roles?: Array<{ code: string; label: string }> }): Profile[] {
+  const roles = (user.roles ?? [])
+    .map((item) => codeToProfile(item.code))
+    .filter((item, index, list) => list.indexOf(item) === index)
+  return roles.length > 0 ? roles : [user.role]
+}
+
+function toggleRole(current: Profile[], role: Profile): Profile[] {
+  if (role === "Aluno") {
+    return current.includes("Aluno") ? [] : ["Aluno"]
+  }
+  const withoutStudent = current.filter((item) => item !== "Aluno")
+  if (withoutStudent.includes(role)) {
+    return withoutStudent.filter((item) => item !== role)
+  }
+  return [...withoutStudent, role]
+}
+
+function pageNumbers(current: number, total: number): number[] {
+  const pages: number[] = []
+  const start = Math.max(1, current - 2)
+  const end = Math.min(total, start + 4)
+  for (let page = Math.max(1, end - 4); page <= end; page += 1) pages.push(page)
+  return pages
+}
+
+function UserListAvatar({ url, initials }: { url?: string | null; initials: string }) {
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    setFailed(false)
+  }, [url])
+  return (
+    <div className="avatar small">
+      {url && !failed ? (
+        <img src={url} alt="" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+      ) : (
+        initials
+      )}
+    </div>
+  )
+}
+
 export default function AdminUsers() {
-  const [userList, setUserList] = useState<User[]>([])
+  const [userPage, setUserPage] = useState<PaginatedResponse<AdminUser> | null>(null)
+  const [courses, setCourses] = useState<AdminCourse[]>([])
   const [invitations, setInvitations] = useState<ExternalInvitationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+  const [page, setPage] = useState(1)
   const [modal, setModal] = useState(false)
   const [inviteModal, setInviteModal] = useState(false)
   const [inviteToken, setInviteToken] = useState("")
   const [institution, setInstitution] = useState("")
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedUser, setSelectedUser] = useState<(User & { avatarUrl?: string | null; roles?: Array<{ code: string; label: string }> }) | null>(null)
   const [userAction, setUserAction] = useState<UserAction>(null)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
-  const [role, setRole] = useState("")
+  const [selectedRoles, setSelectedRoles] = useState<Profile[]>(["Aluno"])
   const [status, setStatus] = useState<User["status"]>("Ativo")
+  const [courseId, setCourseId] = useState("")
   const [notice, setNotice] = useState("")
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => window.clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, roleFilter, statusFilter])
+
+  const loadCourses = useCallback(async () => {
+    try {
+      const response = await adminApi.courses("?page_size=100")
+      setCourses(response.results)
+    } catch {
+      setCourses([])
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
     setError("")
     try {
       const params = new URLSearchParams()
-      if (search) params.set("search", search)
+      if (debouncedSearch) params.set("search", debouncedSearch)
       if (roleFilter) params.set("role", roleFilter)
       if (statusFilter) params.set("status", statusFilter)
-      const query = params.size ? `?${params.toString()}` : ""
+      params.set("page", String(page))
+      params.set("page_size", String(PAGE_SIZE))
       const [usersResponse, invitationResponse] = await Promise.all([
-        adminApi.users(query),
+        adminApi.users(`?${params.toString()}`),
         adminApi.invitations(),
       ])
-      setUserList(usersResponse.results.map((user) => ({
-        ...user,
-        role: codeToProfile(user.roleCode),
-        status: user.status,
-        course: user.course ?? undefined,
-        lastAccess: user.lastAccess ?? undefined,
-        affiliation: "",
-      })))
+      setUserPage(usersResponse)
       setInvitations(invitationResponse.results)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar os usuários.")
     } finally {
       setLoading(false)
     }
-  }, [search, roleFilter, statusFilter])
+  }, [debouncedSearch, page, roleFilter, statusFilter])
 
+  useEffect(() => { void loadCourses() }, [loadCourses])
   useEffect(() => { void loadData() }, [loadData])
 
-  const openUserAction = (user: User, action: Exclude<UserAction, null>) => {
+  const userList = (userPage?.results ?? []).map(toUser)
+
+  const openUserAction = (user: User & { avatarUrl?: string | null; roles?: Array<{ code: string; label: string }> }, action: Exclude<UserAction, null>) => {
     setSelectedUser(user)
     setName(user.name)
     setEmail(user.email)
-    setRole(user.role)
+    setSelectedRoles(rolesFromUser(user))
     setStatus(user.status)
+    setCourseId(user.courseId ?? "")
     setUserAction(action)
     setActiveMenu(null)
   }
@@ -86,20 +164,34 @@ export default function AdminUsers() {
 
   const saveUser = async () => {
     try {
+      setError("")
+      if (selectedRoles.length === 0) {
+        setError("Selecione ao menos um perfil.")
+        return
+      }
+      const roles = selectedRoles.map((item) => profileToCode[item])
       if (modal) {
-        await adminApi.createUser({ name, email, roles: [profileToCode[role as Profile]] })
+        await adminApi.createUser({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          roles,
+          courseId: courseId || null,
+        })
         setModal(false)
         setNotice("Usuário criado com sucesso.")
-      } else if (selectedUser) {
+        setPage(1)
+        return
+      }
+      if (selectedUser) {
         await adminApi.updateUser(selectedUser.id, {
-          name,
-          roles: [profileToCode[role as Profile]],
+          roles,
           is_active: status === "Ativo",
+          courseId: courseId || null,
         })
         setNotice("Usuário atualizado com sucesso.")
         closeUserAction()
+        await loadData()
       }
-      await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível salvar o usuário.")
     }
@@ -108,10 +200,13 @@ export default function AdminUsers() {
   const removeUser = async () => {
     if (!selectedUser) return
     try {
+      setError("")
       await adminApi.deactivateUser(selectedUser.id)
       setNotice("Usuário desativado com sucesso.")
       closeUserAction()
-      await loadData()
+      const nextPage = userList.length <= 1 && page > 1 ? page - 1 : page
+      setPage(nextPage)
+      if (nextPage === page) await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível desativar o usuário.")
     }
@@ -119,6 +214,7 @@ export default function AdminUsers() {
 
   const createExternalInvitation = async () => {
     try {
+      setError("")
       const result = await adminApi.createInvitation({ name, email, institution })
       setInviteToken(result.token)
       await loadData()
@@ -129,6 +225,7 @@ export default function AdminUsers() {
 
   const revokeInvitation = async (id: string) => {
     try {
+      setError("")
       await adminApi.revokeInvitation(id)
       await loadData()
     } catch (reason) {
@@ -143,7 +240,7 @@ export default function AdminUsers() {
         title="Gestão de usuários"
         action={
           <div>
-            <Button icon="plus" onClick={() => { setName(""); setEmail(""); setRole("Aluno"); setModal(true) }}>
+            <Button icon="plus" onClick={() => { setName(""); setEmail(""); setSelectedRoles(["Aluno"]); setCourseId(""); setModal(true) }}>
               Adicionar usuário
             </Button>
             <Button variant="secondary" onClick={() => { setName(""); setEmail(""); setInstitution(""); setInviteToken(""); setInviteModal(true) }}>
@@ -157,11 +254,7 @@ export default function AdminUsers() {
         <div className="success-notice" role="status">
           <Icon name="check" />
           <span>{notice}</span>
-          <button
-            className="icon-btn"
-            onClick={() => setNotice("")}
-            aria-label="Fechar aviso"
-          >
+          <button className="icon-btn" onClick={() => setNotice("")} aria-label="Fechar aviso">
             <Icon name="close" size={15} />
           </button>
         </div>
@@ -169,7 +262,11 @@ export default function AdminUsers() {
       <Card className="user-filters">
         <div className="top-search">
           <Icon name="search" />
-          <input placeholder="Buscar por nome ou e-mail" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input
+            placeholder="Buscar por nome ou e-mail"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
         </div>
         <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
           <option value="">Todos os perfis</option>
@@ -183,16 +280,13 @@ export default function AdminUsers() {
           <option value="Ativo">Ativo</option>
           <option value="Inativo">Inativo</option>
         </select>
-        <Button variant="secondary" icon="filter" onClick={() => void loadData()}>
-          Filtrar
-        </Button>
       </Card>
       <Card className="admin-table-card">
         <div className="admin-table users-table">
           <div className="admin-row admin-head">
             <span>Usuário</span>
-            <span>Perfil</span>
-            <span>Curso</span>
+            <span style={{ textAlign: "center" }}>Perfil</span>
+            <span style={{ textAlign: "center" }}>Curso</span>
             <span>Status</span>
             <span>Último acesso</span>
             <span />
@@ -200,30 +294,24 @@ export default function AdminUsers() {
           {loading ? <p>Carregando usuários…</p> : userList.map((user) => (
             <div className="admin-row" key={user.id}>
               <div className="user-cell">
-                <div className="avatar small">{user.initials}</div>
+                <UserListAvatar url={user.avatarUrl} initials={user.initials ?? "?"} />
                 <div>
                   <strong>{user.name}</strong>
                   <span>{user.email}</span>
                 </div>
               </div>
-              <span data-label="Perfil">{user.role}</span>
-              <span data-label="Curso">{user.course}</span>
+              <span data-label="Perfil" style={{ textAlign: "center" }}>{user.role}</span>
+              <span data-label="Curso" style={{ textAlign: "center" }}>{user.course || "—"}</span>
               <div className="user-status" data-label="Status">
-                <Badge tone={user.status === "Ativo" ? "success" : "light"}>
-                  {user.status}
-                </Badge>
+                <Badge tone={user.status === "Ativo" ? "success" : "light"}>{user.status}</Badge>
               </div>
-              <span data-label="Último acesso">{user.lastAccess}</span>
+              <span data-label="Último acesso">{user.lastAccess ? new Date(user.lastAccess).toLocaleString("pt-BR") : "—"}</span>
               <div className="row-action">
                 <button
                   className="icon-btn"
                   aria-label={`Ações de ${user.name}`}
                   aria-expanded={activeMenu === user.id}
-                  onClick={() =>
-                    setActiveMenu((current) =>
-                      current === user.id ? null : user.id,
-                    )
-                  }
+                  onClick={() => setActiveMenu((current) => (current === user.id ? null : user.id))}
                 >
                   <Icon name="more" />
                 </button>
@@ -233,10 +321,7 @@ export default function AdminUsers() {
                       <Icon name="edit" size={15} />
                       Editar usuário
                     </button>
-                    <button
-                      className="danger"
-                      onClick={() => openUserAction(user, "remove")}
-                    >
+                    <button className="danger" onClick={() => openUserAction(user, "remove")}>
                       <Icon name="trash" size={15} />
                       Remover usuário
                     </button>
@@ -245,15 +330,31 @@ export default function AdminUsers() {
               </div>
             </div>
           ))}
+          {!loading && userList.length === 0 && <p>Nenhum usuário encontrado.</p>}
         </div>
         <div className="pagination">
           <span>
-            {userList.length} usuários
+            {userPage?.count ?? 0} usuários · página {userPage?.page ?? 1} de {Math.max(userPage?.totalPages ?? 1, 1)}
+            {userPage && userPage.totalPages > 0 && userPage.page === userPage.totalPages
+              ? ` · ${userPage.lastPageCount} nesta página`
+              : ""}
           </span>
           <div>
-            <Button variant="secondary">Anterior</Button>
-            <button className="page-number active">1</button>
-            <Button variant="secondary">Próxima</Button>
+            <Button variant="secondary" disabled={(userPage?.page ?? 1) <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+              Anterior
+            </Button>
+            {pageNumbers(userPage?.page ?? 1, Math.max(userPage?.totalPages ?? 1, 1)).map((item) => (
+              <button
+                key={item}
+                className={`page-number ${item === (userPage?.page ?? 1) ? "active" : ""}`}
+                onClick={() => setPage(item)}
+              >
+                {item}
+              </button>
+            ))}
+            <Button variant="secondary" disabled={(userPage?.page ?? 1) >= (userPage?.totalPages ?? 1)} onClick={() => setPage((current) => current + 1)}>
+              Próxima
+            </Button>
           </div>
         </div>
       </Card>
@@ -261,16 +362,8 @@ export default function AdminUsers() {
       {modal && (
         <Modal className="admin-modal">
           <div className="section-head">
-            <div>
-              <h2>Adicionar usuário</h2>
-            </div>
-            <button
-              className="icon-btn"
-              onClick={() => setModal(false)}
-              aria-label="Fechar"
-            >
-              <Icon name="close" />
-            </button>
+            <div><h2>Adicionar usuário</h2></div>
+            <button className="icon-btn" onClick={() => setModal(false)} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <label className="field">
             <span>Nome completo</span>
@@ -281,13 +374,34 @@ export default function AdminUsers() {
             <input type="email" placeholder="usuario@ufvjm.edu.br" value={email} onChange={(event) => setEmail(event.target.value)} />
           </label>
           <div className="two-col">
-            <label className="field"><span>Perfil de acesso</span><select value={role} onChange={(event) => setRole(event.target.value)}><option>Aluno</option><option>Orientador</option><option>Coordenador</option><option>Administrador</option></select></label>
+            <div className="field">
+              <span>Perfis de acesso</span>
+              <div role="group" aria-label="Perfis de acesso">
+                {ROLE_OPTIONS.map((option) => (
+                  <label key={option} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRoles.includes(option)}
+                      onChange={() => setSelectedRoles((current) => toggleRole(current, option))}
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="field">
+              <span>Curso</span>
+              <select value={courseId} onChange={(event) => setCourseId(event.target.value)}>
+                <option value="">Sem curso</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>{course.name} ({course.code})</option>
+                ))}
+              </select>
+            </label>
           </div>
           <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setModal(false)}>
-              Cancelar
-            </Button>
-            <Button disabled={!name.trim() || !email.trim()} onClick={() => void saveUser()}>Criar usuário</Button>
+            <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
+            <Button disabled={!name.trim() || !email.trim() || selectedRoles.length === 0} onClick={() => void saveUser()}>Criar usuário</Button>
           </div>
         </Modal>
       )}
@@ -295,85 +409,78 @@ export default function AdminUsers() {
       {userAction === "edit" && selectedUser && (
         <Modal className="admin-modal">
           <div className="section-head">
-            <div>
-              <h2>Editar usuário</h2>
-            </div>
-            <button
-              className="icon-btn"
-              onClick={closeUserAction}
-              aria-label="Fechar"
-            >
-              <Icon name="close" />
-            </button>
+            <div><h2>Editar usuário</h2></div>
+            <button className="icon-btn" onClick={closeUserAction} aria-label="Fechar"><Icon name="close" /></button>
           </div>
-          <label className="field">
+          <label className="field" title="Nome e e-mail são sincronizados pelo login institucional.">
             <span>Nome completo</span>
             <input
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              readOnly
+              disabled
+              title="Nome e e-mail são sincronizados pelo login institucional."
+              style={{ backgroundColor: "var(--line, #e5e7eb)", color: "var(--slate, #6b7280)", cursor: "not-allowed" }}
             />
           </label>
-          <label className="field">
+          <label className="field" title="Nome e e-mail são sincronizados pelo login institucional.">
             <span>E-mail</span>
             <input
               type="email"
               value={email}
               readOnly
+              disabled
+              title="Nome e e-mail são sincronizados pelo login institucional."
+              style={{ backgroundColor: "var(--line, #e5e7eb)", color: "var(--slate, #6b7280)", cursor: "not-allowed" }}
             />
           </label>
           <div className="two-col">
-            <label className="field">
-              <span>Perfil de acesso</span>
-              <select
-                value={role}
-                onChange={(event) => setRole(event.target.value)}
-              >
-                <option>Aluno</option>
-                <option>Orientador</option>
-                <option>Coordenador</option>
-                <option>Administrador</option>
-              </select>
-            </label>
+            <div className="field">
+              <span>Perfis de acesso</span>
+              <div role="group" aria-label="Perfis de acesso">
+                {ROLE_OPTIONS.map((option) => (
+                  <label key={option} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, fontWeight: 400 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRoles.includes(option)}
+                      onChange={() => setSelectedRoles((current) => toggleRole(current, option))}
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <label className="field">
               <span>Status</span>
-              <select
-                value={status}
-                onChange={(event) =>
-                  setStatus(event.target.value as User["status"])
-                }
-              >
-                <option>Ativo</option>
-                <option>Inativo</option>
+              <select value={status} onChange={(event) => setStatus(event.target.value as User["status"])}>
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
               </select>
             </label>
           </div>
+          <label className="field">
+            <span>Curso</span>
+            <select value={courseId} onChange={(event) => setCourseId(event.target.value)}>
+              <option value="">Sem curso</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>{course.name} ({course.code})</option>
+              ))}
+            </select>
+          </label>
           <div className="modal-actions">
-            <Button variant="secondary" onClick={closeUserAction}>
-              Cancelar
-            </Button>
-            <Button disabled={!name.trim()} onClick={() => void saveUser()}>
-              Salvar alterações
-            </Button>
+            <Button variant="secondary" onClick={closeUserAction}>Cancelar</Button>
+            <Button disabled={selectedRoles.length === 0} onClick={() => void saveUser()}>Salvar alterações</Button>
           </div>
         </Modal>
       )}
 
       {userAction === "remove" && selectedUser && (
         <Modal className="admin-modal confirmation-modal">
-          <div className="modal-icon danger">
-            <Icon name="trash" />
-          </div>
-          <h2>Remover usuário?</h2>
-          <p>
-            Esta ação desativará <strong>{selectedUser.name}</strong>. O usuário perderá o acesso imediatamente.
-          </p>
+          <div className="modal-icon danger"><Icon name="trash" /></div>
+          <h2>Desativar usuário?</h2>
+          <p>Esta ação desativará <strong>{selectedUser.name}</strong>. O usuário perderá o acesso imediatamente.</p>
           <div className="modal-actions">
-            <Button variant="secondary" onClick={closeUserAction}>
-              Cancelar
-            </Button>
-            <Button variant="danger" onClick={() => void removeUser()}>
-              Desativar usuário
-            </Button>
+            <Button variant="secondary" onClick={closeUserAction}>Cancelar</Button>
+            <Button variant="danger" onClick={() => void removeUser()}>Desativar usuário</Button>
           </div>
         </Modal>
       )}

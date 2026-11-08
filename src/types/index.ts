@@ -17,6 +17,7 @@ export interface User {
   status: "Ativo" | "Inativo"
   initials?: string
   course?: string
+  courseId?: string
   lastAccess?: string
 }
 
@@ -60,9 +61,14 @@ export interface AuditLog {
 }
 
 export interface Course {
+  id?: string
   name: string
   code: string
+  department?: { id: string; name: string }
+  departmentId?: string
   coordinator: string
+  coordinatorEmail?: string
+  coordinatorStatus?: "FOUND_ACTIVE" | "FOUND_INACTIVE" | "PENDING"
   activeStudents: number
   publishedTheses: number
 }
