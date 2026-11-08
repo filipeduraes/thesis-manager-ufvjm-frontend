@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { adminApi } from "../api/client"
 import {
   approvedTheses,
   committeeMembers,
@@ -40,6 +41,8 @@ export default function DefenseScheduling({
   const [inviteName, setInviteName] = useState("")
   const [inviteEmail, setInviteEmail] = useState("")
   const [generatedToken, setGeneratedToken] = useState("")
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState("")
   const [activeView, setActiveView] = useState<"schedule" | "presented">(
     "schedule",
   )
@@ -47,28 +50,39 @@ export default function DefenseScheduling({
   // TODO: API Integration - POST /api/v1/defenses
   // Request: { thesisId, date, time, mode, location, committeeIds }
 
-  // TODO: API Integration - POST /api/v1/defenses/:defenseId/external-invitations
-  // Request: { name, email }; Response: { invitationId, token, expiresAt, emailStatus }
-  const sendExternalInvite = () => {
-    const token = "UFVJM-EXT-2025-84K2"
-    const initials = inviteName
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("")
+  // Integração parcial: criação de token externo (vínculo com banca/defesa virá no fluxo de bancas).
+  const sendExternalInvite = async () => {
+    setInviteLoading(true)
+    setInviteError("")
+    try {
+      const result = await adminApi.createInvitation({
+        name: inviteName.trim(),
+        email: inviteEmail.trim().toLowerCase(),
+        institution: "",
+      })
+      const initials = inviteName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("")
 
-    setGeneratedToken(token)
-    setCommittee((current) => [
-      ...current,
-      {
-        initials: initials || "EX",
-        name: inviteName,
-        role: `Membro externo · convite enviado para ${inviteEmail}`,
-        status: "Pendente",
-      },
-    ])
-    setInviteStep("sent")
+      setGeneratedToken(result.token)
+      setCommittee((current) => [
+        ...current,
+        {
+          initials: initials || "EX",
+          name: inviteName.trim(),
+          role: `Membro externo · convite criado para ${inviteEmail.trim().toLowerCase()}`,
+          status: "Pendente",
+        },
+      ])
+      setInviteStep("sent")
+    } catch (reason) {
+      setInviteError(reason instanceof Error ? reason.message : "Não foi possível gerar o token.")
+    } finally {
+      setInviteLoading(false)
+    }
   }
 
   const closeInvite = () => {
@@ -76,6 +90,7 @@ export default function DefenseScheduling({
     setInviteName("")
     setInviteEmail("")
     setGeneratedToken("")
+    setInviteError("")
   }
 
   return (
@@ -403,6 +418,7 @@ export default function DefenseScheduling({
                   <Icon name="close" />
                 </button>
               </div>
+              {inviteError && <div className="success-notice" role="alert">{inviteError}</div>}
               <label className="field">
                 <span>Nome completo</span>
                 <input
@@ -425,10 +441,10 @@ export default function DefenseScheduling({
                   Cancelar
                 </Button>
                 <Button
-                  disabled={!inviteName.trim() || !inviteEmail.trim()}
-                  onClick={sendExternalInvite}
+                  disabled={!inviteName.trim() || !inviteEmail.trim() || inviteLoading}
+                  onClick={() => void sendExternalInvite()}
                 >
-                  Gerar token e enviar convite
+                  {inviteLoading ? "Gerando…" : "Gerar token de acesso"}
                 </Button>
               </div>
             </>
@@ -437,9 +453,9 @@ export default function DefenseScheduling({
               <div className="modal-icon">
                 <Icon name="check" />
               </div>
-              <h2>Convite enviado</h2>
+              <h2>Token gerado</h2>
               <p>
-                O token foi enviado para <strong>{inviteEmail}</strong>.
+                Copie e entregue este token ao membro externo (<strong>{inviteEmail}</strong>). Ele será exibido apenas uma vez.
               </p>
               <div className="token-result">
                 <span>Token de acesso</span>
