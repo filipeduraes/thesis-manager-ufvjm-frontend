@@ -4,6 +4,7 @@ export interface ButtonProps {
   children: ReactNode
   variant?: "primary" | "secondary" | "success" | "outline" | "ghost" | "danger"
   icon?: string
+  className?: string
   disabled?: boolean
   onClick?: () => void
   type?: "button" | "submit"
@@ -12,6 +13,7 @@ export default function Button({
   children,
   variant = "primary",
   icon,
+  className = "",
   disabled,
   onClick,
   type = "button",
@@ -19,7 +21,7 @@ export default function Button({
   return (
     <button
       type={type}
-      className={`btn btn-${variant}`}
+      className={`btn btn-${variant}${className ? ` ${className}` : ""}`}
       disabled={disabled}
       onClick={onClick}
     >

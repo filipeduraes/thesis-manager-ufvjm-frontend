@@ -36,19 +36,19 @@ export default function App() {
   const [loginLoading, setLoginLoading] = useState(false)
   const [error, setError] = useState("")
   const [mobileMenu, setMobileMenu] = useState(false)
-  const [reviewStudent, setReviewStudent] = useState<string>()
+  const [reviewThesisId, setReviewThesisId] = useState<string>()
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
   const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
 
-  const roleCodes = session?.user?.roles?.map((role) => role.code) ?? []
+  const roleCodeKey = session?.user?.roles?.map((role) => role.code).join("|") ?? ""
   const activeProfiles = useMemo(() => {
-    const fromRoles = profilesFromCodes(roleCodes)
+    const fromRoles = profilesFromCodes(roleCodeKey ? roleCodeKey.split("|") : [])
     if (fromRoles.length > 0) return fromRoles
     return [codeToProfile(session?.user?.roleCode)]
-  }, [roleCodes.join("|"), session?.user?.roleCode])
+  }, [roleCodeKey, session?.user?.roleCode])
   const profile = activeProfiles[0] ?? "Aluno"
   const profileLabel = activeProfiles.join(", ") || session?.user?.roleLabel || "Aluno"
-  const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles.join("|")])
+  const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles])
   const showSearch = activeProfiles.some((item) => item !== "Aluno")
   const canEvaluate = activeProfiles.includes("Orientador") || activeProfiles.includes("Coordenador")
 
@@ -60,7 +60,7 @@ export default function App() {
     }
     if (canEvaluate) pages.add("evaluation")
     return pages
-  }, [activeProfiles.join("|"), canEvaluate, menuItems])
+  }, [activeProfiles, canEvaluate, menuItems])
 
   const title = useMemo(() => {
     const menuItem = menuItems.find((item) => item.page === page)
@@ -144,8 +144,13 @@ export default function App() {
   }
 
   const navigate = (nextPage: Page) => {
-    setReviewStudent(undefined)
+    setReviewThesisId(undefined)
     setPage(allowedPages.has(nextPage) ? nextPage : "dashboard")
+  }
+
+  const openReview = (thesisId: string) => {
+    setReviewThesisId(thesisId)
+    setPage(allowedPages.has("approval") ? "approval" : "dashboard")
   }
 
   if (page === "repository") {
@@ -154,12 +159,38 @@ export default function App() {
 
   if (sessionLoading) return <main className="login-page" aria-live="polite">Carregando sessão…</main>
 
+  const loginDev = async (payload: {
+    name: string
+    email: string
+    roles: string[]
+  }) => {
+    setLoginLoading(true)
+    setError("")
+    try {
+      const sessionPayload = await authApi.devLogin(payload)
+      setSession(sessionPayload)
+      if (sessionPayload.authenticated) {
+        setPage(sessionPayload.authType === "external" ? "evaluation" : "dashboard")
+      }
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível autenticar o usuário de teste.",
+      )
+      throw reason
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
   if (!session?.authenticated || !session.user) {
     return (
       <LoginView
         go={setPage}
         loginGoogle={beginGoogleLogin}
         exchangeToken={exchangeToken}
+        loginDev={loginDev}
         loading={loginLoading}
         error={error}
       />
@@ -197,14 +228,11 @@ export default function App() {
         <DashboardView
           profile={profile}
           go={navigate}
-          review={(student) => {
-            setReviewStudent(student)
-            navigate("approval")
-          }}
+          review={openReview}
         />
       )}
       {page === "submission" && <StudentSubmission />}
-      {page === "approval" && <AdvisorApproval initialStudent={reviewStudent} />}
+      {page === "approval" && <AdvisorApproval initialThesisId={reviewThesisId} profile={profile} />}
       {page === "schedule" && (
         <DefenseScheduling
           canEvaluate={canEvaluate}

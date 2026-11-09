@@ -9,7 +9,7 @@ import {
   type PaginatedResponse,
 } from "../api/client"
 import type { Profile, User } from "../types"
-import { Badge, Button, Card, Icon, Modal, PageTitle } from "../components/common"
+import { Badge, Button, Card, Icon, Modal, PageTitle, RoleMultiSelect } from "../components/common"
 
 type UserAction = "edit" | "remove" | null
 
@@ -38,17 +38,6 @@ function rolesFromUser(user: User & { roles?: Array<{ code: string; label: strin
     .map((item) => codeToProfile(item.code))
     .filter((item, index, list) => list.indexOf(item) === index)
   return roles.length > 0 ? roles : [user.role]
-}
-
-function toggleRole(current: Profile[], role: Profile): Profile[] {
-  if (role === "Aluno") {
-    return current.includes("Aluno") ? [] : ["Aluno"]
-  }
-  const withoutStudent = current.filter((item) => item !== "Aluno")
-  if (withoutStudent.includes(role)) {
-    return withoutStudent.filter((item) => item !== role)
-  }
-  return [...withoutStudent, role]
 }
 
 function pageNumbers(current: number, total: number): number[] {
@@ -300,7 +289,9 @@ export default function AdminUsers() {
                   <span>{user.email}</span>
                 </div>
               </div>
-              <span data-label="Perfil" style={{ textAlign: "center" }}>{user.role}</span>
+              <span data-label="Perfil" style={{ textAlign: "center" }}>
+                {(user.roles?.length ? user.roles.map((item) => item.label) : [user.role]).join(", ")}
+              </span>
               <span data-label="Curso" style={{ textAlign: "center" }}>{user.course || "—"}</span>
               <div className="user-status" data-label="Status">
                 <Badge tone={user.status === "Ativo" ? "success" : "light"}>{user.status}</Badge>
@@ -376,18 +367,12 @@ export default function AdminUsers() {
           <div className="two-col">
             <div className="field">
               <span>Perfis de acesso</span>
-              <div role="group" aria-label="Perfis de acesso">
-                {ROLE_OPTIONS.map((option) => (
-                  <label key={option} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, fontWeight: 400 }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedRoles.includes(option)}
-                      onChange={() => setSelectedRoles((current) => toggleRole(current, option))}
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))}
-              </div>
+              <RoleMultiSelect
+                options={ROLE_OPTIONS.map((option) => ({ value: option, label: option }))}
+                value={selectedRoles}
+                onChange={(next) => setSelectedRoles(next as Profile[])}
+                ariaLabel="Perfis de acesso"
+              />
             </div>
             <label className="field">
               <span>Curso</span>
@@ -436,18 +421,12 @@ export default function AdminUsers() {
           <div className="two-col">
             <div className="field">
               <span>Perfis de acesso</span>
-              <div role="group" aria-label="Perfis de acesso">
-                {ROLE_OPTIONS.map((option) => (
-                  <label key={option} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, fontWeight: 400 }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedRoles.includes(option)}
-                      onChange={() => setSelectedRoles((current) => toggleRole(current, option))}
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))}
-              </div>
+              <RoleMultiSelect
+                options={ROLE_OPTIONS.map((option) => ({ value: option, label: option }))}
+                value={selectedRoles}
+                onChange={(next) => setSelectedRoles(next as Profile[])}
+                ariaLabel="Perfis de acesso"
+              />
             </div>
             <label className="field">
               <span>Status</span>
