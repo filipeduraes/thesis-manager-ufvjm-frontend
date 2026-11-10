@@ -19,6 +19,8 @@ interface DefenseCommitteeProps {
   goBack: () => void
   /** Usuário autenticado é administrador institucional (único que pode reverter status). */
   isAdmin?: boolean
+  /** Usuário pode iniciar/encerrar a banca (admin ou coordenador). */
+  canStartClose?: boolean
 }
 
 const STATUS_BADGE_TONE: Record<string, "light" | "active" | "success" | "dark"> = {
@@ -56,6 +58,7 @@ export default function DefenseCommittee({
   defenseId,
   goBack,
   isAdmin = false,
+  canStartClose = false,
 }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -67,6 +70,11 @@ export default function DefenseCommittee({
   const [removeError, setRemoveError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
   const firstLoadRef = useRef(true)
+
+  // Item C — start / close
+  const [startLoading, setStartLoading] = useState(false)
+  const [closeLoading, setCloseLoading] = useState(false)
+  const [actionError, setActionError] = useState("")
 
   // Item A — revert status
   const [revertOpen, setRevertOpen] = useState(false)
@@ -213,6 +221,36 @@ export default function DefenseCommittee({
     }
   }
 
+  const startDefense = async () => {
+    setStartLoading(true)
+    setActionError("")
+    try {
+      const { defense: data } = await defenseApi.start(defenseId)
+      setDefense(data)
+    } catch (reason) {
+      setActionError(
+        reason instanceof Error ? reason.message : "Não foi possível iniciar a banca.",
+      )
+    } finally {
+      setStartLoading(false)
+    }
+  }
+
+  const closeDefense = async () => {
+    setCloseLoading(true)
+    setActionError("")
+    try {
+      const { defense: data } = await defenseApi.close(defenseId)
+      setDefense(data)
+    } catch (reason) {
+      setActionError(
+        reason instanceof Error ? reason.message : "Não foi possível encerrar a banca.",
+      )
+    } finally {
+      setCloseLoading(false)
+    }
+  }
+
   const closeRevertModal = () => {
     setRevertOpen(false)
     setRevertReason("")
@@ -316,6 +354,24 @@ export default function DefenseCommittee({
         <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
           {refreshing ? "Atualizando…" : "Atualizar"}
         </Button>
+        {canStartClose && isScheduled && (
+          <Button
+            variant="success"
+            disabled={startLoading}
+            onClick={() => void startDefense()}
+          >
+            {startLoading ? "Iniciando…" : "Iniciar banca"}
+          </Button>
+        )}
+        {canStartClose && isInProgress && (
+          <Button
+            variant="secondary"
+            disabled={closeLoading}
+            onClick={() => void closeDefense()}
+          >
+            {closeLoading ? "Encerrando…" : "Encerrar banca"}
+          </Button>
+        )}
         {canRevert && (
           <Button variant="danger" onClick={() => setRevertOpen(true)}>
             Reverter status
@@ -325,6 +381,12 @@ export default function DefenseCommittee({
           Voltar
         </Button>
       </Card>
+
+      {actionError && (
+        <div className="success-notice" role="alert">
+          {actionError}
+        </div>
+      )}
 
       {removeError && (
         <div className="success-notice" role="alert">

@@ -255,6 +255,7 @@ export default function App() {
           defenseId={committeeDefenseId}
           goBack={() => navigate("schedule")}
           isAdmin={isAdmin}
+          canStartClose={canStartClose}
         />
       )}
       {page === "reports" && <ReportsView />}
