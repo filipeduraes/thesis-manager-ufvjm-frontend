@@ -55,6 +55,8 @@ export default function App() {
   const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles.join("|")])
   const showSearch = activeProfiles.some((item) => item !== "Aluno")
   const canEvaluate = activeProfiles.includes("Orientador") || activeProfiles.includes("Coordenador")
+  const isAdmin = activeProfiles.includes("Administrador")
+  const canStartClose = isAdmin || activeProfiles.includes("Coordenador")
 
   const allowedPages = useMemo(() => {
     const pages = new Set<Page>()
@@ -252,6 +254,7 @@ export default function App() {
         <DefenseCommittee
           defenseId={committeeDefenseId}
           goBack={() => navigate("schedule")}
+          isAdmin={isAdmin}
         />
       )}
       {page === "reports" && <ReportsView />}

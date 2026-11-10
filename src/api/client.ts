@@ -395,4 +395,20 @@ export const defenseApi = {
       `/defenses/${defenseId}/members/${memberId}/evaluation`,
       { method: "PUT", body: JSON.stringify(body) },
     ),
+
+  revertStatus: (defenseId: string, reason: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/revert-status`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  start: (defenseId: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/start`, {
+      method: "POST",
+    }),
+
+  close: (defenseId: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/close`, {
+      method: "POST",
+    }),
 }

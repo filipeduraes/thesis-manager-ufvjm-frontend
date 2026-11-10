@@ -17,6 +17,8 @@ interface DefenseCommitteeProps {
   /** UUID da defesa cujos membros serão gerenciados. */
   defenseId: string
   goBack: () => void
+  /** Usuário autenticado é administrador institucional (único que pode reverter status). */
+  isAdmin?: boolean
 }
 
 const STATUS_BADGE_TONE: Record<string, "light" | "active" | "success" | "dark"> = {
@@ -53,6 +55,7 @@ function evaluationStatusBadge(
 export default function DefenseCommittee({
   defenseId,
   goBack,
+  isAdmin = false,
 }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -62,6 +65,12 @@ export default function DefenseCommittee({
   const [addLoading, setAddLoading] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState("")
+
+  // Item A — revert status
+  const [revertOpen, setRevertOpen] = useState(false)
+  const [revertReason, setRevertReason] = useState("")
+  const [revertLoading, setRevertLoading] = useState(false)
+  const [revertError, setRevertError] = useState("")
 
   // Estado do formulário — membro institucional
   const [instEmail, setInstEmail] = useState("")
@@ -194,6 +203,29 @@ export default function DefenseCommittee({
     }
   }
 
+  const closeRevertModal = () => {
+    setRevertOpen(false)
+    setRevertReason("")
+    setRevertError("")
+  }
+
+  const doRevertStatus = async () => {
+    if (!revertReason.trim()) return
+    setRevertLoading(true)
+    setRevertError("")
+    try {
+      const { defense: data } = await defenseApi.revertStatus(defenseId, revertReason.trim())
+      setDefense(data)
+      closeRevertModal()
+    } catch (reason) {
+      setRevertError(
+        reason instanceof Error ? reason.message : "Não foi possível reverter o status.",
+      )
+    } finally {
+      setRevertLoading(false)
+    }
+  }
+
   const removeMember = async (memberId: string) => {
     setRemoving(memberId)
     setRemoveError("")
@@ -241,7 +273,10 @@ export default function DefenseCommittee({
   if (!defense) return null
 
   const isScheduled = defense.status === "SCHEDULED"
+  const isInProgress = defense.status === "IN_PROGRESS"
+  const isCancelled = defense.status === "CANCELLED"
   const canManage = isScheduled
+  const canRevert = isAdmin && (isInProgress || isCancelled)
   const statusTone = STATUS_BADGE_TONE[defense.status] ?? "neutral"
 
   const scheduledDate = new Intl.DateTimeFormat("pt-BR", {
@@ -268,6 +303,11 @@ export default function DefenseCommittee({
           {defense.location && <span>{defense.location}</span>}
         </div>
         <Badge tone={statusTone}>{defense.statusLabel}</Badge>
+        {canRevert && (
+          <Button variant="danger" onClick={() => setRevertOpen(true)}>
+            Reverter status
+          </Button>
+        )}
         <Button variant="ghost" onClick={goBack}>
           Voltar
         </Button>
@@ -516,6 +556,59 @@ export default function DefenseCommittee({
               onClick={() => void addExternalMember()}
             >
               {addLoading ? "Adicionando…" : "Adicionar e enviar convite"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal — reverter status (admin only) */}
+      {revertOpen && (
+        <Modal className="admin-modal invite-modal">
+          <div className="section-head">
+            <div>
+              <h2>Reverter status da banca</h2>
+              <p>
+                Status atual: <strong>{defense.statusLabel}</strong>
+              </p>
+            </div>
+            <button
+              className="icon-btn"
+              onClick={closeRevertModal}
+              aria-label="Fechar"
+            >
+              <Icon name="close" />
+            </button>
+          </div>
+
+          {revertError && (
+            <div className="success-notice" role="alert">
+              {revertError}
+            </div>
+          )}
+
+          <label className="field">
+            <span>
+              Motivo <small>(obrigatório)</small>
+            </span>
+            <textarea
+              className="feedback-area"
+              value={revertReason}
+              onChange={(e) => setRevertReason(e.target.value)}
+              placeholder="Descreva o motivo da reversão"
+              rows={3}
+            />
+          </label>
+
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={closeRevertModal}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              disabled={!revertReason.trim() || revertLoading}
+              onClick={() => void doRevertStatus()}
+            >
+              {revertLoading ? "Revertendo…" : "Reverter"}
             </Button>
           </div>
         </Modal>
