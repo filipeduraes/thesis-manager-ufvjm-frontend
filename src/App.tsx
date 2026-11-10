@@ -6,6 +6,8 @@ import type { Page } from "./types"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
 import AdvisorApproval from "./views/AdvisorApproval"
+import DefenseCommittee from "./views/DefenseCommittee"
+import DefenseEvaluation from "./views/DefenseEvaluation"
 import DefenseScheduling from "./views/DefenseScheduling"
 import ExternalEvaluation from "./views/ExternalEvaluation"
 import LoginView from "./views/LoginView"
@@ -22,6 +24,7 @@ const routeTitles: Partial<Record<Page, string>> = {
   approval: "Orientandos",
   schedule: "Bancas",
   evaluation: "Avaliação",
+  committee: "Membros da banca",
   reports: "Relatórios",
   users: "Usuários",
   courses: "Cursos",
@@ -39,6 +42,7 @@ export default function App() {
   const [reviewStudent, setReviewStudent] = useState<string>()
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
   const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
+  const [committeeDefenseId, setCommitteeDefenseId] = useState<string>()
 
   const roleCodes = session?.user?.roles?.map((role) => role.code) ?? []
   const activeProfiles = useMemo(() => {
@@ -148,6 +152,16 @@ export default function App() {
     setPage(allowedPages.has(nextPage) ? nextPage : "dashboard")
   }
 
+  const openCommittee = (defenseId: string) => {
+    setCommitteeDefenseId(defenseId)
+    setPage("committee")
+  }
+
+  const openEvaluation = (defenseId: string) => {
+    setEvaluationDefense(defenseId)
+    navigate("evaluation")
+  }
+
   if (page === "repository") {
     return <PublicRepository go={setPage} />
   }
@@ -209,21 +223,35 @@ export default function App() {
         <DefenseScheduling
           canEvaluate={canEvaluate}
           evaluatedDefenseIds={evaluatedDefenses}
-          onEvaluate={(defenseId) => {
-            setEvaluationDefense(defenseId)
-            navigate("evaluation")
+          onEvaluate={(defenseId) => openEvaluation(defenseId)}
+          onOpenCommittee={(defenseId) => openCommittee(defenseId)}
+        />
+      )}
+      {page === "evaluation" && evaluationDefense && session.user && (
+        <DefenseEvaluation
+          defenseId={evaluationDefense}
+          userEmail={session.user.email}
+          goBack={() => navigate("schedule")}
+          onSubmitted={() => {
+            setEvaluatedDefenses((current) =>
+              evaluationDefense && !current.includes(evaluationDefense)
+                ? [...current, evaluationDefense]
+                : current,
+            )
           }}
         />
       )}
-      {page === "evaluation" && (
+      {page === "evaluation" && !evaluationDefense && (
         <ExternalEvaluation
           mode="internal"
-          defenseId={evaluationDefense}
           goLogin={() => void logout()}
           goBack={() => navigate("schedule")}
-          onSubmitted={(defenseId) => {
-            if (defenseId) setEvaluatedDefenses((current) => current.includes(defenseId) ? current : [...current, defenseId])
-          }}
+        />
+      )}
+      {page === "committee" && committeeDefenseId && (
+        <DefenseCommittee
+          defenseId={committeeDefenseId}
+          goBack={() => navigate("schedule")}
         />
       )}
       {page === "reports" && <ReportsView />}

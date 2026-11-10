@@ -21,12 +21,14 @@ type InviteStep = "form" | "sent" | null
 interface DefenseSchedulingProps {
   canEvaluate?: boolean
   onEvaluate?: (defenseId: string) => void
+  onOpenCommittee?: (defenseId: string) => void
   evaluatedDefenseIds?: string[]
 }
 
 export default function DefenseScheduling({
   canEvaluate = false,
   onEvaluate,
+  onOpenCommittee,
   evaluatedDefenseIds = [],
 }: DefenseSchedulingProps) {
   // TODO: API Integration - GET /api/v1/defenses/availability
@@ -49,6 +51,8 @@ export default function DefenseScheduling({
 
   // TODO: API Integration - POST /api/v1/defenses
   // Request: { thesisId, date, time, mode, location, committeeIds }
+
+  const [defenseUuid, setDefenseUuid] = useState("")
 
   // Integração parcial: criação de token externo (vínculo com banca/defesa virá no fluxo de bancas).
   const sendExternalInvite = async () => {
@@ -171,9 +175,53 @@ export default function DefenseScheduling({
                 >
                   {evaluated ? "Parecer enviado" : "Adicionar avaliação"}
                 </Button>
+                {onOpenCommittee && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => onOpenCommittee(defense.id)}
+                  >
+                    Membros
+                  </Button>
+                )}
               </Card>
             )
           })}
+
+          {/* Acesso direto a uma banca pelo UUID — para integração e testes com o backend */}
+          <Card>
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">Acesso direto</p>
+                <h3>Abrir banca pelo ID</h3>
+              </div>
+            </div>
+            <label className="field">
+              <span>UUID da banca</span>
+              <input
+                value={defenseUuid}
+                onChange={(e) => setDefenseUuid(e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              />
+            </label>
+            <div className="form-actions">
+              <Button
+                variant="outline"
+                disabled={!defenseUuid.trim()}
+                onClick={() => onEvaluate?.(defenseUuid.trim())}
+              >
+                Avaliar
+              </Button>
+              {onOpenCommittee && (
+                <Button
+                  variant="outline"
+                  disabled={!defenseUuid.trim()}
+                  onClick={() => onOpenCommittee(defenseUuid.trim())}
+                >
+                  Gerenciar membros
+                </Button>
+              )}
+            </div>
+          </Card>
         </div>
       ) : (
         <>
