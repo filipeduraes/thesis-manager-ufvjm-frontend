@@ -65,6 +65,8 @@ export default function DefenseCommittee({
   const [addLoading, setAddLoading] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
+  const firstLoadRef = useRef(true)
 
   // Item A — revert status
   const [revertOpen, setRevertOpen] = useState(false)
@@ -92,7 +94,12 @@ export default function DefenseCommittee({
   const mountedRef = useRef(true)
 
   const loadDefense = useCallback(() => {
-    setLoading(true)
+    if (firstLoadRef.current) {
+      setLoading(true)
+      firstLoadRef.current = false
+    } else {
+      setRefreshing(true)
+    }
     setLoadError("")
     setRemoveError("")
     defenseApi
@@ -111,7 +118,10 @@ export default function DefenseCommittee({
         setLoadError(msg)
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       })
   }, [defenseId])
 
@@ -303,6 +313,9 @@ export default function DefenseCommittee({
           {defense.location && <span>{defense.location}</span>}
         </div>
         <Badge tone={statusTone}>{defense.statusLabel}</Badge>
+        <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
+          {refreshing ? "Atualizando…" : "Atualizar"}
+        </Button>
         {canRevert && (
           <Button variant="danger" onClick={() => setRevertOpen(true)}>
             Reverter status

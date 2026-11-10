@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ApiError,
   COMMITTEE_ROLE_LABELS,
@@ -78,11 +78,17 @@ export default function DefenseEvaluation({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState("")
   const [evaluation, setEvaluation] = useState<DefenseMemberEvaluationData | null>(null)
-  const mountedRef = useRef(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const mountedRef = useRef(false)
+  const firstLoadRef = useRef(true)
 
-  useEffect(() => {
-    mountedRef.current = true
-    setLoading(true)
+  const loadDefense = useCallback(() => {
+    if (firstLoadRef.current) {
+      setLoading(true)
+      firstLoadRef.current = false
+    } else {
+      setRefreshing(true)
+    }
     setLoadError("")
     defenseApi
       .get(defenseId)
@@ -114,12 +120,20 @@ export default function DefenseEvaluation({
         setLoadError(msg)
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false)
+        if (mountedRef.current) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       })
+  }, [defenseId, userEmail])
+
+  useEffect(() => {
+    mountedRef.current = true
+    loadDefense()
     return () => {
       mountedRef.current = false
     }
-  }, [defenseId, userEmail])
+  }, [loadDefense])
 
   const submitEvaluation = async () => {
     if (!myMember) return
@@ -233,6 +247,9 @@ export default function DefenseEvaluation({
         </div>
         <Badge tone={statusTone}>{defense.statusLabel}</Badge>
         <span>{COMMITTEE_ROLE_LABELS[myMember.role] ?? myMember.roleLabel}</span>
+        <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
+          {refreshing ? "Atualizando…" : "Atualizar"}
+        </Button>
       </Card>
 
       {isAlternate && (
