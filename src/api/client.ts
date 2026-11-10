@@ -280,3 +280,119 @@ export interface ExternalInvitationRecord {
   expiresAt: string
   usedAt: string | null
 }
+
+// ─── Defense API ──────────────────────────────────────────────────────────────
+
+export const DEFENSE_RESULT_LABELS: Record<string, string> = {
+  APPROVED: "Aprovada",
+  APPROVED_WITH_REMARKS: "Aprovada com ressalvas",
+  REJECTED: "Reprovada",
+}
+
+export const COMMITTEE_ROLE_LABELS: Record<string, string> = {
+  PRESIDENT: "Presidente",
+  MEMBER: "Membro",
+  ALTERNATE: "Suplente",
+}
+
+export const COMMITTEE_ROLE_OPTIONS = [
+  { value: "PRESIDENT", label: "Presidente" },
+  { value: "MEMBER", label: "Membro" },
+  { value: "ALTERNATE", label: "Suplente" },
+] as const
+
+/** Avaliação individual de um membro da banca, retornada pelo backend. */
+export interface DefenseMemberEvaluationData {
+  id: string
+  decision: string
+  decisionLabel: string
+  submittedAt: string
+  score?: string | null
+  notes?: string
+  updatedAt?: string
+}
+
+/** Membro da comissão, tal como retornado em defense_member_payload. */
+export interface DefenseCommitteeMember {
+  id: string
+  role: string
+  roleLabel: string
+  name: string
+  email: string
+  institution: string
+  hasConflict: boolean
+  conflictReason: string
+  isInstitutional: boolean
+  createdAt: string
+  evaluation: DefenseMemberEvaluationData | null
+}
+
+/** Payload de uma defesa, tal como retornado por defense_payload. */
+export interface DefenseData {
+  id: string
+  thesis: string
+  scheduledDatetime: string
+  durationMinutes: number
+  modality: string
+  modalityLabel: string
+  location: string
+  notes: string
+  status: string
+  statusLabel: string
+  createdAt: string
+  updatedAt: string
+  members: DefenseCommitteeMember[]
+}
+
+/**
+ * Endpoints relacionados à banca de defesa.
+ * Endpoints reais (theses/urls.py):
+ *   GET  /defenses/{id}
+ *   POST /defenses/{id}/members              — membro institucional
+ *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
+ *   DELETE /defenses/{id}/members/{member_id}
+ *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
+ */
+export const defenseApi = {
+  get: (defenseId: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}`),
+
+  addInstitutionalMember: (
+    defenseId: string,
+    body: { role: string; userId: string; conflictReason?: string },
+  ) =>
+    apiRequest<{ member: DefenseCommitteeMember }>(
+      `/defenses/${defenseId}/members`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  addExternalMember: (
+    defenseId: string,
+    body: {
+      role: string
+      name: string
+      email: string
+      institution?: string
+      conflictReason?: string
+    },
+  ) =>
+    apiRequest<{ member: DefenseCommitteeMember }>(
+      `/defenses/${defenseId}/members/external`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  removeMember: (defenseId: string, memberId: string) =>
+    apiRequest<void>(`/defenses/${defenseId}/members/${memberId}`, {
+      method: "DELETE",
+    }),
+
+  submitEvaluation: (
+    defenseId: string,
+    memberId: string,
+    body: { decision: string; score?: string | null; notes?: string },
+  ) =>
+    apiRequest<{ evaluation: DefenseMemberEvaluationData }>(
+      `/defenses/${defenseId}/members/${memberId}/evaluation`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+}

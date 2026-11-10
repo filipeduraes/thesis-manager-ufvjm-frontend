@@ -1,4 +1,4 @@
-export type Page = "login" | "dashboard" | "submission" | "approval" | "schedule" | "evaluation" | "repository" | "reports" | "users" | "courses" | "audit" | "style"
+export type Page = "login" | "dashboard" | "submission" | "approval" | "schedule" | "evaluation" | "committee" | "repository" | "reports" | "users" | "courses" | "audit" | "style"
 
 export type Profile = "Aluno" | "Orientador" | "Coordenador" | "Administrador"
 
