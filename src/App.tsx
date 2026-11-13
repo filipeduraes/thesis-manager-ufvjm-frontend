@@ -45,11 +45,12 @@ export default function App() {
   const [committeeDefenseId, setCommitteeDefenseId] = useState<string>()
 
   const roleCodeKey = session?.user?.roles?.map((role) => role.code).join("|") ?? ""
+  const userRoleCode = session?.user?.roleCode
   const activeProfiles = useMemo(() => {
     const fromRoles = profilesFromCodes(roleCodeKey ? roleCodeKey.split("|") : [])
     if (fromRoles.length > 0) return fromRoles
-    return [codeToProfile(session?.user?.roleCode)]
-  }, [roleCodeKey, session?.user?.roleCode])
+    return [codeToProfile(userRoleCode)]
+  }, [roleCodeKey, userRoleCode])
   const profile = activeProfiles[0] ?? "Aluno"
   const profileLabel = activeProfiles.join(", ") || session?.user?.roleLabel || "Aluno"
   const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles])
