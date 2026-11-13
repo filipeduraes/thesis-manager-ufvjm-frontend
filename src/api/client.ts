@@ -1,6 +1,7 @@
 import type { Profile } from "../types"
 
-const API_ROOT = `${process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"}/api/v1`
+const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
+const API_ROOT = `${API_ORIGIN}/api/v1`
 
 export class ApiError extends Error {
   status: number
@@ -67,7 +68,7 @@ export interface SessionUser {
 
 export interface SessionPayload {
   authenticated: boolean
-  authType: "google" | "institutional" | "external" | null
+  authType: "google" | "institutional" | "external" | "dev" | null
   user: SessionUser | null
   csrfToken: string
   externalInvitation: {
@@ -77,6 +78,15 @@ export interface SessionPayload {
     institution: string
     expiresAt: string
   } | null
+}
+
+export interface DevUser {
+  id: string
+  name: string
+  email: string
+  roleCode: string | null
+  roleLabel: string
+  roles?: string[]
 }
 
 export const authApi = {
@@ -94,6 +104,20 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ token }),
     }),
+  async devLogin(payload: {
+    name: string
+    email: string
+    roles: string[]
+  }): Promise<SessionPayload> {
+    const session = await apiRequest<SessionPayload>("/auth/dev-login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+    sessionCsrfToken = session.csrfToken ?? ""
+    return session
+  },
+  listDevUsers: () =>
+    apiRequest<{ results: DevUser[] }>("/auth/dev-users"),
   logout: () => apiRequest<void>("/session", { method: "DELETE" }),
 }
 
@@ -411,4 +435,329 @@ export const defenseApi = {
     apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/close`, {
       method: "POST",
     }),
+}
+
+export type ThesisStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "ADVISOR_REVIEW"
+  | "CHANGES_REQUESTED"
+  | "ADVISOR_APPROVED"
+  | "READY_FOR_DEFENSE"
+  | "DEFENSE_SCHEDULED"
+  | "UNDER_EVALUATION"
+  | "APPROVED"
+  | "APPROVED_WITH_REMARKS"
+  | "REJECTED"
+  | "CORRECTIONS_PENDING"
+  | "PUBLISHED"
+  | "ARCHIVED"
+
+export type ThesisReviewDecision = "APPROVED" | "CHANGES_REQUESTED" | "REJECTED"
+
+export type ThesisDefenseResult = "APPROVED" | "APPROVED_WITH_REMARKS" | "REJECTED"
+
+export type ThesisDocumentType =
+  | "DEFENSE_MINUTES"
+  | "PUBLICATION_AUTHORIZATION"
+  | "SPELLING_CHECK_PROOF"
+  | "OTHER"
+
+export type ThesisDocumentStatus = "PENDING" | "SUBMITTED" | "VALIDATED" | "REJECTED"
+
+export type ThesisProcessingStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED"
+  | "RETRYING"
+
+export interface ThesisUserBrief {
+  id: string
+  name: string
+  email: string
+}
+
+export interface ThesisCourseBrief {
+  id: string
+  name: string
+  code: string
+}
+
+export interface ThesisStoredFile {
+  id: string
+  originalFilename: string
+  mimeType: string
+  extension: string
+  sizeBytes: number
+  sha256: string
+  processingStatus: ThesisProcessingStatus
+  uploadedAt: string
+}
+
+export interface ThesisFile {
+  id: string
+  versionNumber: number
+  isCurrent: boolean
+  changeDescription: string
+  uploadedAt: string
+  hashVerifiedAt: string | null
+  storedFile: ThesisStoredFile
+  downloadUrl: string
+  previewUrl: string
+}
+
+export interface ThesisReview {
+  id: string
+  fileId: string
+  decision: ThesisReviewDecision
+  decisionLabel: string
+  comments: string
+  recommendations: string
+  reviewedAt: string
+  reviewer: ThesisUserBrief | null
+}
+
+export interface ThesisStatusHistoryEntry {
+  id: string
+  previousStatus: ThesisStatus | null
+  newStatus: ThesisStatus
+  newStatusLabel: string
+  reason: string
+  metadata: Record<string, unknown>
+  changedAt: string
+  changedBy: ThesisUserBrief | null
+}
+
+export interface ThesisDocument {
+  id: string
+  type: ThesisDocumentType
+  typeLabel: string
+  status: ThesisDocumentStatus
+  statusLabel: string
+  submittedAt: string
+  validatedAt: string | null
+  rejectionReason: string
+  submittedBy: ThesisUserBrief | null
+  validatedBy: ThesisUserBrief | null
+  storedFile: ThesisStoredFile
+  downloadUrl: string
+}
+
+export interface ThesisPermissions {
+  canEdit: boolean
+  canUpload: boolean
+  canSubmit: boolean
+  canWithdrawSubmission: boolean
+  canReview: boolean
+  canManage: boolean
+  canPublish: boolean
+  canRecordDefenseResult: boolean
+  canUploadDocuments: boolean
+}
+
+export interface ThesisAuthorEntry {
+  id: string
+  position: number
+  isMainAuthor: boolean
+  user: ThesisUserBrief | null
+}
+
+export interface ThesisSummaryFile {
+  id: string
+  sizeBytes: number
+  sha256: string
+  uploadedAt: string
+  previewUrl: string
+  downloadUrl: string
+}
+
+export interface Thesis {
+  id: string
+  referenceCode: string
+  type: string
+  typeLabel: string
+  title: string
+  abstract: string
+  journal: string
+  status: ThesisStatus
+  statusLabel: string
+  statusDescription: string
+  progressStep: number
+  isPublic: boolean
+  course: ThesisCourseBrief
+  advisor: ThesisUserBrief
+  student: ThesisUserBrief | null
+  authors: ThesisAuthorEntry[]
+  keywords: string[]
+  currentFile: ThesisFile | null
+  submittedAt: string | null
+  advisorApprovedAt: string | null
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+  permissions: ThesisPermissions
+  files?: ThesisFile[]
+  reviews?: ThesisReview[]
+  statusHistory?: ThesisStatusHistoryEntry[]
+  documents?: ThesisDocument[]
+}
+
+export interface ThesisListItem {
+  id: string
+  referenceCode: string
+  title: string
+  status: ThesisStatus
+  statusLabel: string
+  statusDescription: string
+  progressStep: number
+  isPublic: boolean
+  course: ThesisCourseBrief
+  advisor: ThesisUserBrief
+  student: ThesisUserBrief | null
+  keywords: string[]
+  currentVersion: number | null
+  currentFile: ThesisSummaryFile | null
+  submittedAt: string | null
+  updatedAt: string
+  advisorApprovedAt: string | null
+  pendingReview: boolean
+  permissions: ThesisPermissions
+}
+
+export interface ThesisLimits {
+  maxPdfSizeMb: number
+  maxDocumentSizeMb: number
+  maxKeywords: number
+}
+
+export interface StudentThesisContext {
+  thesis: Thesis | null
+  courses: ThesisCourseBrief[]
+  advisors: ThesisUserBrief[]
+  defaultCourseId: string | null
+  limits: ThesisLimits
+}
+
+export interface ThesisMetadataInput {
+  title: string
+  abstract: string
+  courseId: string
+  advisorId: string
+  keywords: string[]
+  type?: string
+  journal?: string
+}
+
+export interface ThesisListParams {
+  scope?: "advised" | "authored" | "coordinated"
+  q?: string
+  status?: string
+  courseId?: string
+  advisorId?: string
+  year?: string
+  pendingReview?: boolean
+  page?: number
+  pageSize?: number
+}
+
+function queryString(params: Record<string, string | number | boolean | undefined>): string {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === "") return
+    search.set(key, String(value))
+  })
+  const serialized = search.toString()
+  return serialized ? `?${serialized}` : ""
+}
+
+function resolveApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path
+  if (path.startsWith("/api/v1")) return `${API_ORIGIN}${path}`
+  return `${API_ROOT}${path}`
+}
+
+export async function fetchApiBlob(path: string): Promise<Blob> {
+  const response = await fetch(resolveApiUrl(path), {
+    credentials: "include",
+    cache: "no-store",
+    headers: { Accept: "application/pdf,application/octet-stream" },
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    const detail = (body as { detail?: string }).detail ?? "Não foi possível carregar o arquivo."
+    throw new ApiError(detail, response.status)
+  }
+  return response.blob()
+}
+
+export async function downloadApiFile(path: string, filename: string): Promise<void> {
+  const blob = await fetchApiBlob(path)
+  const url = window.URL.createObjectURL(blob)
+  const safeName = filename.replace(/[\\/:*?"<>|]+/g, "_").trim() || "monografia.pdf"
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = safeName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+}
+
+export const thesesApi = {
+  myThesis: () => apiRequest<StudentThesisContext>("/theses/me"),
+  saveMetadata: (body: ThesisMetadataInput) =>
+    apiRequest<{ thesis: Thesis }>("/theses/me", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  uploadFile: (file: File, changeDescription = "") => {
+    const form = new FormData()
+    form.append("file", file)
+    if (changeDescription) form.append("changeDescription", changeDescription)
+    return apiRequest<{ file: ThesisFile; thesis: Thesis }>("/theses/me/files", {
+      method: "POST",
+      body: form,
+    })
+  },
+  submit: () =>
+    apiRequest<{ thesis: Thesis }>("/theses/me/submit", { method: "POST" }),
+  withdrawSubmission: () =>
+    apiRequest<{ thesis: Thesis }>("/theses/me/withdraw", { method: "POST" }),
+  list: (params: ThesisListParams = {}) =>
+    apiRequest<PaginatedResponse<ThesisListItem>>(
+      `/theses${queryString({ ...params })}`,
+    ),
+  detail: (id: string) => apiRequest<{ thesis: Thesis }>(`/theses/${id}`),
+  review: (
+    id: string,
+    body: { decision: ThesisReviewDecision; comments?: string; recommendations?: string },
+  ) =>
+    apiRequest<{ thesis: Thesis; review: ThesisReview }>(`/theses/${id}/reviews`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  recordDefenseResult: (id: string, body: { result: ThesisDefenseResult; reason?: string }) =>
+    apiRequest<{ thesis: Thesis }>(`/theses/${id}/defense-result`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  publish: (id: string) =>
+    apiRequest<{ thesis: Thesis }>(`/theses/${id}/publish`, { method: "POST" }),
+  uploadDocument: (id: string, type: ThesisDocumentType, file: File) => {
+    const form = new FormData()
+    form.append("type", type)
+    form.append("file", file)
+    return apiRequest<{ document: ThesisDocument }>(`/theses/${id}/documents`, {
+      method: "POST",
+      body: form,
+    })
+  },
+  validateDocument: (id: string, documentId: string) =>
+    apiRequest<{ document: ThesisDocument }>(
+      `/theses/${id}/documents/${documentId}/validate`,
+      { method: "POST" },
+    ),
+  downloadFile: (path: string, filename: string) => downloadApiFile(path, filename),
+  fetchFile: (path: string) => fetchApiBlob(path),
 }

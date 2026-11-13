@@ -3,11 +3,13 @@ import AdminDashboard from "./AdminDashboard"
 import AdvisorDashboard from "./AdvisorDashboard"
 import CoordinatorDashboard from "./CoordinatorDashboard"
 import StudentDashboard from "./StudentDashboard"
+
 interface DashboardViewProps {
   profile: Profile
   go: (page: Page) => void
-  review: (student: string) => void
+  review: (thesisId: string) => void
 }
+
 export default function DashboardView({
   profile,
   go,
