@@ -138,7 +138,7 @@ export default function PresentedDefenseList({
         </label>
         <div className="form-actions">
           <Button variant="outline" disabled={!trimmedUuid} onClick={() => onEvaluate(trimmedUuid)}>
-            Avaliar
+            Abrir avaliação
           </Button>
           <Button variant="outline" disabled={!trimmedUuid} onClick={() => onOpenCommittee(trimmedUuid)}>
             Gerenciar membros

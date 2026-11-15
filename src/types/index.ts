@@ -31,25 +31,6 @@ export interface Thesis {
   version: string
 }
 
-export interface Defense {
-  id: string
-  thesisId: string
-  date: string
-  time: string
-  location: string
-  mode: "Presencial" | "Remota"
-}
-
-export interface PresentedDefense {
-  id: string
-  thesis: string
-  student: string
-  course: string
-  date: string
-  role: string
-  evaluated: boolean
-}
-
 export interface AuditLog {
   timestamp: string
   actor: string
@@ -94,13 +75,6 @@ export interface AdvisorSubmission {
   submittedAt: string
   status: string
   version: string
-}
-
-export interface CommitteeMember {
-  initials: string
-  name: string
-  role: string
-  status: "Confirmado" | "Pendente"
 }
 
 /** Committee role codes accepted by the defense member endpoints. */

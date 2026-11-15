@@ -217,12 +217,7 @@ export default function App() {
 
   if (session.authType === "external") {
     return (
-      <ExternalEvaluation
-        mode="external"
-        goLogin={() => void logout()}
-        goBack={() => void logout()}
-        externalSession={session.externalInvitation}
-      />
+      <ExternalEvaluation goLogin={() => void logout()} externalSession={session.externalInvitation} />
     )
   }
 
@@ -258,13 +253,6 @@ export default function App() {
         <DefenseEvaluation
           defenseId={evaluationDefense}
           userEmail={session.user.email}
-          goBack={() => navigate("schedule")}
-        />
-      )}
-      {page === "evaluation" && !evaluationDefense && (
-        <ExternalEvaluation
-          mode="internal"
-          goLogin={() => void logout()}
           goBack={() => navigate("schedule")}
         />
       )}

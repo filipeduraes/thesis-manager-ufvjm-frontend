@@ -1349,8 +1349,7 @@ textarea:focus {
 }
 
 .button-stack,
-.radio-list,
-.alternatives {
+.radio-list {
   display: flex;
   flex-direction: column;
   gap: 8px
@@ -3165,24 +3164,6 @@ footer .logo {
   margin-top: 4px;
   color: var(--slate);
   line-height: 1.45
-}
-
-.alternatives>strong {
-  font-size: var(--font-size-sm)
-}
-
-.alternatives button {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--white);
-  color: var(--navy);
-  font-size: var(--font-size-sm);
-  text-align: left
 }
 
 .external-header {
