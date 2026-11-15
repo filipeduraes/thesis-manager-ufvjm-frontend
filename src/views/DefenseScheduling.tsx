@@ -56,7 +56,7 @@ export default function DefenseScheduling({ onEvaluate, onOpenCommittee }: Defen
     <div className="page-content">
       <PageTitle
         eyebrow="Gestão de bancas"
-        title={activeView === "schedule" ? "Agendar banca de defesa" : "Bancas apresentadas"}
+        title={activeView === "schedule" ? "Agendar banca de defesa" : "Bancas"}
       />
       <div className="defense-tabs" role="tablist">
         <button
@@ -73,7 +73,7 @@ export default function DefenseScheduling({ onEvaluate, onOpenCommittee }: Defen
           role="tab"
           aria-selected={activeView === "presented"}
         >
-          Bancas apresentadas
+          Bancas
           {listState.status === "ready" && <Badge tone="light">{listState.count}</Badge>}
         </button>
       </div>

@@ -82,11 +82,13 @@ test("opens the committee screen from the defense list without redirecting to th
 
   const navigation = await screen.findByRole("navigation")
   userEvent.click(within(navigation).getByRole("button", { name: "Bancas" }))
-  userEvent.click(await screen.findByRole("tab", { name: /Bancas/ }))
+  // A aba mostra o rótulo "Bancas" seguido do total real retornado pelo backend.
+  userEvent.click(await screen.findByRole("tab", { name: "Bancas 1" }))
+  expect(await screen.findByRole("heading", { name: "Bancas" })).toBeTruthy()
   userEvent.click(await screen.findByRole("button", { name: "Membros" }))
 
   expect(await screen.findByText("Dados da banca")).toBeTruthy()
   await waitFor(() => expect(getDefense).toHaveBeenCalledWith("defense-1"))
   expect(screen.getByText("Dados da banca")).toBeTruthy()
-  expect(screen.queryByRole("tab", { name: /Bancas/ })).toBeNull()
+  expect(screen.queryByRole("tab", { name: "Bancas 1" })).toBeNull()
 })
