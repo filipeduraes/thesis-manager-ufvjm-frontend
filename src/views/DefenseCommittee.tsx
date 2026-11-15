@@ -326,7 +326,7 @@ export default function DefenseCommittee({
     <div className="page-content">
       <PageTitle eyebrow="Banca de defesa" title="Membros da banca" />
 
-      <Card className="thesis-summary">
+      <Card className="thesis-summary defense-summary">
         <div className="file-icon">
           <Icon name="calendar" />
         </div>
@@ -336,50 +336,46 @@ export default function DefenseCommittee({
           </h3>
           {defense.location && <span>{defense.location}</span>}
         </div>
-        <Badge tone={statusTone}>{defense.statusLabel}</Badge>
-        <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
-          {refreshing ? "Atualizando…" : "Atualizar"}
-        </Button>
-        {canManageSchedule && (
-          <Button variant="outline" onClick={() => setScheduleModal("edit")}>
-            Editar agendamento
+        <div className="defense-actions">
+          <Badge tone={statusTone}>{defense.statusLabel}</Badge>
+          <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
+            {refreshing ? "Atualizando…" : "Atualizar"}
           </Button>
-        )}
-        {canManageSchedule && (
-          <Button variant="danger" onClick={() => setScheduleModal("cancel")}>
-            Cancelar banca
+          {canStartClose && isScheduled && (
+            <Button variant="success" disabled={startLoading} onClick={() => void startDefense()}>
+              {startLoading ? "Iniciando…" : "Iniciar banca"}
+            </Button>
+          )}
+          {canStartClose && isInProgress && (
+            <Button variant="secondary" disabled={closeLoading} onClick={() => void closeDefense()}>
+              {closeLoading ? "Encerrando…" : "Encerrar banca"}
+            </Button>
+          )}
+          {canRevert && (
+            <Button variant="danger" onClick={() => setRevertOpen(true)}>
+              Reverter status
+            </Button>
+          )}
+          <Button variant="ghost" onClick={goBack}>
+            Voltar
           </Button>
-        )}
-        {canStartClose && isScheduled && (
-          <Button
-            variant="success"
-            disabled={startLoading}
-            onClick={() => void startDefense()}
-          >
-            {startLoading ? "Iniciando…" : "Iniciar banca"}
-          </Button>
-        )}
-        {canStartClose && isInProgress && (
-          <Button
-            variant="secondary"
-            disabled={closeLoading}
-            onClick={() => void closeDefense()}
-          >
-            {closeLoading ? "Encerrando…" : "Encerrar banca"}
-          </Button>
-        )}
-        {canRevert && (
-          <Button variant="danger" onClick={() => setRevertOpen(true)}>
-            Reverter status
-          </Button>
-        )}
-        <Button variant="ghost" onClick={goBack}>
-          Voltar
-        </Button>
+        </div>
       </Card>
 
       <Card>
-        <h2>Dados da banca</h2>
+        <div className="section-head defense-section-head">
+          <h2>Dados da banca</h2>
+          {canManageSchedule && (
+            <div className="defense-actions">
+              <Button variant="outline" onClick={() => setScheduleModal("edit")}>
+                Editar agendamento
+              </Button>
+              <Button variant="danger" onClick={() => setScheduleModal("cancel")}>
+                Cancelar banca
+              </Button>
+            </div>
+          )}
+        </div>
         <dl className="meta-list defense-details">
           <div>
             <dt>Data</dt>
@@ -427,13 +423,13 @@ export default function DefenseCommittee({
       )}
 
       <Card>
-        <div className="section-head">
+        <div className="section-head defense-section-head">
           <div>
             <h2>Comissão avaliadora</h2>
             <p>{defense.members.length} membro{defense.members.length !== 1 ? "s" : ""}</p>
           </div>
           {canManage && (
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div className="defense-actions">
               <Button
                 variant="outline"
                 icon="plus"
@@ -455,7 +451,7 @@ export default function DefenseCommittee({
         {defense.members.length === 0 ? (
           <p>Nenhum membro cadastrado.</p>
         ) : (
-          <div className="member-list">
+          <div className="member-list committee-member-list">
             {defense.members.map((member) => {
               const evalStatus = evaluationStatusBadge(member)
               return (
@@ -485,7 +481,7 @@ export default function DefenseCommittee({
                   <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
                   {canManage && !member.evaluation && (
                     <Button
-                      variant="danger"
+                      variant="secondary"
                       disabled={removing === member.id}
                       onClick={() => void removeMember(member.id)}
                     >

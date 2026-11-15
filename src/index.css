@@ -3122,6 +3122,69 @@ footer .logo {
   margin: 20px 0
 }
 
+/* Tela de gerenciamento da banca: as regras de .thesis-summary e .member-list são
+   compartilhadas com outras telas e pressupõem poucos filhos, então os ajustes ficam
+   restritos a estes modificadores. */
+.defense-summary {
+  grid-template-columns: 42px minmax(0, 1fr) auto
+}
+
+.defense-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px
+}
+
+.defense-actions>.btn {
+  flex: 0 0 auto;
+  width: auto
+}
+
+.defense-section-head {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px
+}
+
+.defense-section-head h2 {
+  margin: 0
+}
+
+.defense-section-head+.defense-details {
+  margin-top: 0
+}
+
+.committee-member-list>div {
+  grid-template-columns: 38px minmax(0, 1fr) auto auto
+}
+
+.committee-member-list>div>div {
+  min-width: 0;
+  overflow-wrap: anywhere
+}
+
+@media (max-width: 760px) {
+  .defense-summary {
+    grid-template-columns: 42px minmax(0, 1fr)
+  }
+
+  .defense-summary>.defense-actions {
+    grid-column: 1/-1
+  }
+
+  .defense-section-head>.defense-actions {
+    width: 100%
+  }
+}
+
+@media (max-width: 600px) {
+  .committee-member-list>div {
+    grid-template-columns: 38px minmax(0, 1fr) auto
+  }
+}
+
 .defense-details {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
