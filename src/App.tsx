@@ -64,9 +64,11 @@ export default function App() {
     for (const activeProfile of activeProfiles) {
       for (const item of menuByProfile[activeProfile] ?? []) pages.add(item.page)
     }
-    // Quem pode avaliar é decidido pelo backend (viewerMembership); a página precisa
-    // estar liberada para todo perfil que acessa a lista de bancas.
+    // Avaliação e membros são abertos a partir da lista de bancas; quem pode agir é
+    // decidido pelo backend (viewerMembership, _can_manage_defense), então as páginas
+    // precisam estar liberadas para todo perfil que acessa "schedule".
     if (canEvaluate || pages.has("schedule")) pages.add("evaluation")
+    if (pages.has("schedule")) pages.add("committee")
     return pages
   }, [activeProfiles, canEvaluate, menuItems])
 
