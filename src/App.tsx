@@ -262,6 +262,8 @@ export default function App() {
           goBack={() => navigate("schedule")}
           isAdmin={isAdmin}
           canStartClose={canStartClose}
+          isAdvisor={activeProfiles.includes("Orientador")}
+          currentUserId={session.user.id}
         />
       )}
       {page === "reports" && <ReportsView />}

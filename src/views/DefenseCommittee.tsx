@@ -4,6 +4,7 @@ import {
   COMMITTEE_ROLE_LABELS,
   DEFENSE_RESULT_LABELS,
   defenseApi,
+  thesesApi,
   type DefenseCommitteeMember,
   type DefenseData,
 } from "../api/client"
@@ -18,6 +19,17 @@ import {
   PageTitle,
 } from "../components/common"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
+import DefenseCancelModal from "./defense/DefenseCancelModal"
+import DefenseEditModal from "./defense/DefenseEditModal"
+import { expectedEnd, formatDuration, isoToSaoPauloInputs } from "./defense/defenseSchedule"
+
+const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  timeZone: "America/Sao_Paulo",
+})
 
 type AddModalKind = "institutional" | "external" | null
 
@@ -29,6 +41,10 @@ interface DefenseCommitteeProps {
   isAdmin?: boolean
   /** Usuário pode iniciar/encerrar a banca (admin ou coordenador). */
   canStartClose?: boolean
+  /** Usuário tem o papel de orientador; só gerencia a banca se orientar a tese. */
+  isAdvisor?: boolean
+  /** Id do usuário autenticado, comparado ao orientador da tese. */
+  currentUserId?: string
 }
 
 const STATUS_BADGE_TONE: Record<string, "light" | "active" | "success" | "dark"> = {
@@ -67,6 +83,8 @@ export default function DefenseCommittee({
   goBack,
   isAdmin = false,
   canStartClose = false,
+  isAdvisor = false,
+  currentUserId,
 }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -76,6 +94,10 @@ export default function DefenseCommittee({
   const [removeError, setRemoveError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
   const firstLoadRef = useRef(true)
+  const [scheduleModal, setScheduleModal] = useState<"edit" | "cancel" | null>(null)
+  // Espelha _can_manage_defense: orientador só gerencia a banca da tese que orienta.
+  const [isThesisAdvisor, setIsThesisAdvisor] = useState(false)
+  const [permissionError, setPermissionError] = useState("")
 
   // Item C — start / close
   const [startLoading, setStartLoading] = useState(false)
@@ -129,6 +151,39 @@ export default function DefenseCommittee({
       mountedRef.current = false
     }
   }, [loadDefense])
+
+  const thesisId = defense?.thesis
+  useEffect(() => {
+    if (!thesisId || canStartClose || !isAdvisor || !currentUserId) {
+      setIsThesisAdvisor(false)
+      return
+    }
+    let cancelled = false
+    setPermissionError("")
+    thesesApi
+      .detail(thesisId)
+      .then(({ thesis }) => {
+        if (!cancelled) setIsThesisAdvisor(thesis.advisor.id === currentUserId)
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return
+        setIsThesisAdvisor(false)
+        // 403/404 significam apenas que o usuário não orienta esta tese.
+        const expected = reason instanceof ApiError && (reason.status === 403 || reason.status === 404)
+        if (!expected) {
+          const detail = reason instanceof Error && reason.message ? reason.message : "erro desconhecido"
+          setPermissionError(`Não foi possível verificar se você pode alterar esta banca: ${detail}`)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [thesisId, canStartClose, isAdvisor, currentUserId])
+
+  const finishScheduleChange = () => {
+    setScheduleModal(null)
+    loadDefense()
+  }
 
   // Erros são propagados para o modal, que exibe a mensagem do backend.
   const addInstitutionalMember = async (draft: InstitutionalMemberDraft) => {
@@ -250,6 +305,12 @@ export default function DefenseCommittee({
   const isCancelled = defense.status === "CANCELLED"
   const canManage = isScheduled
   const canRevert = isAdmin && (isInProgress || isCancelled)
+  const canManageSchedule = isScheduled && (canStartClose || isThesisAdvisor)
+  const startInputs = isoToSaoPauloInputs(defense.scheduledDatetime)
+  const end = expectedEnd(startInputs.startTime, String(defense.durationMinutes))
+  const timeRange = end
+    ? `${startInputs.startTime} às ${end.time}${end.nextDay ? " (dia seguinte)" : ""}`
+    : startInputs.startTime
   const statusTone = STATUS_BADGE_TONE[defense.status] ?? "neutral"
 
   const scheduledDate = new Intl.DateTimeFormat("pt-BR", {
@@ -279,6 +340,16 @@ export default function DefenseCommittee({
         <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
           {refreshing ? "Atualizando…" : "Atualizar"}
         </Button>
+        {canManageSchedule && (
+          <Button variant="outline" onClick={() => setScheduleModal("edit")}>
+            Editar agendamento
+          </Button>
+        )}
+        {canManageSchedule && (
+          <Button variant="danger" onClick={() => setScheduleModal("cancel")}>
+            Cancelar banca
+          </Button>
+        )}
         {canStartClose && isScheduled && (
           <Button
             variant="success"
@@ -306,6 +377,42 @@ export default function DefenseCommittee({
           Voltar
         </Button>
       </Card>
+
+      <Card>
+        <h2>Dados da banca</h2>
+        <dl className="meta-list defense-details">
+          <div>
+            <dt>Data</dt>
+            <dd>{LONG_DATE_FORMATTER.format(new Date(defense.scheduledDatetime))}</dd>
+          </div>
+          <div>
+            <dt>Horário</dt>
+            <dd>{timeRange}</dd>
+          </div>
+          <div>
+            <dt>Duração</dt>
+            <dd>{formatDuration(defense.durationMinutes)}</dd>
+          </div>
+          <div>
+            <dt>Modalidade</dt>
+            <dd>{defense.modalityLabel}</dd>
+          </div>
+          <div>
+            <dt>{defense.modality === "REMOTE" ? "Link" : "Local"}</dt>
+            <dd>{defense.location || "Não informado"}</dd>
+          </div>
+          <div>
+            <dt>Observações</dt>
+            <dd>{defense.notes || "Nenhuma"}</dd>
+          </div>
+        </dl>
+      </Card>
+
+      {permissionError && (
+        <div className="success-notice" role="alert">
+          {permissionError}
+        </div>
+      )}
 
       {actionError && (
         <div className="success-notice" role="alert">
@@ -398,6 +505,18 @@ export default function DefenseCommittee({
 
       {addModal === "external" && (
         <ExternalMemberModal onClose={() => setAddModal(null)} onSubmit={addExternalMember} />
+      )}
+
+      {scheduleModal === "edit" && (
+        <DefenseEditModal defense={defense} onClose={() => setScheduleModal(null)} onSaved={finishScheduleChange} />
+      )}
+
+      {scheduleModal === "cancel" && (
+        <DefenseCancelModal
+          defenseId={defense.id}
+          onClose={() => setScheduleModal(null)}
+          onCancelled={finishScheduleChange}
+        />
       )}
 
       {/* Modal — reverter status (admin only) */}

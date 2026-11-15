@@ -3,6 +3,7 @@ import {
   draftToScheduleInput,
   EMPTY_SCHEDULE_DRAFT,
   expectedEnd,
+  formatDuration,
   isoToSaoPauloInputs,
   parseDurationMinutes,
   saoPauloInputsToIso,
@@ -55,4 +56,10 @@ test("builds the payload only when required fields are valid", () => {
     location: "https://meet.example/abc",
     notes: "",
   })
+})
+
+test("formats durations for display", () => {
+  expect(formatDuration(45)).toBe("45 min")
+  expect(formatDuration(120)).toBe("2h")
+  expect(formatDuration(90)).toBe("1h30")
 })

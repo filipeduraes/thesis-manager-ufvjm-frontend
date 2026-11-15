@@ -378,6 +378,9 @@ export interface ScheduleDefenseInput {
   notes?: string
 }
 
+/** Corpo de PATCH /defenses/{id} (UpdateDefenseSerializer): todos os campos são opcionais. */
+export type UpdateDefenseInput = Partial<ScheduleDefenseInput>
+
 /** Situação do usuário autenticado na banca, calculada pelo backend. */
 export interface DefenseViewerMembership {
   isMember: boolean
@@ -411,6 +414,8 @@ export interface DefenseListParams {
  *   GET  /defenses/schedulable-theses        — teses aptas a agendar (paginado)
  *   POST /theses/{thesisId}/defenses         — agenda nova banca
  *   GET  /defenses/{id}
+ *   PATCH /defenses/{id}                     — altera data, duração, modalidade, local ou notas (só SCHEDULED)
+ *   POST /defenses/{id}/cancel               — cancela banca agendada (motivo opcional)
  *   POST /defenses/{id}/members              — membro institucional
  *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
  *   DELETE /defenses/{id}/members/{member_id}
@@ -474,6 +479,18 @@ export const defenseApi = {
       `/defenses/${defenseId}/members/${memberId}/evaluation`,
       { method: "PUT", body: JSON.stringify(body) },
     ),
+
+  update: (defenseId: string, body: UpdateDefenseInput) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  cancel: (defenseId: string, reason: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 
   revertStatus: (defenseId: string, reason: string) =>
     apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/revert-status`, {

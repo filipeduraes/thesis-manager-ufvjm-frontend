@@ -3122,6 +3122,29 @@ footer .logo {
   margin: 20px 0
 }
 
+.defense-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px
+}
+
+.defense-details dd {
+  overflow-wrap: anywhere
+}
+
+@media (max-width: 900px) {
+  .defense-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+  }
+}
+
+@media (max-width: 600px) {
+  .defense-details {
+    grid-template-columns: 1fr
+  }
+}
+
 .duration-presets {
   display: flex;
   flex-wrap: wrap;
