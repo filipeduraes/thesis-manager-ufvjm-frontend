@@ -24,7 +24,7 @@ const routeTitles: Partial<Record<Page, string>> = {
   approval: "Orientandos",
   schedule: "Bancas",
   evaluation: "Avaliação",
-  committee: "Membros da banca",
+  committee: "Gerenciar banca",
   reports: "Relatórios",
   users: "Usuários",
   courses: "Cursos",

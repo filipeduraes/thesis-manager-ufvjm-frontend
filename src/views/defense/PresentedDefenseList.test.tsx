@@ -59,7 +59,7 @@ test("shows evaluation actions according to viewerMembership", () => {
   expect(sentButtons).toHaveLength(1)
   expect(sentButtons[0]).toHaveProperty("disabled", true)
 
-  expect(screen.getAllByRole("button", { name: "Membros" })).toHaveLength(3)
+  expect(screen.getAllByRole("button", { name: "Gerenciar banca" })).toHaveLength(3)
 })
 
 test("shows the empty state when the backend returns no defenses", () => {

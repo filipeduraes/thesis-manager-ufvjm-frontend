@@ -283,7 +283,7 @@ export default function DefenseCommittee({
   if (loadError) {
     return (
       <div className="page-content">
-        <PageTitle eyebrow="Banca de defesa" title="Membros da banca" />
+        <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
         <Card>
           <div className="success-notice" role="alert">
             {loadError}
@@ -324,7 +324,7 @@ export default function DefenseCommittee({
 
   return (
     <div className="page-content">
-      <PageTitle eyebrow="Banca de defesa" title="Membros da banca" />
+      <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
 
       <Card className="thesis-summary defense-summary">
         <div className="file-icon">

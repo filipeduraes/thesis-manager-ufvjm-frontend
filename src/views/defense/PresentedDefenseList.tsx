@@ -114,7 +114,7 @@ export default function PresentedDefenseList({
                 </Button>
               )}
               <Button variant="ghost" onClick={() => onOpenCommittee(defense.id)}>
-                Membros
+                Gerenciar banca
               </Button>
             </Card>
           )
