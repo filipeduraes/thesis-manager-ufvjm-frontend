@@ -3,7 +3,6 @@ import {
   ApiError,
   COMMITTEE_ROLE_LABELS,
   defenseApi,
-  type ScheduleDefenseInput,
   type ThesisListItem,
 } from "../../api/client"
 import {
@@ -16,14 +15,14 @@ import {
   Modal,
 } from "../../components/common"
 import type {
-  DefenseModalityCode,
+  DefenseScheduleDraft,
   ExternalMemberDraft,
   InstitutionalMemberDraft,
 } from "../../types"
+import DefenseScheduleFields from "./DefenseScheduleFields"
+import { draftToScheduleInput, EMPTY_SCHEDULE_DRAFT, scheduleSummary } from "./defenseSchedule"
 
 const SCHEDULABLE_PAGE_SIZE = 100
-const MAX_DURATION_MINUTES = 720
-const DEFENSE_TIME_ZONE = "America/Sao_Paulo"
 
 type PendingMember =
   | { key: string; kind: "institutional"; draft: InstitutionalMemberDraft }
@@ -52,37 +51,15 @@ function errorMessage(reason: unknown, fallback: string): string {
   return reason instanceof Error && reason.message ? reason.message : fallback
 }
 
+function modalityText(draft: DefenseScheduleDraft): string {
+  if (draft.modality === "REMOTE") return "Remota"
+  if (draft.modality === "IN_PERSON") return "Presencial"
+  return "Escolha a modalidade"
+}
+
 function initialsOf(name: string): string {
   const parts = name.split(" ").filter(Boolean).slice(0, 2)
   return parts.map((part) => part[0]?.toUpperCase() ?? "").join("")
-}
-
-/** Returns the UTC offset of São Paulo, in minutes, at the given instant (e.g. -180). */
-function saoPauloOffsetMinutes(instant: Date): number {
-  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: DEFENSE_TIME_ZONE, timeZoneName: "longOffset" })
-  const offsetPart = formatter.formatToParts(instant).find((part) => part.type === "timeZoneName")
-  const match = offsetPart?.value.match(/GMT([+-])(\d{2}):(\d{2})/)
-  if (!match) return 0
-  const sign = match[1] === "-" ? -1 : 1
-  return sign * (Number(match[2]) * 60 + Number(match[3]))
-}
-
-/**
- * Converts the values of `<input type="date">` and `<input type="time">`, read as
- * São Paulo wall-clock time, into an ISO 8601 UTC string.
- *
- * Returns `null` when either value is missing or malformed.
- */
-function saoPauloInputsToIso(dateValue: string, timeValue: string): string | null {
-  const dateParts = dateValue.split("-").map(Number)
-  const timeParts = timeValue.split(":").map(Number)
-  const [year, month, day] = dateParts
-  const [hour, minute] = timeParts
-  const values = [year, month, day, hour, minute]
-  if (values.some((value) => value === undefined || Number.isNaN(value))) return null
-  const wallClockAsUtc = Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0)
-  const offset = saoPauloOffsetMinutes(new Date(wallClockAsUtc))
-  return new Date(wallClockAsUtc - offset * 60_000).toISOString()
 }
 
 interface DefenseScheduleFormProps {
@@ -102,12 +79,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
   const [thesesReloadKey, setThesesReloadKey] = useState(0)
   const [selectedThesis, setSelectedThesis] = useState<ThesisListItem | null>(null)
   const [selectionOpen, setSelectionOpen] = useState(false)
-  const [date, setDate] = useState("")
-  const [time, setTime] = useState("")
-  const [duration, setDuration] = useState("")
-  const [modality, setModality] = useState<DefenseModalityCode | null>(null)
-  const [location, setLocation] = useState("")
-  const [notes, setNotes] = useState("")
+  const [scheduleDraft, setScheduleDraft] = useState<DefenseScheduleDraft>(EMPTY_SCHEDULE_DRAFT)
   const [members, setMembers] = useState<PendingMember[]>([])
   const [memberModal, setMemberModal] = useState<"institutional" | "external" | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -137,11 +109,10 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
 
   const reloadTheses = () => setThesesReloadKey((current) => current + 1)
 
-  const durationMinutes = Number(duration)
-  const durationValid = Number.isInteger(durationMinutes) && durationMinutes >= 1 && durationMinutes <= MAX_DURATION_MINUTES
-  const scheduledDatetime = saoPauloInputsToIso(date, time)
+  const scheduleInput = draftToScheduleInput(scheduleDraft)
+  const timeSummary = scheduleSummary(scheduleDraft)
   const formLocked = submitting || outcome !== null
-  const canConfirm = Boolean(selectedThesis && scheduledDatetime && durationValid && modality) && !formLocked
+  const canConfirm = Boolean(selectedThesis && scheduleInput) && !formLocked
 
   const addPendingMember = (member: PendingMember) => {
     if (members.some((current) => current.key === member.key)) {
@@ -163,12 +134,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
 
   const resetForm = () => {
     setSelectedThesis(null)
-    setDate("")
-    setTime("")
-    setDuration("")
-    setModality(null)
-    setLocation("")
-    setNotes("")
+    setScheduleDraft(EMPTY_SCHEDULE_DRAFT)
     setMembers([])
     setSubmitError("")
     setOutcome(null)
@@ -187,20 +153,13 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
   }
 
   const confirmSchedule = async () => {
-    if (!selectedThesis || !scheduledDatetime || !durationValid || !modality || formLocked) return
+    if (!selectedThesis || !scheduleInput || formLocked) return
     setSubmitting(true)
     setSubmitError("")
     setSubmitStep("Agendando banca…")
-    const body: ScheduleDefenseInput = {
-      scheduledDatetime,
-      durationMinutes,
-      modality,
-      location: location.trim(),
-      notes: notes.trim(),
-    }
     let defenseId: string
     try {
-      const response = await defenseApi.schedule(selectedThesis.id, body)
+      const response = await defenseApi.schedule(selectedThesis.id, scheduleInput)
       defenseId = response.defense.id
     } catch (reason) {
       setSubmitError(errorMessage(reason, "Não foi possível agendar a banca."))
@@ -286,71 +245,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
           <Card>
             <h2>Dados da defesa</h2>
             <fieldset className="plain-fieldset" disabled={formLocked}>
-              <div className="three-col schedule-fields">
-                <label className="field">
-                  <span>Data</span>
-                  <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-                </label>
-                <label className="field">
-                  <span>Horário</span>
-                  <input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
-                </label>
-                <label className="field">
-                  <span>
-                    Duração <small>(minutos)</small>
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={MAX_DURATION_MINUTES}
-                    step={1}
-                    inputMode="numeric"
-                    value={duration}
-                    onChange={(event) => setDuration(event.target.value)}
-                    aria-describedby="defense-duration-hint"
-                  />
-                  <small id="defense-duration-hint">Entre 1 e {MAX_DURATION_MINUTES} minutos.</small>
-                </label>
-              </div>
-              <div className="field" role="radiogroup" aria-labelledby="defense-modality-label">
-                <span id="defense-modality-label">Modalidade</span>
-                <div className="segmented">
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={modality === "IN_PERSON"}
-                    className={modality === "IN_PERSON" ? "active" : ""}
-                    onClick={() => setModality("IN_PERSON")}
-                  >
-                    Presencial
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={modality === "REMOTE"}
-                    className={modality === "REMOTE" ? "active" : ""}
-                    onClick={() => setModality("REMOTE")}
-                  >
-                    Remota
-                  </button>
-                </div>
-              </div>
-              <label className="field">
-                <span>
-                  {modality === "REMOTE" ? "Link da videoconferência" : "Local da defesa"} <small>(opcional)</small>
-                </span>
-                <input
-                  value={location}
-                  onChange={(event) => setLocation(event.target.value)}
-                  placeholder={modality === "REMOTE" ? "https://meet.google.com/..." : "Sala / prédio"}
-                />
-              </label>
-              <label className="field">
-                <span>
-                  Observações <small>(opcional)</small>
-                </span>
-                <textarea className="feedback-area" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
-              </label>
+              <DefenseScheduleFields idPrefix="schedule" value={scheduleDraft} onChange={setScheduleDraft} />
             </fieldset>
           </Card>
 
@@ -404,18 +299,18 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
                   <small>{selectedThesis ? selectedThesis.referenceCode : "Selecione uma monografia"}</small>
                 </span>
               </div>
-              <div className={scheduledDatetime && durationValid ? "ok" : ""}>
-                <Icon name={scheduledDatetime && durationValid ? "check" : "clock"} />
+              <div className={timeSummary ? "ok" : ""}>
+                <Icon name={timeSummary ? "check" : "clock"} />
                 <span>
                   <strong>Data, horário e duração</strong>
-                  <small>{scheduledDatetime && durationValid ? `${durationMinutes} minutos` : "Preencha os dados da defesa"}</small>
+                  <small>{timeSummary ?? "Preencha os dados da defesa"}</small>
                 </span>
               </div>
-              <div className={modality ? "ok" : ""}>
-                <Icon name={modality ? "check" : "clock"} />
+              <div className={scheduleDraft.modality ? "ok" : ""}>
+                <Icon name={scheduleDraft.modality ? "check" : "clock"} />
                 <span>
                   <strong>Modalidade</strong>
-                  <small>{modality === "REMOTE" ? "Remota" : modality === "IN_PERSON" ? "Presencial" : "Escolha a modalidade"}</small>
+                  <small>{modalityText(scheduleDraft)}</small>
                 </span>
               </div>
               <div className={members.length > 0 ? "ok" : ""}>

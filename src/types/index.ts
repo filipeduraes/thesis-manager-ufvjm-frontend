@@ -98,3 +98,17 @@ export interface ExternalMemberDraft {
   email: string
   institution: string
 }
+
+/**
+ * Editable scheduling fields of a defense, kept as raw input strings.
+ * `date` is `YYYY-MM-DD` and `startTime` is `HH:MM`, both in São Paulo wall-clock time.
+ */
+export interface DefenseScheduleDraft {
+  date: string
+  startTime: string
+  /** Duration in minutes, as typed (validated before sending). */
+  duration: string
+  modality: DefenseModalityCode | null
+  location: string
+  notes: string
+}

@@ -263,7 +263,8 @@ p {
   position: relative
 }
 
-.field>span {
+.field>span,
+.field>label {
   font-size: var(--font-size-md);
   font-weight: 600
 }
@@ -3119,6 +3120,33 @@ footer .logo {
 
 .schedule-fields {
   margin: 20px 0
+}
+
+.duration-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px
+}
+
+.duration-presets button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--slate);
+  font-size: var(--font-size-sm);
+  padding: 6px 10px
+}
+
+.duration-presets button.active {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: var(--navy);
+  font-weight: 700
+}
+
+.field .expected-end {
+  color: var(--navy);
+  font-weight: 700
 }
 
 .plain-fieldset {

@@ -1,0 +1,142 @@
+import type { ScheduleDefenseInput } from "../../api/client"
+import type { DefenseScheduleDraft } from "../../types"
+
+export const DEFENSE_TIME_ZONE = "America/Sao_Paulo"
+export const MAX_DURATION_MINUTES = 720
+const MINUTES_PER_DAY = 24 * 60
+
+/** Duration shortcuts shown next to the duration field. */
+export const DURATION_PRESETS: ReadonlyArray<{ minutes: number; label: string }> = [
+  { minutes: 30, label: "30 min" },
+  { minutes: 60, label: "1h" },
+  { minutes: 90, label: "1h30" },
+  { minutes: 120, label: "2h" },
+]
+
+export const EMPTY_SCHEDULE_DRAFT: DefenseScheduleDraft = {
+  date: "",
+  startTime: "",
+  duration: "",
+  modality: null,
+  location: "",
+  notes: "",
+}
+
+interface DateParts {
+  year: number
+  month: number
+  day: number
+}
+
+interface TimeParts {
+  hour: number
+  minute: number
+}
+
+function parseDateInput(value: string): DateParts | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+}
+
+function parseTimeInput(value: string): TimeParts | null {
+  const match = /^(\d{2}):(\d{2})/.exec(value)
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour > 23 || minute > 59) return null
+  return { hour, minute }
+}
+
+function twoDigits(value: number): string {
+  return String(value).padStart(2, "0")
+}
+
+/** Returns the UTC offset of São Paulo, in minutes, at the given instant (e.g. -180). */
+function saoPauloOffsetMinutes(instant: Date): number {
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: DEFENSE_TIME_ZONE, timeZoneName: "longOffset" })
+  const offsetPart = formatter.formatToParts(instant).find((part) => part.type === "timeZoneName")
+  const match = offsetPart?.value.match(/GMT([+-])(\d{2}):(\d{2})/)
+  if (!match) return 0
+  const sign = match[1] === "-" ? -1 : 1
+  return sign * (Number(match[2]) * 60 + Number(match[3]))
+}
+
+/** Parses the duration input; returns minutes when it is an integer from 1 to 720, else `null`. */
+export function parseDurationMinutes(value: string): number | null {
+  if (!/^\d+$/.test(value.trim())) return null
+  const minutes = Number(value)
+  return minutes >= 1 && minutes <= MAX_DURATION_MINUTES ? minutes : null
+}
+
+/**
+ * Converts `<input type="date">` and `<input type="time">` values, read as São Paulo
+ * wall-clock time, into an ISO 8601 UTC string. Returns `null` when either is invalid.
+ */
+export function saoPauloInputsToIso(dateValue: string, timeValue: string): string | null {
+  const date = parseDateInput(dateValue)
+  const time = parseTimeInput(timeValue)
+  if (!date || !time) return null
+  const wallClockAsUtc = Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute)
+  const offset = saoPauloOffsetMinutes(new Date(wallClockAsUtc))
+  return new Date(wallClockAsUtc - offset * 60_000).toISOString()
+}
+
+/** Converts an ISO 8601 instant into São Paulo `YYYY-MM-DD` and `HH:MM` input values. */
+export function isoToSaoPauloInputs(iso: string): { date: string; startTime: string } {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DEFENSE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+  const parts = formatter.formatToParts(new Date(iso))
+  const pick = (type: Intl.DateTimeFormatPartTypes): string => parts.find((part) => part.type === type)?.value ?? ""
+  return {
+    date: `${pick("year")}-${pick("month")}-${pick("day")}`,
+    startTime: `${pick("hour")}:${pick("minute")}`,
+  }
+}
+
+/**
+ * Computes the expected end time (`HH:MM`) from a start time and a duration.
+ *
+ * Returns `null` unless both are valid. `nextDay` is true when the end passes midnight.
+ */
+export function expectedEnd(startTime: string, duration: string): { time: string; nextDay: boolean } | null {
+  const start = parseTimeInput(startTime)
+  const minutes = parseDurationMinutes(duration)
+  if (!start || minutes === null) return null
+  const totalMinutes = start.hour * 60 + start.minute + minutes
+  const minuteOfDay = totalMinutes % MINUTES_PER_DAY
+  return {
+    time: `${twoDigits(Math.floor(minuteOfDay / 60))}:${twoDigits(minuteOfDay % 60)}`,
+    nextDay: totalMinutes >= MINUTES_PER_DAY,
+  }
+}
+
+/** Formats a short schedule summary such as `16/11 · 17:00 às 19:00`; `null` when incomplete. */
+export function scheduleSummary(draft: Pick<DefenseScheduleDraft, "date" | "startTime" | "duration">): string | null {
+  const date = parseDateInput(draft.date)
+  const end = expectedEnd(draft.startTime, draft.duration)
+  if (!date || !end || !parseTimeInput(draft.startTime)) return null
+  const nextDaySuffix = end.nextDay ? " (dia seguinte)" : ""
+  return `${twoDigits(date.day)}/${twoDigits(date.month)} · ${draft.startTime.slice(0, 5)} às ${end.time}${nextDaySuffix}`
+}
+
+/** Builds the scheduling payload from a draft; `null` when a required field is missing or invalid. */
+export function draftToScheduleInput(draft: DefenseScheduleDraft): ScheduleDefenseInput | null {
+  const scheduledDatetime = saoPauloInputsToIso(draft.date, draft.startTime)
+  const durationMinutes = parseDurationMinutes(draft.duration)
+  if (!scheduledDatetime || durationMinutes === null || !draft.modality) return null
+  return {
+    scheduledDatetime,
+    durationMinutes,
+    modality: draft.modality,
+    location: draft.location.trim(),
+    notes: draft.notes.trim(),
+  }
+}
