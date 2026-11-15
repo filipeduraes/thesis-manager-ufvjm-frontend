@@ -1,13 +1,23 @@
 import { afterAll, beforeEach, expect, jest, test } from "@jest/globals"
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import App from "./App"
-import { authApi, defenseApi, type DefenseData, type DefenseListItem, type SessionPayload } from "./api/client"
+import {
+  authApi,
+  defenseApi,
+  type DefenseData,
+  type DefenseListItem,
+  type SessionPayload,
+  type ThesisListItem,
+} from "./api/client"
 
 const getSession = jest.spyOn(authApi, "getSession")
 const listDefenses = jest.spyOn(defenseApi, "list")
 const listSchedulable = jest.spyOn(defenseApi, "schedulableTheses")
 const getDefense = jest.spyOn(defenseApi, "get")
+const scheduleDefense = jest.spyOn(defenseApi, "schedule")
+const updateDefense = jest.spyOn(defenseApi, "update")
+const cancelDefense = jest.spyOn(defenseApi, "cancel")
 
 const COORDINATOR_SESSION: SessionPayload = {
   authenticated: true,
@@ -67,6 +77,7 @@ function page<T>(results: T[]) {
 }
 
 beforeEach(() => {
+  jest.clearAllMocks()
   getSession.mockResolvedValue(COORDINATOR_SESSION)
   listDefenses.mockResolvedValue(page([LIST_ITEM]))
   listSchedulable.mockResolvedValue(page([]))
@@ -91,4 +102,92 @@ test("opens the committee screen from the defense list without redirecting to th
   await waitFor(() => expect(getDefense).toHaveBeenCalledWith("defense-1"))
   expect(screen.getByText("Dados da banca")).toBeTruthy()
   expect(screen.queryByRole("tab", { name: "Bancas 1" })).toBeNull()
+})
+
+// Data distante no futuro: o formulário recusa horários que já passaram.
+const FUTURE_DEFENSE: DefenseData = { ...DEFENSE, scheduledDatetime: "2030-03-10T20:00:00+00:00" }
+
+const SCHEDULABLE_THESIS: ThesisListItem = {
+  id: "thesis-1",
+  referenceCode: "TCC-TESTE",
+  title: "Monografia de teste",
+  status: "ADVISOR_APPROVED",
+  statusLabel: "Aprovada pelo orientador",
+  statusDescription: "",
+  progressStep: 3,
+  isPublic: false,
+  course: { id: "course-1", name: "Sistemas de Informação", code: "SI" },
+  advisor: { id: "advisor-1", name: "Orientador", email: "orientador@ufvjm.edu.br" },
+  student: { id: "student-1", name: "Estudante", email: "estudante@ufvjm.edu.br" },
+  keywords: [],
+  currentVersion: 1,
+  currentFile: null,
+  submittedAt: null,
+  updatedAt: "2026-11-01T12:00:00Z",
+  advisorApprovedAt: "2026-11-01T12:00:00Z",
+  pendingReview: false,
+  permissions: {
+    canEdit: false,
+    canUpload: false,
+    canSubmit: false,
+    canWithdrawSubmission: false,
+    canReview: false,
+    canManage: true,
+    canPublish: false,
+    canRecordDefenseResult: false,
+    canUploadDocuments: false,
+  },
+}
+
+test("schedules, edits and cancels a defense, then returns to the list", async () => {
+  const edited: DefenseData = { ...FUTURE_DEFENSE, scheduledDatetime: "2030-03-10T21:00:00+00:00" }
+  const cancelled: DefenseData = { ...edited, status: "CANCELLED", statusLabel: "Cancelada" }
+  listSchedulable.mockResolvedValue(page([SCHEDULABLE_THESIS]))
+  scheduleDefense.mockResolvedValue({ defense: FUTURE_DEFENSE })
+  getDefense.mockResolvedValueOnce({ defense: FUTURE_DEFENSE })
+  updateDefense.mockResolvedValue({ defense: edited })
+  getDefense.mockResolvedValueOnce({ defense: edited })
+  cancelDefense.mockResolvedValue({ defense: cancelled })
+  getDefense.mockResolvedValue({ defense: cancelled })
+  render(<App />)
+
+  const navigation = await screen.findByRole("navigation")
+  userEvent.click(within(navigation).getByRole("button", { name: "Bancas" }))
+
+  userEvent.click(await screen.findByRole("button", { name: "Selecionar" }))
+  userEvent.click(await screen.findByRole("button", { name: /Monografia de teste/ }))
+  fireEvent.change(screen.getByLabelText("Data"), { target: { value: "2030-03-10" } })
+  fireEvent.change(screen.getByLabelText("Horário de início"), { target: { value: "17:00" } })
+  userEvent.click(screen.getByRole("button", { name: "2h" }))
+  userEvent.click(screen.getByRole("radio", { name: "Presencial" }))
+  expect(screen.getByText("Término previsto: 19:00")).toBeTruthy()
+  userEvent.click(screen.getByRole("button", { name: "Confirmar agendamento" }))
+
+  await waitFor(() => expect(scheduleDefense).toHaveBeenCalledTimes(1))
+  expect(scheduleDefense.mock.calls[0]?.[0]).toBe("thesis-1")
+  expect(scheduleDefense.mock.calls[0]?.[1]).toMatchObject({
+    scheduledDatetime: "2030-03-10T20:00:00.000Z",
+    durationMinutes: 120,
+    modality: "IN_PERSON",
+  })
+
+  userEvent.click(await screen.findByRole("button", { name: "Editar agendamento" }))
+  expect(screen.getByLabelText("Horário de início")).toHaveProperty("value", "17:00")
+  fireEvent.change(screen.getByLabelText("Horário de início"), { target: { value: "18:00" } })
+  userEvent.click(screen.getByRole("button", { name: "Salvar alterações" }))
+  await waitFor(() =>
+    expect(updateDefense).toHaveBeenCalledWith("defense-1", { scheduledDatetime: "2030-03-10T21:00:00.000Z" }),
+  )
+  expect(await screen.findByText("18:00 às 20:00")).toBeTruthy()
+
+  userEvent.click(screen.getByRole("button", { name: "Cancelar banca" }))
+  userEvent.type(screen.getByLabelText(/Motivo/), "Banca remarcada")
+  userEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }))
+  await waitFor(() => expect(cancelDefense).toHaveBeenCalledWith("defense-1", "Banca remarcada"))
+  expect(await screen.findByText("Cancelada")).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Editar agendamento" })).toBeNull()
+
+  userEvent.click(screen.getByRole("button", { name: "Voltar" }))
+  userEvent.click(await screen.findByRole("tab", { name: "Bancas 1" }))
+  expect(await screen.findByText("Monografia de teste")).toBeTruthy()
 })

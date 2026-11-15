@@ -20,7 +20,7 @@ import type {
   InstitutionalMemberDraft,
 } from "../../types"
 import DefenseScheduleFields from "./DefenseScheduleFields"
-import { draftToScheduleInput, EMPTY_SCHEDULE_DRAFT, scheduleSummary } from "./defenseSchedule"
+import { draftToScheduleInput, EMPTY_SCHEDULE_DRAFT, isFutureStart, scheduleSummary } from "./defenseSchedule"
 
 const SCHEDULABLE_PAGE_SIZE = 100
 
@@ -112,7 +112,10 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
   const scheduleInput = draftToScheduleInput(scheduleDraft)
   const timeSummary = scheduleSummary(scheduleDraft)
   const formLocked = submitting || outcome !== null
-  const canConfirm = Boolean(selectedThesis && scheduleInput) && !formLocked
+  // O backend inicia automaticamente bancas com horário vencido; agendar no passado
+  // deixaria a banca "Em andamento" antes de poder ser editada ou cancelada.
+  const startInPast = scheduleInput !== null && !isFutureStart(scheduleInput.scheduledDatetime)
+  const canConfirm = Boolean(selectedThesis && scheduleInput) && !startInPast && !formLocked
 
   const addPendingMember = (member: PendingMember) => {
     if (members.some((current) => current.key === member.key)) {
@@ -299,11 +302,13 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
                   <small>{selectedThesis ? selectedThesis.referenceCode : "Selecione uma monografia"}</small>
                 </span>
               </div>
-              <div className={timeSummary ? "ok" : ""}>
-                <Icon name={timeSummary ? "check" : "clock"} />
+              <div className={timeSummary && !startInPast ? "ok" : ""}>
+                <Icon name={timeSummary && !startInPast ? "check" : "clock"} />
                 <span>
                   <strong>Data, horário e duração</strong>
-                  <small>{timeSummary ?? "Preencha os dados da defesa"}</small>
+                  <small>
+                    {startInPast ? "O horário de início já passou" : timeSummary ?? "Preencha os dados da defesa"}
+                  </small>
                 </span>
               </div>
               <div className={scheduleDraft.modality ? "ok" : ""}>

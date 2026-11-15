@@ -1,9 +1,11 @@
 import { expect, test } from "@jest/globals"
 import {
+  changedScheduleFields,
   draftToScheduleInput,
   EMPTY_SCHEDULE_DRAFT,
   expectedEnd,
   formatDuration,
+  isFutureStart,
   isoToSaoPauloInputs,
   parseDurationMinutes,
   saoPauloInputsToIso,
@@ -82,4 +84,28 @@ test("converts instants near midnight to the correct São Paulo day", () => {
   expect(isoToSaoPauloInputs("2026-11-17T02:30:00+00:00")).toEqual({ date: "2026-11-16", startTime: "23:30" })
   expect(isoToSaoPauloInputs("2026-11-17T03:00:00Z")).toEqual({ date: "2026-11-17", startTime: "00:00" })
   expect(saoPauloInputsToIso("2026-11-17", "00:00")).toBe("2026-11-17T03:00:00.000Z")
+})
+
+const BASE_DRAFT = {
+  date: "2026-11-16",
+  startTime: "17:00",
+  duration: "120",
+  modality: "IN_PERSON" as const,
+  location: "Auditório",
+  notes: "",
+}
+
+test("detects start times that already passed", () => {
+  const now = Date.parse("2026-11-16T19:59:00Z")
+  expect(isFutureStart("2026-11-16T20:00:00.000Z", now)).toBe(true)
+  expect(isFutureStart("2026-11-16T19:00:00.000Z", now)).toBe(false)
+})
+
+test("sends only the fields that changed when editing", () => {
+  expect(changedScheduleFields(BASE_DRAFT, BASE_DRAFT)).toEqual({})
+  expect(changedScheduleFields(BASE_DRAFT, { ...BASE_DRAFT, notes: "Levar projetor" })).toEqual({ notes: "Levar projetor" })
+  expect(changedScheduleFields(BASE_DRAFT, { ...BASE_DRAFT, startTime: "18:00" })).toEqual({
+    scheduledDatetime: "2026-11-16T21:00:00.000Z",
+  })
+  expect(changedScheduleFields(BASE_DRAFT, { ...BASE_DRAFT, duration: "" })).toBeNull()
 })

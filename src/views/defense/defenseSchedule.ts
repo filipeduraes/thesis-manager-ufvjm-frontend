@@ -1,4 +1,4 @@
-import type { DefenseData, ScheduleDefenseInput } from "../../api/client"
+import type { DefenseData, ScheduleDefenseInput, UpdateDefenseInput } from "../../api/client"
 import type { DefenseModalityCode, DefenseScheduleDraft } from "../../types"
 
 export const DEFENSE_TIME_ZONE = "America/Sao_Paulo"
@@ -176,4 +176,33 @@ export function formatDuration(minutes: number): string {
   const rest = minutes % 60
   if (hours === 0) return `${rest} min`
   return rest === 0 ? `${hours}h` : `${hours}h${twoDigits(rest)}`
+}
+
+/**
+ * Returns whether the ISO instant is still in the future.
+ *
+ * The backend starts a defense automatically once its time has passed, so a past start
+ * would turn the new defense into IN_PROGRESS before it could be edited or cancelled.
+ */
+export function isFutureStart(iso: string, now: number = Date.now()): boolean {
+  return new Date(iso).getTime() > now
+}
+
+/**
+ * Returns only the fields of `next` that differ from `original`, or `null` when the
+ * draft is invalid. Resending an unchanged `scheduledDatetime` would clear the
+ * backend's `auto_start_suspended` flag, so unchanged fields are omitted.
+ */
+export function changedScheduleFields(original: DefenseScheduleDraft, next: DefenseScheduleDraft): UpdateDefenseInput | null {
+  const payload = draftToScheduleInput(next)
+  if (!payload) return null
+  const changes: UpdateDefenseInput = {}
+  if (original.date !== next.date || original.startTime !== next.startTime) {
+    changes.scheduledDatetime = payload.scheduledDatetime
+  }
+  if (parseDurationMinutes(original.duration) !== payload.durationMinutes) changes.durationMinutes = payload.durationMinutes
+  if (original.modality !== payload.modality) changes.modality = payload.modality
+  if (original.location.trim() !== payload.location) changes.location = payload.location
+  if (original.notes.trim() !== payload.notes) changes.notes = payload.notes
+  return changes
 }

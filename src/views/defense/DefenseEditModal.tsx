@@ -3,7 +3,7 @@ import { ApiError, defenseApi, type DefenseData } from "../../api/client"
 import { Button, Icon, Modal } from "../../components/common"
 import type { DefenseScheduleDraft } from "../../types"
 import DefenseScheduleFields from "./DefenseScheduleFields"
-import { defenseToDraft, draftToScheduleInput } from "./defenseSchedule"
+import { changedScheduleFields, defenseToDraft, isFutureStart } from "./defenseSchedule"
 
 function saveErrorMessage(reason: unknown): string {
   if (reason instanceof ApiError && reason.status === 403) {
@@ -27,17 +27,21 @@ interface DefenseEditModalProps {
  * scheduled defense through `PATCH /api/v1/defenses/{id}`.
  */
 export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseEditModalProps) {
-  const [draft, setDraft] = useState<DefenseScheduleDraft>(() => defenseToDraft(defense))
+  const [original] = useState<DefenseScheduleDraft>(() => defenseToDraft(defense))
+  const [draft, setDraft] = useState<DefenseScheduleDraft>(original)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
-  const payload = draftToScheduleInput(draft)
+  const changes = changedScheduleFields(original, draft)
+  const hasChanges = changes !== null && Object.keys(changes).length > 0
+  const startInPast = changes?.scheduledDatetime !== undefined && !isFutureStart(changes.scheduledDatetime)
+  const canSave = hasChanges && !startInPast && !saving
 
   const saveSchedule = async () => {
-    if (!payload || saving) return
+    if (!changes || !canSave) return
     setSaving(true)
     setSaveError("")
     try {
-      await defenseApi.update(defense.id, payload)
+      await defenseApi.update(defense.id, changes)
       onSaved()
     } catch (reason) {
       setSaveError(saveErrorMessage(reason))
@@ -66,11 +70,17 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
         <DefenseScheduleFields idPrefix="edit-defense" value={draft} onChange={setDraft} />
       </fieldset>
 
+      {startInPast && (
+        <div className="success-notice" role="alert">
+          O novo horário de início já passou. Escolha uma data e um horário futuros.
+        </div>
+      )}
+
       <div className="modal-actions">
         <Button variant="secondary" onClick={onClose}>
           Cancelar
         </Button>
-        <Button disabled={!payload || saving} onClick={() => void saveSchedule()}>
+        <Button disabled={!canSave} onClick={() => void saveSchedule()}>
           {saving ? "Salvando…" : "Salvar alterações"}
         </Button>
       </div>
