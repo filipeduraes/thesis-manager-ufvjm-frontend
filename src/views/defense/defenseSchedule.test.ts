@@ -63,3 +63,23 @@ test("formats durations for display", () => {
   expect(formatDuration(120)).toBe("2h")
   expect(formatDuration(90)).toBe("1h30")
 })
+
+test("keeps 17:00 in São Paulo through form, payload and backend response", () => {
+  const payload = draftToScheduleInput({
+    date: "2026-11-16",
+    startTime: "17:00",
+    duration: "120",
+    modality: "IN_PERSON",
+    location: "",
+    notes: "",
+  })
+  expect(payload?.scheduledDatetime).toBe("2026-11-16T20:00:00.000Z")
+  // O backend (TIME_ZONE = "UTC") devolve o instante com deslocamento +00:00.
+  expect(isoToSaoPauloInputs("2026-11-16T20:00:00+00:00")).toEqual({ date: "2026-11-16", startTime: "17:00" })
+})
+
+test("converts instants near midnight to the correct São Paulo day", () => {
+  expect(isoToSaoPauloInputs("2026-11-17T02:30:00+00:00")).toEqual({ date: "2026-11-16", startTime: "23:30" })
+  expect(isoToSaoPauloInputs("2026-11-17T03:00:00Z")).toEqual({ date: "2026-11-17", startTime: "00:00" })
+  expect(saoPauloInputsToIso("2026-11-17", "00:00")).toBe("2026-11-17T03:00:00.000Z")
+})

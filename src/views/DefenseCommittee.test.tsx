@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, expect, jest, test } from "@jest/globals"
 import { act, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { defenseApi, thesesApi, type DefenseData, type Thesis } from "../api/client"
 import DefenseCommittee from "./DefenseCommittee"
 
@@ -77,4 +78,15 @@ test("advisor of another thesis does not see edit and cancel actions", async () 
     await Promise.resolve()
   })
   expect(screen.queryByRole("button", { name: "Editar agendamento" })).toBeNull()
+})
+
+test("prefills the edit modal with the São Paulo start time", async () => {
+  getDefense.mockResolvedValue({ defense: buildDefense("SCHEDULED") })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} canStartClose />)
+
+  userEvent.click(await screen.findByRole("button", { name: "Editar agendamento" }))
+  expect(screen.getByLabelText("Data")).toHaveProperty("value", "2026-11-16")
+  expect(screen.getByLabelText("Horário de início")).toHaveProperty("value", "17:00")
+  expect(screen.getByLabelText("Duração da banca")).toHaveProperty("value", "120")
+  expect(screen.getByText("Término previsto: 19:00")).toBeTruthy()
 })

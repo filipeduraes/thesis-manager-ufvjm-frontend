@@ -86,3 +86,17 @@ test("shows the backend error message with a retry action", () => {
   expect(screen.getByRole("alert").textContent).toContain("Você não tem permissão para consultar bancas.")
   expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeTruthy()
 })
+
+test("shows the scheduled time in São Paulo", () => {
+  const defenses = [buildDefense("a", "Banca das 17h", {})]
+  render(
+    <PresentedDefenseList
+      listState={{ status: "ready", defenses, count: 1 }}
+      onRetry={noop}
+      onEvaluate={noop}
+      onOpenCommittee={noop}
+    />,
+  )
+  // buildDefense agenda para 2026-11-20T17:00:00Z, ou seja, 14:00 em São Paulo.
+  expect(screen.getByText(/20 de nov\.? de 2026.*14:00/)).toBeTruthy()
+})

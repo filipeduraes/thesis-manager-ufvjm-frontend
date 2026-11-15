@@ -52,14 +52,35 @@ function twoDigits(value: number): string {
   return String(value).padStart(2, "0")
 }
 
-/** Returns the UTC offset of São Paulo, in minutes, at the given instant (e.g. -180). */
+const SAO_PAULO_PARTS_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: DEFENSE_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+})
+
+/** Reads the São Paulo wall-clock parts of an instant, independently of the browser time zone. */
+function saoPauloParts(instant: Date): DateParts & TimeParts {
+  const parts = SAO_PAULO_PARTS_FORMATTER.formatToParts(instant)
+  const pick = (type: Intl.DateTimeFormatPartTypes): number => Number(parts.find((part) => part.type === type)?.value)
+  // Alguns motores ainda formatam meia-noite como "24" mesmo com h23.
+  return { year: pick("year"), month: pick("month"), day: pick("day"), hour: pick("hour") % 24, minute: pick("minute") }
+}
+
+/**
+ * Returns the UTC offset of São Paulo, in minutes, at the given instant (e.g. -180).
+ *
+ * Derived from wall-clock parts instead of `timeZoneName: "longOffset"`, which older
+ * browsers reject.
+ */
 function saoPauloOffsetMinutes(instant: Date): number {
-  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: DEFENSE_TIME_ZONE, timeZoneName: "longOffset" })
-  const offsetPart = formatter.formatToParts(instant).find((part) => part.type === "timeZoneName")
-  const match = offsetPart?.value.match(/GMT([+-])(\d{2}):(\d{2})/)
-  if (!match) return 0
-  const sign = match[1] === "-" ? -1 : 1
-  return sign * (Number(match[2]) * 60 + Number(match[3]))
+  const wall = saoPauloParts(instant)
+  const wallAsUtc = Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute)
+  const instantToMinute = Math.floor(instant.getTime() / 60_000) * 60_000
+  return Math.round((wallAsUtc - instantToMinute) / 60_000)
 }
 
 /** Parses the duration input; returns minutes when it is an integer from 1 to 720, else `null`. */
@@ -84,20 +105,10 @@ export function saoPauloInputsToIso(dateValue: string, timeValue: string): strin
 
 /** Converts an ISO 8601 instant into São Paulo `YYYY-MM-DD` and `HH:MM` input values. */
 export function isoToSaoPauloInputs(iso: string): { date: string; startTime: string } {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: DEFENSE_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  })
-  const parts = formatter.formatToParts(new Date(iso))
-  const pick = (type: Intl.DateTimeFormatPartTypes): string => parts.find((part) => part.type === type)?.value ?? ""
+  const wall = saoPauloParts(new Date(iso))
   return {
-    date: `${pick("year")}-${pick("month")}-${pick("day")}`,
-    startTime: `${pick("hour")}:${pick("minute")}`,
+    date: `${wall.year}-${twoDigits(wall.month)}-${twoDigits(wall.day)}`,
+    startTime: `${twoDigits(wall.hour)}:${twoDigits(wall.minute)}`,
   }
 }
 
