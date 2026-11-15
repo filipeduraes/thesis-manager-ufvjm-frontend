@@ -1876,6 +1876,24 @@ footer>span {
 }
 
 .legend,
+.direct-defense-access {
+  padding: 12px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--slate);
+  font-size: var(--font-size-sm)
+}
+
+.direct-defense-access summary {
+  cursor: pointer
+}
+
+.direct-defense-access[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
 .presented-defense-list {
   display: flex;
   flex-direction: column;

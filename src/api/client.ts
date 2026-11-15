@@ -1,4 +1,4 @@
-import type { DefenseModalityCode, Profile } from "../types"
+import type { CommitteeRoleCode, DefenseModalityCode, Profile } from "../types"
 
 const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
 const API_ROOT = `${API_ORIGIN}/api/v1`
@@ -378,9 +378,36 @@ export interface ScheduleDefenseInput {
   notes?: string
 }
 
+/** Situação do usuário autenticado na banca, calculada pelo backend. */
+export interface DefenseViewerMembership {
+  isMember: boolean
+  memberId: string | null
+  role: CommitteeRoleCode | null
+  roleLabel: string | null
+  canEvaluate: boolean
+  hasEvaluated: boolean
+}
+
+/** Item de GET /defenses (defense_list_payload). */
+export interface DefenseListItem extends DefenseData {
+  thesisTitle: string
+  thesisReferenceCode: string
+  student: ThesisUserBrief | null
+  advisor: ThesisUserBrief | null
+  viewerMembership: DefenseViewerMembership
+}
+
+export interface DefenseListParams {
+  /** Códigos DefenseStatus separados por vírgula (ex.: "SCHEDULED,IN_PROGRESS"). */
+  status?: string
+  page?: number
+  pageSize?: number
+}
+
 /**
  * Endpoints relacionados à banca de defesa.
  * Endpoints reais (theses/urls.py):
+ *   GET  /defenses                           — bancas visíveis ao usuário (paginado)
  *   GET  /defenses/schedulable-theses        — teses aptas a agendar (paginado)
  *   POST /theses/{thesisId}/defenses         — agenda nova banca
  *   GET  /defenses/{id}
@@ -390,6 +417,11 @@ export interface ScheduleDefenseInput {
  *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
  */
 export const defenseApi = {
+  list: (params: DefenseListParams = {}) =>
+    apiRequest<PaginatedResponse<DefenseListItem>>(
+      `/defenses${queryString({ ...params })}`,
+    ),
+
   schedulableTheses: (params: { page?: number; pageSize?: number } = {}) =>
     apiRequest<PaginatedResponse<ThesisListItem>>(
       `/defenses/schedulable-theses${queryString({ ...params })}`,

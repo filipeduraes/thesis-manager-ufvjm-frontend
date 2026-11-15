@@ -41,7 +41,6 @@ export default function App() {
   const [mobileMenu, setMobileMenu] = useState(false)
   const [reviewThesisId, setReviewThesisId] = useState<string>()
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
-  const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
   const [committeeDefenseId, setCommitteeDefenseId] = useState<string>()
 
   const roleCodeKey = session?.user?.roles?.map((role) => role.code).join("|") ?? ""
@@ -65,7 +64,9 @@ export default function App() {
     for (const activeProfile of activeProfiles) {
       for (const item of menuByProfile[activeProfile] ?? []) pages.add(item.page)
     }
-    if (canEvaluate) pages.add("evaluation")
+    // Quem pode avaliar é decidido pelo backend (viewerMembership); a página precisa
+    // estar liberada para todo perfil que acessa a lista de bancas.
+    if (canEvaluate || pages.has("schedule")) pages.add("evaluation")
     return pages
   }, [activeProfiles, canEvaluate, menuItems])
 
@@ -251,25 +252,13 @@ export default function App() {
       {page === "submission" && <StudentSubmission />}
       {page === "approval" && <AdvisorApproval initialThesisId={reviewThesisId} profile={profile} />}
       {page === "schedule" && (
-        <DefenseScheduling
-          canEvaluate={canEvaluate}
-          evaluatedDefenseIds={evaluatedDefenses}
-          onEvaluate={(defenseId) => openEvaluation(defenseId)}
-          onOpenCommittee={(defenseId) => openCommittee(defenseId)}
-        />
+        <DefenseScheduling onEvaluate={openEvaluation} onOpenCommittee={openCommittee} />
       )}
       {page === "evaluation" && evaluationDefense && session.user && (
         <DefenseEvaluation
           defenseId={evaluationDefense}
           userEmail={session.user.email}
           goBack={() => navigate("schedule")}
-          onSubmitted={() => {
-            setEvaluatedDefenses((current) =>
-              evaluationDefense && !current.includes(evaluationDefense)
-                ? [...current, evaluationDefense]
-                : current,
-            )
-          }}
         />
       )}
       {page === "evaluation" && !evaluationDefense && (
