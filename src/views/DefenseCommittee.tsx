@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ApiError,
-  adminApi,
   COMMITTEE_ROLE_LABELS,
-  COMMITTEE_ROLE_OPTIONS,
   DEFENSE_RESULT_LABELS,
   defenseApi,
   type DefenseCommitteeMember,
   type DefenseData,
 } from "../api/client"
-import { Badge, Button, Card, Icon, Modal, PageTitle } from "../components/common"
+import {
+  Badge,
+  Button,
+  Card,
+  ExternalMemberModal,
+  Icon,
+  InstitutionalMemberModal,
+  Modal,
+  PageTitle,
+} from "../components/common"
+import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
 
 type AddModalKind = "institutional" | "external" | null
 
@@ -64,8 +72,6 @@ export default function DefenseCommittee({
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [addModal, setAddModal] = useState<AddModalKind>(null)
-  const [addError, setAddError] = useState("")
-  const [addLoading, setAddLoading] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
@@ -81,23 +87,6 @@ export default function DefenseCommittee({
   const [revertReason, setRevertReason] = useState("")
   const [revertLoading, setRevertLoading] = useState(false)
   const [revertError, setRevertError] = useState("")
-
-  // Estado do formulário — membro institucional
-  const [instEmail, setInstEmail] = useState("")
-  const [instRole, setInstRole] = useState("MEMBER")
-  const [instLookupLoading, setInstLookupLoading] = useState(false)
-  const [instLookupResult, setInstLookupResult] = useState<{
-    id: string
-    name: string
-    email: string
-  } | null>(null)
-  const [instLookupError, setInstLookupError] = useState("")
-
-  // Estado do formulário — membro externo
-  const [extName, setExtName] = useState("")
-  const [extEmail, setExtEmail] = useState("")
-  const [extInstitution, setExtInstitution] = useState("")
-  const [extRole, setExtRole] = useState("MEMBER")
 
   const mountedRef = useRef(true)
 
@@ -141,84 +130,20 @@ export default function DefenseCommittee({
     }
   }, [loadDefense])
 
-  const closeAddModal = () => {
-    setAddModal(null)
-    setAddError("")
-    setInstEmail("")
-    setInstRole("MEMBER")
-    setInstLookupResult(null)
-    setInstLookupError("")
-    setExtName("")
-    setExtEmail("")
-    setExtInstitution("")
-    setExtRole("MEMBER")
+  // Erros são propagados para o modal, que exibe a mensagem do backend.
+  const addInstitutionalMember = async (draft: InstitutionalMemberDraft) => {
+    await defenseApi.addInstitutionalMember(defenseId, { role: draft.role, userId: draft.userId })
+    loadDefense()
   }
 
-  const lookupUser = async () => {
-    if (!instEmail.trim()) return
-    setInstLookupLoading(true)
-    setInstLookupError("")
-    setInstLookupResult(null)
-    try {
-      const result = await adminApi.lookupUser(instEmail.trim().toLowerCase())
-      if (result.found && result.user) {
-        setInstLookupResult(result.user)
-      } else {
-        setInstLookupError(result.message || "Usuário não encontrado.")
-      }
-    } catch (reason) {
-      setInstLookupError(
-        reason instanceof ApiError && reason.status === 403
-          ? "Busca de usuários disponível apenas para administradores na rede institucional."
-          : reason instanceof Error
-            ? reason.message
-            : "Não foi possível buscar o usuário.",
-      )
-    } finally {
-      setInstLookupLoading(false)
-    }
-  }
-
-  const addInstitutionalMember = async () => {
-    if (!instLookupResult) return
-    setAddLoading(true)
-    setAddError("")
-    try {
-      await defenseApi.addInstitutionalMember(defenseId, {
-        role: instRole,
-        userId: instLookupResult.id,
-      })
-      closeAddModal()
-      loadDefense()
-    } catch (reason) {
-      setAddError(
-        reason instanceof Error ? reason.message : "Não foi possível adicionar o membro.",
-      )
-    } finally {
-      setAddLoading(false)
-    }
-  }
-
-  const addExternalMember = async () => {
-    if (!extName.trim() || !extEmail.trim()) return
-    setAddLoading(true)
-    setAddError("")
-    try {
-      await defenseApi.addExternalMember(defenseId, {
-        role: extRole,
-        name: extName.trim(),
-        email: extEmail.trim().toLowerCase(),
-        institution: extInstitution.trim() || undefined,
-      })
-      closeAddModal()
-      loadDefense()
-    } catch (reason) {
-      setAddError(
-        reason instanceof Error ? reason.message : "Não foi possível adicionar o membro.",
-      )
-    } finally {
-      setAddLoading(false)
-    }
+  const addExternalMember = async (draft: ExternalMemberDraft) => {
+    await defenseApi.addExternalMember(defenseId, {
+      role: draft.role,
+      name: draft.name,
+      email: draft.email,
+      institution: draft.institution || undefined,
+    })
+    loadDefense()
   }
 
   const startDefense = async () => {
@@ -467,181 +392,20 @@ export default function DefenseCommittee({
         )}
       </Card>
 
-      {/* Modal — membro institucional */}
       {addModal === "institutional" && (
-        <Modal className="admin-modal invite-modal">
-          <div className="section-head">
-            <div>
-              <h2>Adicionar membro institucional</h2>
-            </div>
-            <button
-              className="icon-btn"
-              onClick={closeAddModal}
-              aria-label="Fechar"
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-
-          {addError && (
-            <div className="success-notice" role="alert">
-              {addError}
-            </div>
-          )}
-
-          <label className="field">
-            <span>E-mail institucional</span>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <input
-                type="email"
-                value={instEmail}
-                onChange={(e) => {
-                  setInstEmail(e.target.value)
-                  setInstLookupResult(null)
-                  setInstLookupError("")
-                }}
-                placeholder="professor@ufvjm.edu.br"
-              />
-              <Button
-                disabled={!instEmail.trim() || instLookupLoading}
-                onClick={() => void lookupUser()}
-              >
-                {instLookupLoading ? "Buscando…" : "Buscar"}
-              </Button>
-            </div>
-          </label>
-
-          {instLookupError && (
-            <div className="success-notice" role="alert">
-              {instLookupError}
-            </div>
-          )}
-
-          {instLookupResult && (
-            <div className="institutional-banner session-banner">
-              <div className="avatar">{instLookupResult.name.split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("")}</div>
-              <div>
-                <strong>{instLookupResult.name}</strong>
-                <span>{instLookupResult.email}</span>
-              </div>
-              <Badge tone="success">Encontrado</Badge>
-            </div>
-          )}
-
-          <label className="field">
-            <span>Papel na banca</span>
-            <select
-              value={instRole}
-              onChange={(e) => setInstRole(e.target.value)}
-            >
-              {COMMITTEE_ROLE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={closeAddModal}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={!instLookupResult || addLoading}
-              onClick={() => void addInstitutionalMember()}
-            >
-              {addLoading ? "Adicionando…" : "Adicionar membro"}
-            </Button>
-          </div>
-        </Modal>
+        <InstitutionalMemberModal onClose={() => setAddModal(null)} onSubmit={addInstitutionalMember} />
       )}
 
-      {/* Modal — membro externo */}
       {addModal === "external" && (
-        <Modal className="admin-modal invite-modal">
-          <div className="section-head">
-            <div>
-              <h2>Adicionar membro externo</h2>
-            </div>
-            <button
-              className="icon-btn"
-              onClick={closeAddModal}
-              aria-label="Fechar"
-            >
-              <Icon name="close" />
-            </button>
-          </div>
-
-          {addError && (
-            <div className="success-notice" role="alert">
-              {addError}
-            </div>
-          )}
-
-          <label className="field">
-            <span>Nome completo</span>
-            <input
-              value={extName}
-              onChange={(e) => setExtName(e.target.value)}
-              placeholder="Nome do avaliador"
-            />
-          </label>
-
-          <label className="field">
-            <span>E-mail</span>
-            <input
-              type="email"
-              value={extEmail}
-              onChange={(e) => setExtEmail(e.target.value)}
-              placeholder="avaliador@email.com"
-            />
-          </label>
-
-          <label className="field">
-            <span>Instituição <small>(opcional)</small></span>
-            <input
-              value={extInstitution}
-              onChange={(e) => setExtInstitution(e.target.value)}
-              placeholder="Nome da instituição"
-            />
-          </label>
-
-          <label className="field">
-            <span>Papel na banca</span>
-            <select
-              value={extRole}
-              onChange={(e) => setExtRole(e.target.value)}
-            >
-              {COMMITTEE_ROLE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={closeAddModal}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={
-                !extName.trim() || !extEmail.trim() || addLoading
-              }
-              onClick={() => void addExternalMember()}
-            >
-              {addLoading ? "Adicionando…" : "Adicionar e enviar convite"}
-            </Button>
-          </div>
-        </Modal>
+        <ExternalMemberModal onClose={() => setAddModal(null)} onSubmit={addExternalMember} />
       )}
 
       {/* Modal — reverter status (admin only) */}
       {revertOpen && (
-        <Modal className="admin-modal invite-modal">
+        <Modal className="admin-modal invite-modal" onClose={closeRevertModal} labelledBy="revert-status-title">
           <div className="section-head">
             <div>
-              <h2>Reverter status da banca</h2>
+              <h2 id="revert-status-title">Reverter status da banca</h2>
               <p>
                 Status atual: <strong>{defense.statusLabel}</strong>
               </p>

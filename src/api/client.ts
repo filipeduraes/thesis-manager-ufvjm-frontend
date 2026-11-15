@@ -1,4 +1,4 @@
-import type { Profile } from "../types"
+import type { DefenseModalityCode, Profile } from "../types"
 
 const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
 const API_ROOT = `${API_ORIGIN}/api/v1`
@@ -368,9 +368,21 @@ export interface DefenseData {
   members: DefenseCommitteeMember[]
 }
 
+/** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */
+export interface ScheduleDefenseInput {
+  /** ISO 8601 com deslocamento explícito (ex.: 2026-11-20T14:00:00-03:00). */
+  scheduledDatetime: string
+  durationMinutes: number
+  modality: DefenseModalityCode
+  location: string
+  notes?: string
+}
+
 /**
  * Endpoints relacionados à banca de defesa.
  * Endpoints reais (theses/urls.py):
+ *   GET  /defenses/schedulable-theses        — teses aptas a agendar (paginado)
+ *   POST /theses/{thesisId}/defenses         — agenda nova banca
  *   GET  /defenses/{id}
  *   POST /defenses/{id}/members              — membro institucional
  *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
@@ -378,6 +390,17 @@ export interface DefenseData {
  *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
  */
 export const defenseApi = {
+  schedulableTheses: (params: { page?: number; pageSize?: number } = {}) =>
+    apiRequest<PaginatedResponse<ThesisListItem>>(
+      `/defenses/schedulable-theses${queryString({ ...params })}`,
+    ),
+
+  schedule: (thesisId: string, body: ScheduleDefenseInput) =>
+    apiRequest<{ defense: DefenseData }>(
+      `/theses/${encodeURIComponent(thesisId)}/defenses`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
   get: (defenseId: string) =>
     apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}`),
 

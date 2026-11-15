@@ -102,3 +102,25 @@ export interface CommitteeMember {
   role: string
   status: "Confirmado" | "Pendente"
 }
+
+/** Committee role codes accepted by the defense member endpoints. */
+export type CommitteeRoleCode = "PRESIDENT" | "MEMBER" | "ALTERNATE"
+
+/** Defense modality codes accepted by the scheduling endpoint. */
+export type DefenseModalityCode = "IN_PERSON" | "REMOTE"
+
+/** Institutional committee member chosen in a form, before or after the defense exists. */
+export interface InstitutionalMemberDraft {
+  role: CommitteeRoleCode
+  userId: string
+  name: string
+  email: string
+}
+
+/** External committee member chosen in a form; the backend creates the invitation. */
+export interface ExternalMemberDraft {
+  role: CommitteeRoleCode
+  name: string
+  email: string
+  institution: string
+}

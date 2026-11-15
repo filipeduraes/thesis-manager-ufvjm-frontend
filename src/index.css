@@ -3104,6 +3104,16 @@ footer .logo {
   margin: 20px 0
 }
 
+.plain-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px
+}
+
 .conflict-panel .card,
 .course-card {
   display: flex;
