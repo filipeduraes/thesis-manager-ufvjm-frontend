@@ -97,7 +97,7 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
 
       <label className="field">
         <span>E-mail institucional</span>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div className="member-lookup-row">
           <input
             type="email"
             value={email}

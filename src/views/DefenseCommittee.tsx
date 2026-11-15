@@ -17,7 +17,8 @@ import {
   InstitutionalMemberModal,
   PageTitle,
 } from "../components/common"
-import { defenseStatusTone } from "../data/defenseStatus"
+import { defenseDecisionTone, defenseStatusTone } from "../data/defenseStatus"
+import type { BadgeTone } from "../data/thesisStatus"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
@@ -56,14 +57,15 @@ interface DefenseCommitteeProps {
 
 function evaluationStatusBadge(
   member: DefenseCommitteeMember,
-): { label: string; tone: "success" | "light" | "neutral" } {
+): { label: string; tone: BadgeTone } {
   if (member.role === "ALTERNATE") return { label: "Suplente", tone: "neutral" }
   if (member.evaluation)
     return {
       label: DEFENSE_RESULT_LABELS[member.evaluation.decision] ?? member.evaluation.decision,
-      tone: "success",
+      tone: defenseDecisionTone(member.evaluation.decision),
     }
-  return { label: "Aguardando avaliação", tone: "light" }
+  // Pendência usa neutral, como documentStatusTones.PENDING.
+  return { label: "Aguardando avaliação", tone: "neutral" }
 }
 
 /**
@@ -485,7 +487,7 @@ export default function DefenseCommittee({
                   <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
                   {canManage && !member.evaluation && (
                     <Button
-                      variant="secondary"
+                      variant="danger"
                       disabled={removing === member.id}
                       onClick={() => void removeMember(member.id)}
                     >

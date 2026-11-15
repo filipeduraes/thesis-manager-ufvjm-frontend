@@ -3128,6 +3128,16 @@ footer .logo {
   }
 }
 
+.member-lookup-row {
+  display: flex;
+  gap: 8px
+}
+
+.member-lookup-row>input {
+  flex: 1;
+  min-width: 0
+}
+
 /* Card "Status da banca": reaproveita .steps/.step (progresso) e .timeline (histórico)
    das telas de monografia; aqui ficam só o reset da lista e a etapa cancelada. */
 .defense-steps {

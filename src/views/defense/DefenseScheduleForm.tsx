@@ -19,6 +19,7 @@ import type {
   ExternalMemberDraft,
   InstitutionalMemberDraft,
 } from "../../types"
+import { thesisStatusTone } from "../../data/thesisStatus"
 import DefenseScheduleFields from "./DefenseScheduleFields"
 import { draftToScheduleInput, EMPTY_SCHEDULE_DRAFT, isFutureStart, scheduleSummary } from "./defenseSchedule"
 
@@ -227,7 +228,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
             </>
           )}
         </div>
-        {selectedThesis && <Badge tone="success">{selectedThesis.statusLabel}</Badge>}
+        {selectedThesis && <Badge tone={thesisStatusTone(selectedThesis.status)}>{selectedThesis.statusLabel}</Badge>}
         {thesesState.status === "error" ? (
           <Button variant="outline" onClick={reloadTheses}>
             Tentar novamente
@@ -276,8 +277,8 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
                         {member.kind === "institutional" ? "Institucional" : "Externo"} · {member.draft.email}
                       </span>
                     </div>
-                    <Badge tone="light">A enviar</Badge>
-                    <Button variant="ghost" disabled={formLocked} onClick={() => removePendingMember(member.key)}>
+                    <Badge tone="neutral">A enviar</Badge>
+                    <Button variant="danger" disabled={formLocked} onClick={() => removePendingMember(member.key)}>
                       Remover
                     </Button>
                   </div>
@@ -405,7 +406,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
                       {thesis.student?.name ?? "Autor não informado"} · {thesis.course.name} · {thesis.referenceCode}
                     </span>
                   </div>
-                  <Badge tone="success">{thesis.statusLabel}</Badge>
+                  <Badge tone={thesisStatusTone(thesis.status)}>{thesis.statusLabel}</Badge>
                 </button>
               ))}
             </div>

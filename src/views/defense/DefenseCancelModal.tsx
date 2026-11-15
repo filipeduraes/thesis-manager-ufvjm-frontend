@@ -68,9 +68,15 @@ export default function DefenseCancelModal({ defenseId, onClose, onCancelled }: 
         <Button variant="secondary" onClick={onClose}>
           Voltar
         </Button>
-        <Button variant="danger" disabled={cancelling} onClick={() => void confirmCancel()}>
+        {/* Confirmação destrutiva no mesmo padrão de "Confirmar reprovação" (AdvisorApproval). */}
+        <button
+          type="button"
+          className="btn btn-danger-solid"
+          disabled={cancelling}
+          onClick={() => void confirmCancel()}
+        >
           {cancelling ? "Cancelando…" : "Confirmar cancelamento"}
-        </Button>
+        </button>
       </div>
     </Modal>
   )
