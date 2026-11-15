@@ -1,130 +1,256 @@
-import { useState } from "react"
-import type { DefenseListItem } from "../../api/client"
-import { Badge, Button, Card, Icon } from "../../components/common"
+import { useEffect, useState } from "react"
+import { ApiError, defenseApi, type DefenseListItem } from "../../api/client"
+import { Badge, Button, Card, Icon, Pagination } from "../../components/common"
+import { DEFENSE_STATUS_OPTIONS, defenseStatusTone } from "../../data/defenseStatus"
+import { formatDefenseTimeRange } from "./defenseSchedule"
 
-/** Loading state of `GET /api/v1/defenses`, owned by the parent so the tab can show `count`. */
-export type DefenseListState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; defenses: DefenseListItem[]; count: number }
-
-const STATUS_BADGE_TONE: Record<string, "light" | "active" | "success" | "dark"> = {
-  SCHEDULED: "light",
-  IN_PROGRESS: "active",
-  COMPLETED: "success",
-  CANCELLED: "dark",
-}
+// Mesmo tamanho de página da tela "Acompanhamento e aprovação".
+const DEFENSE_PAGE_SIZE = 10
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
   year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
   timeZone: "America/Sao_Paulo",
 })
 
+type ListState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; defenses: DefenseListItem[]; count: number; totalPages: number }
+
+function listErrorMessage(reason: unknown): string {
+  if (reason instanceof ApiError && reason.status === 403) {
+    return "Você não tem permissão para consultar bancas."
+  }
+  if (reason instanceof ApiError && reason.status === 429) {
+    return "Muitas requisições em sequência. Aguarde alguns instantes e tente novamente."
+  }
+  return reason instanceof Error && reason.message ? reason.message : "Não foi possível carregar as bancas."
+}
+
+function locationText(defense: DefenseListItem): string {
+  if (defense.location) return defense.location
+  return defense.modality === "REMOTE" ? defense.modalityLabel : "Não informado"
+}
+
 interface PresentedDefenseListProps {
-  listState: DefenseListState
-  onRetry: () => void
   onEvaluate: (defenseId: string) => void
   onOpenCommittee: (defenseId: string) => void
 }
 
 /**
- * List of defenses visible to the current user, as returned by `GET /api/v1/defenses`.
+ * Searchable, filterable list of the defenses visible to the current user, backed by
+ * `GET /api/v1/defenses` (`q`, `status`, `pendingEvaluation`, `page`, `pageSize`).
  *
- * Evaluation actions follow `viewerMembership` from the backend; the UI does not decide
- * who may evaluate.
+ * Mirrors the filter bar and table of `AdvisorApproval`: the search applies on Enter or
+ * "Filtrar", while the status select and the checkbox apply immediately. Evaluation
+ * actions follow `viewerMembership` from the backend.
  */
-export default function PresentedDefenseList({
-  listState,
-  onRetry,
-  onEvaluate,
-  onOpenCommittee,
-}: PresentedDefenseListProps) {
+export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: PresentedDefenseListProps) {
+  const [searchInput, setSearchInput] = useState("")
+  const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
+  const [pendingOnly, setPendingOnly] = useState(false)
+  const [page, setPage] = useState(1)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [listState, setListState] = useState<ListState>({ status: "loading" })
   const [defenseUuid, setDefenseUuid] = useState("")
   const trimmedUuid = defenseUuid.trim()
 
+  useEffect(() => {
+    // A flag descarta respostas fora de ordem quando os filtros mudam rapidamente.
+    let cancelled = false
+    setListState({ status: "loading" })
+    defenseApi
+      .list({
+        q: query,
+        status: statusFilter,
+        pendingEvaluation: pendingOnly || undefined,
+        page,
+        pageSize: DEFENSE_PAGE_SIZE,
+      })
+      .then((response) => {
+        if (cancelled) return
+        setListState({
+          status: "ready",
+          defenses: response.results,
+          count: response.count,
+          totalPages: response.totalPages,
+        })
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) setListState({ status: "error", message: listErrorMessage(reason) })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [query, statusFilter, pendingOnly, page, reloadKey])
+
+  const applyFilters = () => {
+    setPage(1)
+    setQuery(searchInput.trim())
+  }
+
+  const clearFilters = () => {
+    setSearchInput("")
+    setQuery("")
+    setStatusFilter("")
+    setPendingOnly(false)
+    setPage(1)
+  }
+
+  const count = listState.status === "ready" ? listState.count : 0
+  const totalPages = listState.status === "ready" ? listState.totalPages : 1
+
   return (
     <div className="presented-defense-list">
-      <Card className="presented-intro">
-        <div>
-          <Icon name="check" />
-        </div>
-        <span>Consulte as bancas visíveis para o seu perfil e registre seu parecer nas bancas das quais participa.</span>
-      </Card>
-
-      {listState.status === "loading" && (
-        <Card>
-          <p aria-live="polite">Carregando bancas…</p>
-        </Card>
-      )}
-
-      {listState.status === "error" && (
-        <Card>
-          <div className="success-notice" role="alert">
-            {listState.message}
+      <Card>
+        <div className="filterbar">
+          <div className="top-search">
+            <Icon name="search" />
+            <input
+              placeholder="Buscar aluno, título, código ou local..."
+              aria-label="Buscar bancas"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applyFilters()
+              }}
+            />
           </div>
-          <div className="form-actions">
-            <Button variant="outline" onClick={onRetry}>
+          <select
+            aria-label="Filtrar por status"
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="">Status: Todos</option>
+            {DEFENSE_STATUS_OPTIONS.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <label className="filter-toggle">
+            <input
+              type="checkbox"
+              checked={pendingOnly}
+              onChange={(event) => {
+                setPendingOnly(event.target.checked)
+                setPage(1)
+              }}
+            />
+            <span>Somente aguardando meu parecer</span>
+          </label>
+          <Button variant="secondary" icon="filter" onClick={applyFilters}>
+            Filtrar
+          </Button>
+        </div>
+        <div className="results-head">
+          <small aria-live="polite">
+            {count} banca(s) encontrada(s)
+            {query ? ` para “${query}”` : ""}
+          </small>
+          <button type="button" className="text-link" onClick={clearFilters}>
+            Limpar filtros
+          </button>
+        </div>
+
+        {listState.status === "loading" && (
+          <div className="pdf-feedback">
+            <div className="upload-icon">
+              <Icon name="calendar" />
+            </div>
+            <strong>Carregando bancas…</strong>
+            <span>Aplicando escopo de permissões do seu perfil.</span>
+          </div>
+        )}
+
+        {listState.status === "error" && (
+          <div className="form-error" role="alert">
+            <Icon name="alert" size={16} />
+            <span>{listState.message}</span>
+            <Button variant="secondary" onClick={() => setReloadKey((current) => current + 1)}>
               Tentar novamente
             </Button>
           </div>
-        </Card>
-      )}
+        )}
 
-      {listState.status === "ready" && listState.defenses.length === 0 && (
-        <div className="empty-state">
-          <div>
-            <Icon name="calendar" />
+        {listState.status === "ready" && listState.defenses.length === 0 && (
+          <div className="empty-state compact">
+            <div>
+              <Icon name="calendar" />
+            </div>
+            <h2>Nenhuma banca encontrada</h2>
+            <p>
+              {pendingOnly
+                ? "Não há bancas aguardando o seu parecer neste momento."
+                : "Ajuste os filtros ou agende uma nova banca."}
+            </p>
           </div>
-          <h3>Nenhuma banca encontrada</h3>
-          <p>As bancas agendadas que você pode acompanhar aparecerão aqui.</p>
-        </div>
-      )}
+        )}
 
-      {listState.status === "ready" &&
-        listState.defenses.map((defense) => {
-          const membership = defense.viewerMembership
-          const participation = membership.isMember ? ` · Participação: ${membership.roleLabel ?? ""}` : ""
-          return (
-            <Card className="presented-defense" key={defense.id}>
-              <div className="defense-date">
-                <Icon name="calendar" />
-                <span>{DATE_FORMATTER.format(new Date(defense.scheduledDatetime))}</span>
-              </div>
-              <div className="presented-defense-copy">
-                <span className="course">{defense.thesisReferenceCode}</span>
-                <h3>{defense.thesisTitle}</h3>
-                <p>
-                  {defense.student?.name ?? "Autor não informado"}
-                  {participation}
-                </p>
-              </div>
-              <Badge tone={STATUS_BADGE_TONE[defense.status] ?? "neutral"}>{defense.statusLabel}</Badge>
-              {membership.hasEvaluated && (
-                <Button variant="secondary" disabled>
-                  Parecer enviado
-                </Button>
-              )}
-              {membership.canEvaluate && !membership.hasEvaluated && (
-                <Button variant="outline" onClick={() => onEvaluate(defense.id)}>
-                  Avaliar
-                </Button>
-              )}
-              <Button variant="ghost" onClick={() => onOpenCommittee(defense.id)}>
-                Gerenciar banca
-              </Button>
-            </Card>
-          )
-        })}
+        {listState.status === "ready" && listState.defenses.length > 0 && (
+          <div className="full-table defense-table">
+            <div className="row head">
+              <span>Aluno / Monografia</span>
+              <span>Data e horário</span>
+              <span>Local</span>
+              <span>Status</span>
+              <span>Minha participação</span>
+              <span />
+            </div>
+            {listState.defenses.map((defense) => {
+              const membership = defense.viewerMembership
+              const scheduledDate = DATE_FORMATTER.format(new Date(defense.scheduledDatetime))
+              const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
+              return (
+                <div className="row" key={defense.id}>
+                  <span>
+                    <strong>{defense.student?.name ?? "Autor não informado"}</strong>
+                    <small>{defense.thesisTitle}</small>
+                  </span>
+                  <span>
+                    {scheduledDate} · {timeRange}
+                  </span>
+                  <span>{locationText(defense)}</span>
+                  <span>
+                    <Badge tone={defenseStatusTone(defense.status)}>{defense.statusLabel}</Badge>
+                  </span>
+                  <span>{membership.isMember ? membership.roleLabel ?? "—" : "—"}</span>
+                  <span className="row-actions">
+                    {membership.hasEvaluated && <Badge tone="success">Parecer enviado</Badge>}
+                    {membership.canEvaluate && !membership.hasEvaluated && (
+                      <Button variant="outline" onClick={() => onEvaluate(defense.id)}>
+                        Avaliar
+                      </Button>
+                    )}
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label="Gerenciar banca"
+                      title="Gerenciar banca"
+                      onClick={() => onOpenCommittee(defense.id)}
+                    >
+                      <Icon name="arrow" />
+                    </button>
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
-      {listState.status === "ready" && listState.count > listState.defenses.length && (
-        <p className="immutable-note">
-          Exibindo as {listState.defenses.length} bancas mais recentes de {listState.count}.
-        </p>
-      )}
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          disabled={listState.status === "loading"}
+        />
+      </Card>
 
       <details className="direct-defense-access">
         <summary>Abrir banca pelo ID</summary>

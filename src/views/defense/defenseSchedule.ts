@@ -206,3 +206,14 @@ export function changedScheduleFields(original: DefenseScheduleDraft, next: Defe
   if (original.notes.trim() !== payload.notes) changes.notes = payload.notes
   return changes
 }
+
+/**
+ * Formats the São Paulo start and expected end of a defense, e.g. `17:00 às 19:00`,
+ * adding `(dia seguinte)` when it ends after midnight.
+ */
+export function formatDefenseTimeRange(iso: string, durationMinutes: number): string {
+  const { startTime } = isoToSaoPauloInputs(iso)
+  const end = expectedEnd(startTime, String(durationMinutes))
+  if (!end) return startTime
+  return `${startTime} às ${end.time}${end.nextDay ? " (dia seguinte)" : ""}`
+}

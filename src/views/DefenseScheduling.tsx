@@ -1,23 +1,10 @@
 import { useEffect, useState } from "react"
-import { ApiError, defenseApi } from "../api/client"
+import { defenseApi } from "../api/client"
 import { Badge, PageTitle } from "../components/common"
 import DefenseScheduleForm from "./defense/DefenseScheduleForm"
-import PresentedDefenseList, { type DefenseListState } from "./defense/PresentedDefenseList"
-
-// Limite máximo aceito pelo backend (ThesisPagination.max_page_size).
-const DEFENSE_LIST_PAGE_SIZE = 100
+import PresentedDefenseList from "./defense/PresentedDefenseList"
 
 type DefenseView = "schedule" | "presented"
-
-function listErrorMessage(reason: unknown): string {
-  if (reason instanceof ApiError && reason.status === 403) {
-    return "Você não tem permissão para consultar bancas."
-  }
-  if (reason instanceof ApiError && reason.status === 429) {
-    return "Muitas requisições em sequência. Aguarde alguns instantes e tente novamente."
-  }
-  return reason instanceof Error && reason.message ? reason.message : "Não foi possível carregar as bancas."
-}
 
 interface DefenseSchedulingProps {
   onEvaluate: (defenseId: string) => void
@@ -27,30 +14,28 @@ interface DefenseSchedulingProps {
 /**
  * Defense management screen: scheduling form and the list of visible defenses.
  *
- * The list is loaded here (not in the tab) so the tab counter can show the real total.
+ * The tab counter shows the unfiltered total, fetched here with `pageSize=1` so it is
+ * available before the list tab is opened and does not change with the list filters.
  */
 export default function DefenseScheduling({ onEvaluate, onOpenCommittee }: DefenseSchedulingProps) {
   const [activeView, setActiveView] = useState<DefenseView>("schedule")
-  const [listState, setListState] = useState<DefenseListState>({ status: "loading" })
-  const [listReloadKey, setListReloadKey] = useState(0)
+  // null enquanto carrega ou se a contagem falhar; a lista mostra o próprio erro.
+  const [totalCount, setTotalCount] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    setListState({ status: "loading" })
     defenseApi
-      .list({ pageSize: DEFENSE_LIST_PAGE_SIZE })
+      .list({ pageSize: 1 })
       .then((response) => {
-        if (!cancelled) setListState({ status: "ready", defenses: response.results, count: response.count })
+        if (!cancelled) setTotalCount(response.count)
       })
-      .catch((reason: unknown) => {
-        if (!cancelled) setListState({ status: "error", message: listErrorMessage(reason) })
+      .catch(() => {
+        if (!cancelled) setTotalCount(null)
       })
     return () => {
       cancelled = true
     }
-  }, [listReloadKey])
-
-  const reloadList = () => setListReloadKey((current) => current + 1)
+  }, [])
 
   return (
     <div className="page-content">
@@ -74,17 +59,12 @@ export default function DefenseScheduling({ onEvaluate, onOpenCommittee }: Defen
           aria-selected={activeView === "presented"}
         >
           Bancas
-          {listState.status === "ready" && <Badge tone="light">{listState.count}</Badge>}
+          {totalCount !== null && <Badge tone="light">{totalCount}</Badge>}
         </button>
       </div>
 
       {activeView === "presented" ? (
-        <PresentedDefenseList
-          listState={listState}
-          onRetry={reloadList}
-          onEvaluate={onEvaluate}
-          onOpenCommittee={onOpenCommittee}
-        />
+        <PresentedDefenseList onEvaluate={onEvaluate} onOpenCommittee={onOpenCommittee} />
       ) : (
         <DefenseScheduleForm onOpenCommittee={onOpenCommittee} />
       )}

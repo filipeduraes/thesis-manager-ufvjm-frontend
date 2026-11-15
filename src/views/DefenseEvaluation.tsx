@@ -9,6 +9,7 @@ import {
   type DefenseMemberEvaluationData,
 } from "../api/client"
 import { Badge, Button, Card, Icon, PageTitle } from "../components/common"
+import { defenseStatusTone } from "../data/defenseStatus"
 
 type DecisionCode = "APPROVED" | "APPROVED_WITH_REMARKS" | "REJECTED"
 
@@ -38,13 +39,6 @@ const DECISION_OPTIONS: Array<{
     description: "Não atende aos critérios da banca",
   },
 ]
-
-const STATUS_BADGE_TONE: Record<string, "light" | "active" | "success" | "dark"> = {
-  SCHEDULED: "light",
-  IN_PROGRESS: "active",
-  COMPLETED: "success",
-  CANCELLED: "dark",
-}
 
 function evaluationErrorMessage(reason: unknown): string {
   if (reason instanceof ApiError && reason.status === 403) {
@@ -220,7 +214,7 @@ export default function DefenseEvaluation({
   const isInProgress = defense.status === "IN_PROGRESS"
   const isAlternate = myMember.role === "ALTERNATE"
   const hasSubmitted = evaluation !== null
-  const statusTone = STATUS_BADGE_TONE[defense.status] ?? "neutral"
+  const statusTone = defenseStatusTone(defense.status)
 
   const scheduledDate = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",

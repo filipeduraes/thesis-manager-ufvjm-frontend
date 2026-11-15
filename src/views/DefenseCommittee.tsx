@@ -18,10 +18,11 @@ import {
   Modal,
   PageTitle,
 } from "../components/common"
+import { defenseStatusTone } from "../data/defenseStatus"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
-import { expectedEnd, formatDuration, isoToSaoPauloInputs } from "./defense/defenseSchedule"
+import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
 
 const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   weekday: "long",
@@ -45,13 +46,6 @@ interface DefenseCommitteeProps {
   isAdvisor?: boolean
   /** Id do usuário autenticado, comparado ao orientador da tese. */
   currentUserId?: string
-}
-
-const STATUS_BADGE_TONE: Record<string, "light" | "active" | "success" | "dark"> = {
-  SCHEDULED: "light",
-  IN_PROGRESS: "active",
-  COMPLETED: "success",
-  CANCELLED: "dark",
 }
 
 function evaluationStatusBadge(
@@ -306,12 +300,8 @@ export default function DefenseCommittee({
   const canManage = isScheduled
   const canRevert = isAdmin && (isInProgress || isCancelled)
   const canManageSchedule = isScheduled && (canStartClose || isThesisAdvisor)
-  const startInputs = isoToSaoPauloInputs(defense.scheduledDatetime)
-  const end = expectedEnd(startInputs.startTime, String(defense.durationMinutes))
-  const timeRange = end
-    ? `${startInputs.startTime} às ${end.time}${end.nextDay ? " (dia seguinte)" : ""}`
-    : startInputs.startTime
-  const statusTone = STATUS_BADGE_TONE[defense.status] ?? "neutral"
+  const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
+  const statusTone = defenseStatusTone(defense.status)
 
   const scheduledDate = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",

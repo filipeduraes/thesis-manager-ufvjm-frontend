@@ -1,17 +1,21 @@
-import { expect, test } from "@jest/globals"
-import { render, screen } from "@testing-library/react"
-import type { DefenseListItem, DefenseViewerMembership } from "../../api/client"
+import { afterAll, beforeEach, expect, jest, test } from "@jest/globals"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { ApiError, defenseApi, type DefenseListItem, type DefenseViewerMembership } from "../../api/client"
 import PresentedDefenseList from "./PresentedDefenseList"
+
+const listDefenses = jest.spyOn(defenseApi, "list")
 
 function buildDefense(id: string, title: string, membership: Partial<DefenseViewerMembership>): DefenseListItem {
   return {
     id,
     thesis: `thesis-${id}`,
+    // 17:00Z = 14:00 em São Paulo; com 120 minutos termina às 16:00.
     scheduledDatetime: "2026-11-20T17:00:00Z",
     durationMinutes: 120,
     modality: "IN_PERSON",
     modalityLabel: "Presencial",
-    location: "",
+    location: "Sala 10",
     notes: "",
     status: "SCHEDULED",
     statusLabel: "Agendada",
@@ -34,69 +38,113 @@ function buildDefense(id: string, title: string, membership: Partial<DefenseView
   }
 }
 
+function page(results: DefenseListItem[]) {
+  return { count: results.length, page: 1, pageSize: 10, totalPages: 1, lastPageCount: results.length, results }
+}
+
 const noop = () => undefined
 
-test("shows evaluation actions according to viewerMembership", () => {
-  const defenses = [
-    buildDefense("a", "Banca pendente", { isMember: true, canEvaluate: true, hasEvaluated: false }),
-    buildDefense("b", "Banca avaliada", { isMember: true, canEvaluate: true, hasEvaluated: true }),
-    buildDefense("c", "Banca sem participação", {}),
-  ]
-  render(
-    <PresentedDefenseList
-      listState={{ status: "ready", defenses, count: defenses.length }}
-      onRetry={noop}
-      onEvaluate={noop}
-      onOpenCommittee={noop}
-    />,
-  )
+function renderList() {
+  render(<PresentedDefenseList onEvaluate={noop} onOpenCommittee={noop} />)
+}
 
-  const evaluateButtons = screen.getAllByRole("button", { name: "Avaliar" })
-  expect(evaluateButtons).toHaveLength(1)
-  expect(evaluateButtons[0]).toHaveProperty("disabled", false)
+function lastListParams() {
+  return listDefenses.mock.calls[listDefenses.mock.calls.length - 1]?.[0]
+}
 
-  const sentButtons = screen.getAllByRole("button", { name: "Parecer enviado" })
-  expect(sentButtons).toHaveLength(1)
-  expect(sentButtons[0]).toHaveProperty("disabled", true)
+beforeEach(() => {
+  listDefenses.mockReset()
+  listDefenses.mockResolvedValue(page([]))
+})
 
+afterAll(() => {
+  jest.restoreAllMocks()
+})
+
+test("renders the table and shows evaluation actions according to viewerMembership", async () => {
+  const pending = buildDefense("a", "Banca pendente", {
+    isMember: true,
+    role: "MEMBER",
+    roleLabel: "Membro",
+    canEvaluate: true,
+  })
+  const evaluated = buildDefense("b", "Banca avaliada", { isMember: true, canEvaluate: true, hasEvaluated: true })
+  const notMember = buildDefense("c", "Banca sem participação", {})
+  listDefenses.mockResolvedValue(page([pending, evaluated, notMember]))
+  renderList()
+
+  expect(await screen.findByText("Banca pendente")).toBeTruthy()
+  expect(screen.getByText("3 banca(s) encontrada(s)")).toBeTruthy()
+  expect(screen.getAllByText("Autor não informado")).toHaveLength(3)
+  expect(screen.getAllByText(/20 de nov\.? de 2026 · 14:00 às 16:00/)).toHaveLength(3)
+  expect(screen.getAllByText("Sala 10")).toHaveLength(3)
+  expect(screen.getByText("Membro")).toBeTruthy()
+
+  expect(screen.getAllByRole("button", { name: "Avaliar" })).toHaveLength(1)
+  expect(screen.getAllByText("Parecer enviado")).toHaveLength(1)
   expect(screen.getAllByRole("button", { name: "Gerenciar banca" })).toHaveLength(3)
 })
 
-test("shows the empty state when the backend returns no defenses", () => {
-  render(
-    <PresentedDefenseList
-      listState={{ status: "ready", defenses: [], count: 0 }}
-      onRetry={noop}
-      onEvaluate={noop}
-      onOpenCommittee={noop}
-    />,
-  )
-  expect(screen.getByText("Nenhuma banca encontrada")).toBeTruthy()
+test("shows the empty state when the backend returns no defenses", async () => {
+  renderList()
+  expect(await screen.findByText("Nenhuma banca encontrada")).toBeTruthy()
+  expect(screen.getByText("0 banca(s) encontrada(s)")).toBeTruthy()
 })
 
-test("shows the backend error message with a retry action", () => {
-  render(
-    <PresentedDefenseList
-      listState={{ status: "error", message: "Você não tem permissão para consultar bancas." }}
-      onRetry={noop}
-      onEvaluate={noop}
-      onOpenCommittee={noop}
-    />,
-  )
-  expect(screen.getByRole("alert").textContent).toContain("Você não tem permissão para consultar bancas.")
-  expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeTruthy()
+test("shows the backend error message and retries", async () => {
+  listDefenses.mockRejectedValueOnce(new ApiError("Você não tem permissão para consultar bancas.", 403))
+  renderList()
+
+  expect((await screen.findByRole("alert")).textContent).toContain("Você não tem permissão para consultar bancas.")
+  userEvent.click(screen.getByRole("button", { name: "Tentar novamente" }))
+  expect(await screen.findByText("Nenhuma banca encontrada")).toBeTruthy()
+  expect(listDefenses).toHaveBeenCalledTimes(2)
 })
 
-test("shows the scheduled time in São Paulo", () => {
-  const defenses = [buildDefense("a", "Banca das 17h", {})]
-  render(
-    <PresentedDefenseList
-      listState={{ status: "ready", defenses, count: 1 }}
-      onRetry={noop}
-      onEvaluate={noop}
-      onOpenCommittee={noop}
-    />,
+test("searches on Enter and on Filtrar, sending q", async () => {
+  renderList()
+  await screen.findByText("Nenhuma banca encontrada")
+
+  const search = screen.getByPlaceholderText("Buscar aluno, título, código ou local...")
+  userEvent.type(search, "Maria{enter}")
+  await waitFor(() => expect(lastListParams()).toMatchObject({ q: "Maria", page: 1 }))
+  expect(await screen.findByText("0 banca(s) encontrada(s) para “Maria”")).toBeTruthy()
+
+  userEvent.clear(search)
+  userEvent.type(search, "  Sala 10 ")
+  userEvent.click(screen.getByRole("button", { name: "Filtrar" }))
+  await waitFor(() => expect(lastListParams()).toMatchObject({ q: "Sala 10" }))
+})
+
+test("filters by status and by pending evaluation", async () => {
+  renderList()
+  await screen.findByText("Nenhuma banca encontrada")
+
+  userEvent.selectOptions(screen.getByLabelText("Filtrar por status"), "IN_PROGRESS")
+  await waitFor(() => expect(lastListParams()).toMatchObject({ status: "IN_PROGRESS", page: 1 }))
+
+  userEvent.click(screen.getByLabelText("Somente aguardando meu parecer"))
+  await waitFor(() => expect(lastListParams()).toMatchObject({ status: "IN_PROGRESS", pendingEvaluation: true }))
+  expect(await screen.findByText("Não há bancas aguardando o seu parecer neste momento.")).toBeTruthy()
+})
+
+test("clears every filter", async () => {
+  renderList()
+  await screen.findByText("Nenhuma banca encontrada")
+
+  const search = screen.getByPlaceholderText("Buscar aluno, título, código ou local...")
+  userEvent.type(search, "Maria{enter}")
+  userEvent.selectOptions(screen.getByLabelText("Filtrar por status"), "CANCELLED")
+  userEvent.click(screen.getByLabelText("Somente aguardando meu parecer"))
+  await waitFor(() =>
+    expect(lastListParams()).toMatchObject({ q: "Maria", status: "CANCELLED", pendingEvaluation: true }),
   )
-  // buildDefense agenda para 2026-11-20T17:00:00Z, ou seja, 14:00 em São Paulo.
-  expect(screen.getByText(/20 de nov\.? de 2026.*14:00/)).toBeTruthy()
+
+  userEvent.click(screen.getByRole("button", { name: "Limpar filtros" }))
+  await waitFor(() =>
+    expect(lastListParams()).toEqual({ q: "", status: "", pendingEvaluation: undefined, page: 1, pageSize: 10 }),
+  )
+  expect(search).toHaveProperty("value", "")
+  expect(screen.getByLabelText("Filtrar por status")).toHaveProperty("value", "")
+  expect(screen.getByLabelText("Somente aguardando meu parecer")).toHaveProperty("checked", false)
 })

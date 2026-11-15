@@ -401,8 +401,12 @@ export interface DefenseListItem extends DefenseData {
 }
 
 export interface DefenseListParams {
+  /** Busca livre: título, código, aluno principal, orientador ou local. */
+  q?: string
   /** Códigos DefenseStatus separados por vírgula (ex.: "SCHEDULED,IN_PROGRESS"). */
   status?: string
+  /** Somente bancas ativas em que o usuário é membro titular sem parecer. */
+  pendingEvaluation?: boolean
   page?: number
   pageSize?: number
 }

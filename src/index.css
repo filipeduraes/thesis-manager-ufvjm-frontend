@@ -3067,50 +3067,6 @@ footer .logo {
   color: var(--navy)
 }
 
-.presented-intro {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  background: var(--soft);
-  font-size: var(--font-size-base);
-  color: var(--slate)
-}
-
-.presented-intro>div {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--green);
-  color: var(--navy)
-}
-
-.presented-defense {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 18px
-}
-
-.defense-date {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--slate);
-  font-size: var(--font-size-sm)
-}
-
-.presented-defense-copy .course {
-  margin: 0 0 5px
-}
-
-.presented-defense-copy p {
-  margin-top: 4px;
-  color: var(--slate);
-  font-size: var(--font-size-sm)
-}
-
 .schedule-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(310px, .7fr);
@@ -3120,6 +3076,56 @@ footer .logo {
 
 .schedule-fields {
   margin: 20px 0
+}
+
+/* Lista de bancas: reaproveita .full-table da tela "Acompanhamento e aprovação", mas as
+   linhas são <div> (contêm botões) e têm colunas próprias; os rótulos mobile de lá
+   miram button.row e não se aplicam aqui. */
+.defense-table .row {
+  grid-template-columns: 1.8fr 1.1fr .9fr .7fr .8fr auto
+}
+
+.defense-table .row>span {
+  min-width: 0;
+  overflow-wrap: anywhere
+}
+
+.defense-table .row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px
+}
+
+.defense-table .row-actions>.btn {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 12px
+}
+
+@media (max-width: 600px) {
+  .defense-table .row {
+    grid-template-columns: minmax(0, 1fr)
+  }
+
+  .defense-table .row>span {
+    grid-column: 1/-1
+  }
+
+  .defense-table .row>span:nth-child(2)::before {
+    content: "Data: ";
+    font-weight: 700
+  }
+
+  .defense-table .row>span:nth-child(3)::before {
+    content: "Local: ";
+    font-weight: 700
+  }
+
+  .defense-table .row>span:nth-child(5)::before {
+    content: "Minha participação: ";
+    font-weight: 700
+  }
 }
 
 /* Tela de gerenciamento da banca: as regras de .thesis-summary e .member-list são
@@ -3593,15 +3599,6 @@ footer .logo {
     grid-template-columns: 1fr
   }
 
-  .presented-defense {
-    grid-template-columns: 150px minmax(0, 1fr) auto
-  }
-
-  .presented-defense>.btn {
-    grid-column: 2/-1;
-    justify-self: end
-  }
-
   .review-decision,
   .evaluation-form {
     position: static
@@ -3624,7 +3621,6 @@ footer .logo {
   .stepper,
   .integrity-grid,
   .tracking-layout,
-  .presented-defense,
   .work-list {
     grid-template-columns: 1fr
   }
@@ -3665,16 +3661,6 @@ footer .logo {
   .defense-tabs>button {
     flex: 1;
     justify-content: center
-  }
-
-  .presented-defense>.btn {
-    grid-column: auto;
-    width: 100%;
-    justify-self: stretch
-  }
-
-  .presented-defense>.badge {
-    justify-self: start
   }
 
   .external-header {
