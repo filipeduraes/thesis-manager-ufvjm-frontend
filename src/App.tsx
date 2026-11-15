@@ -56,6 +56,8 @@ export default function App() {
   const showSearch = activeProfiles.some((item) => item !== "Aluno")
   const canEvaluate = activeProfiles.includes("Orientador") || activeProfiles.includes("Coordenador")
   const isAdmin = activeProfiles.includes("Administrador")
+  // Admin ou coordenador. O orientador da própria tese também pode iniciar, encerrar,
+  // cancelar e editar (_can_manage_defense); DefenseCommittee confirma isso via GET /theses/<id>.
   const canStartClose = isAdmin || activeProfiles.includes("Coordenador")
 
   const allowedPages = useMemo(() => {

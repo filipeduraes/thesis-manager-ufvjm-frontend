@@ -15,13 +15,15 @@ import {
   ExternalMemberModal,
   Icon,
   InstitutionalMemberModal,
-  Modal,
   PageTitle,
 } from "../components/common"
 import { defenseStatusTone } from "../data/defenseStatus"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
+import DefenseStatusConfirmModal from "./defense/DefenseStatusConfirmModal"
+import DefenseStatusTimeline from "./defense/DefenseStatusTimeline"
+import { statusActionErrorMessage } from "./defense/defenseErrors"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
 
 const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
@@ -33,6 +35,7 @@ const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
 })
 
 type AddModalKind = "institutional" | "external" | null
+type StatusModalKind = "start" | "close" | "revert" | null
 
 interface DefenseCommitteeProps {
   /** UUID da defesa cujos membros serão gerenciados. */
@@ -40,7 +43,10 @@ interface DefenseCommitteeProps {
   goBack: () => void
   /** Usuário autenticado é administrador institucional (único que pode reverter status). */
   isAdmin?: boolean
-  /** Usuário pode iniciar/encerrar a banca (admin ou coordenador). */
+  /**
+   * Usuário é admin ou coordenador. Iniciar, encerrar, cancelar e editar também ficam
+   * disponíveis ao orientador da própria tese, verificado nesta tela (_can_manage_defense).
+   */
   canStartClose?: boolean
   /** Usuário tem o papel de orientador; só gerencia a banca se orientar a tese. */
   isAdvisor?: boolean
@@ -93,14 +99,11 @@ export default function DefenseCommittee({
   const [isThesisAdvisor, setIsThesisAdvisor] = useState(false)
   const [permissionError, setPermissionError] = useState("")
 
-  // Item C — start / close
+  // Ações de status: iniciar, encerrar e reverter abrem confirmação antes da chamada.
+  const [statusModal, setStatusModal] = useState<StatusModalKind>(null)
   const [startLoading, setStartLoading] = useState(false)
   const [closeLoading, setCloseLoading] = useState(false)
   const [actionError, setActionError] = useState("")
-
-  // Item A — revert status
-  const [revertOpen, setRevertOpen] = useState(false)
-  const [revertReason, setRevertReason] = useState("")
   const [revertLoading, setRevertLoading] = useState(false)
   const [revertError, setRevertError] = useState("")
 
@@ -199,12 +202,12 @@ export default function DefenseCommittee({
     setStartLoading(true)
     setActionError("")
     try {
-      const { defense: data } = await defenseApi.start(defenseId)
-      setDefense(data)
+      await defenseApi.start(defenseId)
+      // A resposta não traz statusHistory; recarrega o detalhe completo.
+      setStatusModal(null)
+      loadDefense()
     } catch (reason) {
-      setActionError(
-        reason instanceof Error ? reason.message : "Não foi possível iniciar a banca.",
-      )
+      setActionError(statusActionErrorMessage(reason, "Não foi possível iniciar a banca."))
     } finally {
       setStartLoading(false)
     }
@@ -214,35 +217,32 @@ export default function DefenseCommittee({
     setCloseLoading(true)
     setActionError("")
     try {
-      const { defense: data } = await defenseApi.close(defenseId)
-      setDefense(data)
+      await defenseApi.close(defenseId)
+      setStatusModal(null)
+      loadDefense()
     } catch (reason) {
-      setActionError(
-        reason instanceof Error ? reason.message : "Não foi possível encerrar a banca.",
-      )
+      setActionError(statusActionErrorMessage(reason, "Não foi possível encerrar a banca."))
     } finally {
       setCloseLoading(false)
     }
   }
 
-  const closeRevertModal = () => {
-    setRevertOpen(false)
-    setRevertReason("")
+  const closeStatusModal = () => {
+    setStatusModal(null)
+    setActionError("")
     setRevertError("")
   }
 
-  const doRevertStatus = async () => {
-    if (!revertReason.trim()) return
+  const doRevertStatus = async (revertReason: string) => {
+    if (!revertReason) return
     setRevertLoading(true)
     setRevertError("")
     try {
-      const { defense: data } = await defenseApi.revertStatus(defenseId, revertReason.trim())
-      setDefense(data)
-      closeRevertModal()
+      await defenseApi.revertStatus(defenseId, revertReason)
+      setStatusModal(null)
+      loadDefense()
     } catch (reason) {
-      setRevertError(
-        reason instanceof Error ? reason.message : "Não foi possível reverter o status.",
-      )
+      setRevertError(statusActionErrorMessage(reason, "Não foi possível reverter o status."))
     } finally {
       setRevertLoading(false)
     }
@@ -298,8 +298,15 @@ export default function DefenseCommittee({
   const isInProgress = defense.status === "IN_PROGRESS"
   const isCancelled = defense.status === "CANCELLED"
   const canManage = isScheduled
+  // Espelha _can_manage_defense (iniciar, encerrar, cancelar, editar) e a regra de
+  // revert-status (somente admin). O backend continua sendo quem decide.
+  const canManageDefense = canStartClose || isThesisAdvisor
+  const canStart = isScheduled && canManageDefense
+  const canClose = isInProgress && canManageDefense
+  const canCancel = isScheduled && canManageDefense
   const canRevert = isAdmin && (isInProgress || isCancelled)
-  const canManageSchedule = isScheduled && (canStartClose || isThesisAdvisor)
+  const canManageSchedule = isScheduled && canManageDefense
+  const hasStatusActions = canStart || canClose || canCancel || canRevert
   const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
   const statusTone = defenseStatusTone(defense.status)
 
@@ -331,25 +338,41 @@ export default function DefenseCommittee({
           <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
             {refreshing ? "Atualizando…" : "Atualizar"}
           </Button>
-          {canStartClose && isScheduled && (
-            <Button variant="success" disabled={startLoading} onClick={() => void startDefense()}>
-              {startLoading ? "Iniciando…" : "Iniciar banca"}
-            </Button>
-          )}
-          {canStartClose && isInProgress && (
-            <Button variant="secondary" disabled={closeLoading} onClick={() => void closeDefense()}>
-              {closeLoading ? "Encerrando…" : "Encerrar banca"}
-            </Button>
-          )}
-          {canRevert && (
-            <Button variant="danger" onClick={() => setRevertOpen(true)}>
-              Reverter status
-            </Button>
-          )}
           <Button variant="ghost" onClick={goBack}>
             Voltar
           </Button>
         </div>
+      </Card>
+
+      <Card>
+        <div className="section-head defense-section-head">
+          <h2>Status da banca</h2>
+          {hasStatusActions && (
+            <div className="defense-actions">
+              {canStart && (
+                <Button variant="success" onClick={() => setStatusModal("start")}>
+                  Iniciar banca
+                </Button>
+              )}
+              {canClose && (
+                <Button variant="success" onClick={() => setStatusModal("close")}>
+                  Encerrar banca
+                </Button>
+              )}
+              {canCancel && (
+                <Button variant="danger" onClick={() => setScheduleModal("cancel")}>
+                  Cancelar banca
+                </Button>
+              )}
+              {canRevert && (
+                <Button variant="danger" onClick={() => setStatusModal("revert")}>
+                  Reverter status
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+        <DefenseStatusTimeline status={defense.status} history={defense.statusHistory ?? []} />
       </Card>
 
       <Card>
@@ -359,9 +382,6 @@ export default function DefenseCommittee({
             <div className="defense-actions">
               <Button variant="outline" onClick={() => setScheduleModal("edit")}>
                 Editar agendamento
-              </Button>
-              <Button variant="danger" onClick={() => setScheduleModal("cancel")}>
-                Cancelar banca
               </Button>
             </div>
           )}
@@ -397,12 +417,6 @@ export default function DefenseCommittee({
       {permissionError && (
         <div className="success-notice" role="alert">
           {permissionError}
-        </div>
-      )}
-
-      {actionError && (
-        <div className="success-notice" role="alert">
-          {actionError}
         </div>
       )}
 
@@ -505,57 +519,49 @@ export default function DefenseCommittee({
         />
       )}
 
-      {/* Modal — reverter status (admin only) */}
-      {revertOpen && (
-        <Modal className="admin-modal invite-modal" onClose={closeRevertModal} labelledBy="revert-status-title">
-          <div className="section-head">
-            <div>
-              <h2 id="revert-status-title">Reverter status da banca</h2>
-              <p>
-                Status atual: <strong>{defense.statusLabel}</strong>
-              </p>
-            </div>
-            <button
-              className="icon-btn"
-              onClick={closeRevertModal}
-              aria-label="Fechar"
-            >
-              <Icon name="close" />
-            </button>
-          </div>
+      {statusModal === "start" && (
+        <DefenseStatusConfirmModal
+          title="Iniciar banca?"
+          description="A banca passa para Em andamento e os membros já podem avaliar."
+          confirmLabel="Iniciar banca"
+          pendingLabel="Iniciando…"
+          loading={startLoading}
+          error={actionError}
+          onConfirm={() => void startDefense()}
+          onClose={closeStatusModal}
+        />
+      )}
 
-          {revertError && (
-            <div className="success-notice" role="alert">
-              {revertError}
-            </div>
-          )}
+      {statusModal === "close" && (
+        <DefenseStatusConfirmModal
+          title="Encerrar banca?"
+          description="O resultado será calculado pelas avaliações registradas e a banca passa para Concluída."
+          confirmLabel="Encerrar banca"
+          pendingLabel="Encerrando…"
+          loading={closeLoading}
+          error={actionError}
+          onConfirm={() => void closeDefense()}
+          onClose={closeStatusModal}
+        />
+      )}
 
-          <label className="field">
-            <span>
-              Motivo <small>(obrigatório)</small>
-            </span>
-            <textarea
-              className="feedback-area"
-              value={revertReason}
-              onChange={(e) => setRevertReason(e.target.value)}
-              placeholder="Descreva o motivo da reversão"
-              rows={3}
-            />
-          </label>
-
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={closeRevertModal}>
-              Cancelar
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!revertReason.trim() || revertLoading}
-              onClick={() => void doRevertStatus()}
-            >
-              {revertLoading ? "Revertendo…" : "Reverter"}
-            </Button>
-          </div>
-        </Modal>
+      {statusModal === "revert" && (
+        <DefenseStatusConfirmModal
+          title="Reverter status da banca?"
+          description={
+            isInProgress
+              ? "A banca volta para Agendada e não será iniciada automaticamente até ser reagendada ou iniciada manualmente."
+              : "A banca volta ao status anterior ao cancelamento."
+          }
+          confirmLabel="Reverter status"
+          pendingLabel="Revertendo…"
+          destructive
+          reason={{ required: true }}
+          loading={revertLoading}
+          error={revertError}
+          onConfirm={(revertReason) => void doRevertStatus(revertReason)}
+          onClose={closeStatusModal}
+        />
       )}
     </div>
   )

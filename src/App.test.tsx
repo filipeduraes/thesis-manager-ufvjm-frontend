@@ -185,7 +185,9 @@ test("schedules, edits and cancels a defense, then returns to the list", async (
   userEvent.type(screen.getByLabelText(/Motivo/), "Banca remarcada")
   userEvent.click(screen.getByRole("button", { name: "Confirmar cancelamento" }))
   await waitFor(() => expect(cancelDefense).toHaveBeenCalledWith("defense-1", "Banca remarcada"))
-  expect(await screen.findByText("Cancelada")).toBeTruthy()
+  // "Cancelada" aparece no selo do topo e na etapa da linha do tempo.
+  expect((await screen.findAllByText("Cancelada")).length).toBeGreaterThan(0)
+  expect(screen.getByRole("listitem", { current: "step" }).textContent).toContain("Cancelada")
   expect(screen.queryByRole("button", { name: "Editar agendamento" })).toBeNull()
 
   userEvent.click(screen.getByRole("button", { name: "Voltar" }))

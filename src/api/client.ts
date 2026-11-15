@@ -351,6 +351,19 @@ export interface DefenseCommitteeMember {
   evaluation: DefenseMemberEvaluationData | null
 }
 
+/** Entrada de statusHistory em GET /defenses/{id} (defense_status_history_payload). */
+export interface DefenseStatusHistoryEntry {
+  /** null no agendamento (primeira entrada). */
+  previousStatus: string | null
+  previousStatusLabel: string | null
+  newStatus: string
+  newStatusLabel: string
+  /** Nome ou e-mail de quem mudou; null em transições automáticas. */
+  changedBy: string | null
+  reason: string
+  createdAt: string
+}
+
 /** Payload de uma defesa, tal como retornado por defense_payload. */
 export interface DefenseData {
   id: string
@@ -366,6 +379,8 @@ export interface DefenseData {
   createdAt: string
   updatedAt: string
   members: DefenseCommitteeMember[]
+  /** Só vem no detalhe (GET /defenses/{id}); bancas anteriores à migration 0005 vêm sem histórico. */
+  statusHistory?: DefenseStatusHistoryEntry[]
 }
 
 /** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */

@@ -3128,6 +3128,53 @@ footer .logo {
   }
 }
 
+/* Card "Status da banca": reaproveita .steps/.step (progresso) e .timeline (histórico)
+   das telas de monografia; aqui ficam só o reset da lista e a etapa cancelada. */
+.defense-steps {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 24px;
+  max-width: none
+}
+
+.defense-steps .step.cancelled>span {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger)
+}
+
+.defense-steps .step.cancelled small {
+  color: var(--danger);
+  font-weight: 600
+}
+
+.defense-history-title {
+  font-size: var(--font-size-md);
+  margin: 0
+}
+
+.defense-history {
+  margin-top: 12px
+}
+
+.defense-history-empty {
+  margin: 8px 0 0;
+  color: var(--slate);
+  font-size: var(--font-size-sm)
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0
+}
+
 /* Tela de gerenciamento da banca: as regras de .thesis-summary e .member-list são
    compartilhadas com outras telas e pressupõem poucos filhos, então os ajustes ficam
    restritos a estes modificadores. */

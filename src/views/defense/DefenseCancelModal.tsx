@@ -1,16 +1,7 @@
 import { useState } from "react"
-import { ApiError, defenseApi } from "../../api/client"
+import { defenseApi } from "../../api/client"
 import { Button, Icon, Modal } from "../../components/common"
-
-function cancelErrorMessage(reason: unknown): string {
-  if (reason instanceof ApiError && reason.status === 403) {
-    return "Você não tem permissão para cancelar esta banca."
-  }
-  if (reason instanceof ApiError && reason.status === 429) {
-    return "Muitas requisições em sequência. Aguarde alguns instantes e tente novamente."
-  }
-  return reason instanceof Error && reason.message ? reason.message : "Não foi possível cancelar a banca."
-}
+import { statusActionErrorMessage } from "./defenseErrors"
 
 interface DefenseCancelModalProps {
   defenseId: string
@@ -36,7 +27,7 @@ export default function DefenseCancelModal({ defenseId, onClose, onCancelled }: 
       await defenseApi.cancel(defenseId, reason.trim())
       onCancelled()
     } catch (failure) {
-      setCancelError(cancelErrorMessage(failure))
+      setCancelError(statusActionErrorMessage(failure, "Não foi possível cancelar a banca."))
       setCancelling(false)
     }
   }
@@ -46,7 +37,7 @@ export default function DefenseCancelModal({ defenseId, onClose, onCancelled }: 
       <div className="section-head">
         <div>
           <h2 id="cancel-defense-title">Cancelar banca</h2>
-          <p>A monografia volta ao status anterior ao agendamento. Somente um administrador pode reverter o cancelamento.</p>
+          <p>A banca passa para Cancelada e a monografia volta ao status anterior ao agendamento. Somente um administrador pode reverter o cancelamento.</p>
         </div>
         <button className="icon-btn" onClick={onClose} aria-label="Fechar">
           <Icon name="close" />
