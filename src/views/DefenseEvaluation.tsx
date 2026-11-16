@@ -10,6 +10,8 @@ import {
 } from "../api/client"
 import { Badge, Button, Card, Icon, PageTitle } from "../components/common"
 import { defenseStatusTone } from "../data/defenseStatus"
+import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
+import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
 
 type DecisionCode = "APPROVED" | "APPROVED_WITH_REMARKS" | "REJECTED"
 
@@ -18,9 +20,28 @@ interface DefenseEvaluationProps {
   defenseId: string
   /** E-mail do usuário autenticado; usado para localizar o membro correspondente na banca. */
   userEmail: string
-  goBack: () => void
+  /**
+   * Id do membro, quando a sessão o informa (externalInvitation.assignments); tem
+   * prioridade sobre a busca pelo e-mail.
+   */
+  memberId?: string
+  /** Sem `goBack`, os botões Voltar/Cancelar não aparecem (tela externa com uma só banca). */
+  goBack?: () => void
   onSubmitted?: () => void
+  /**
+   * `external`: tela do avaliador externo, que mostra também os dados completos da banca
+   * e a confirmação de disponibilidade enquanto ela está agendada.
+   */
+  variant?: "institutional" | "external"
 }
+
+const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  timeZone: "America/Sao_Paulo",
+})
 
 const DECISION_OPTIONS: Array<{
   value: DecisionCode
@@ -59,8 +80,10 @@ function evaluationErrorMessage(reason: unknown): string {
 export default function DefenseEvaluation({
   defenseId,
   userEmail,
+  memberId,
   goBack,
   onSubmitted,
+  variant = "institutional",
 }: DefenseEvaluationProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [myMember, setMyMember] = useState<DefenseCommitteeMember | null>(null)
@@ -89,9 +112,9 @@ export default function DefenseEvaluation({
       .then(({ defense: data }) => {
         if (!mountedRef.current) return
         setDefense(data)
-        const member = data.members.find(
-          (m) => m.email.toLowerCase() === userEmail.toLowerCase(),
-        )
+        const member = memberId
+          ? data.members.find((m) => m.id === memberId)
+          : data.members.find((m) => m.email.toLowerCase() === userEmail.toLowerCase())
         if (member) {
           setMyMember(member)
           if (member.evaluation) {
@@ -119,7 +142,7 @@ export default function DefenseEvaluation({
           setRefreshing(false)
         }
       })
-  }, [defenseId, userEmail])
+  }, [defenseId, userEmail, memberId])
 
   useEffect(() => {
     mountedRef.current = true
@@ -183,11 +206,13 @@ export default function DefenseEvaluation({
           <div className="success-notice" role="alert">
             {loadError}
           </div>
-          <div className="form-actions">
-            <Button variant="ghost" onClick={goBack}>
-              Voltar
-            </Button>
-          </div>
+          {goBack && (
+            <div className="form-actions">
+              <Button variant="ghost" onClick={goBack}>
+                Voltar
+              </Button>
+            </div>
+          )}
         </Card>
       </div>
     )
@@ -201,11 +226,13 @@ export default function DefenseEvaluation({
         <PageTitle eyebrow="Avaliação de banca" title="Avaliação" />
         <Card>
           <p>Você não está registrado como membro desta banca.</p>
-          <div className="form-actions">
-            <Button variant="ghost" onClick={goBack}>
-              Voltar
-            </Button>
-          </div>
+          {goBack && (
+            <div className="form-actions">
+              <Button variant="ghost" onClick={goBack}>
+                Voltar
+              </Button>
+            </div>
+          )}
         </Card>
       </div>
     )
@@ -246,6 +273,46 @@ export default function DefenseEvaluation({
         </Button>
       </Card>
 
+      {variant === "external" && (
+        <Card>
+          <h2>Dados da banca</h2>
+          <dl className="meta-list defense-details">
+            <div>
+              <dt>Data</dt>
+              <dd>{LONG_DATE_FORMATTER.format(new Date(defense.scheduledDatetime))}</dd>
+            </div>
+            <div>
+              <dt>Horário</dt>
+              <dd>{formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)}</dd>
+            </div>
+            <div>
+              <dt>Duração</dt>
+              <dd>{formatDuration(defense.durationMinutes)}</dd>
+            </div>
+            <div>
+              <dt>Modalidade</dt>
+              <dd>{defense.modalityLabel}</dd>
+            </div>
+            <div>
+              <dt>{defense.modality === "REMOTE" ? "Link" : "Local"}</dt>
+              <dd>{defense.location || "Não informado"}</dd>
+            </div>
+            <div>
+              <dt>Seu papel</dt>
+              <dd>{COMMITTEE_ROLE_LABELS[myMember.role] ?? myMember.roleLabel}</dd>
+            </div>
+          </dl>
+        </Card>
+      )}
+
+      {variant === "external" && defense.status === "SCHEDULED" && (
+        <Card>
+          <h2>Sua disponibilidade</h2>
+          <p>Confirme se você pode participar da banca no horário agendado.</p>
+          <DefenseAvailabilityResponse defenseId={defense.id} member={myMember} onResponded={loadDefense} />
+        </Card>
+      )}
+
       {isAlternate && (
         <Card>
           <div className="conflict-message" role="status">
@@ -257,11 +324,13 @@ export default function DefenseEvaluation({
               </span>
             </div>
           </div>
-          <div className="form-actions">
-            <Button variant="ghost" onClick={goBack}>
-              Voltar
-            </Button>
-          </div>
+          {goBack && (
+            <div className="form-actions">
+              <Button variant="ghost" onClick={goBack}>
+                Voltar
+              </Button>
+            </div>
+          )}
         </Card>
       )}
 
@@ -374,9 +443,11 @@ export default function DefenseEvaluation({
           )}
 
           <div className="form-actions">
-            <Button variant="ghost" onClick={goBack}>
-              {hasSubmitted ? "Fechar" : "Cancelar"}
-            </Button>
+            {goBack && (
+              <Button variant="ghost" onClick={goBack}>
+                {hasSubmitted ? "Fechar" : "Cancelar"}
+              </Button>
+            )}
             {isInProgress && (
               <Button
                 variant="success"

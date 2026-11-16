@@ -77,7 +77,15 @@ export interface SessionPayload {
     email: string
     institution: string
     expiresAt: string
+    /** Bancas do convite (vínculo um-para-um com o membro externo, então hoje no máximo uma). */
+    assignments?: ExternalAssignment[]
   } | null
+}
+
+/** Item de externalInvitation.assignments em GET /session (external_invitation_assignments). */
+export interface ExternalAssignment {
+  defenseId: string
+  memberId: string
 }
 
 export interface DevUser {
