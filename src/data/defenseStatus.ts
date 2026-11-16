@@ -37,3 +37,20 @@ export function defenseStatusTone(status: string): BadgeTone {
 export function defenseDecisionTone(decision: string): BadgeTone {
   return DEFENSE_DECISION_TONES[decision] ?? "neutral"
 }
+
+// Disponibilidade segue documentStatusTones: pendência neutral, aceite success e
+// recusa dark. Os rótulos da tela diferem dos do backend ("Pendente", "Confirmada",
+// "Recusada") porque descrevem a pessoa, não a resposta.
+const AVAILABILITY_STATUS: Record<string, { label: string; tone: BadgeTone }> = {
+  PENDING: { label: "Aguardando confirmação", tone: "neutral" },
+  CONFIRMED: { label: "Confirmado", tone: "success" },
+  DECLINED: { label: "Indisponível", tone: "dark" },
+}
+
+/**
+ * Returns the label and `Badge` tone of a committee member's availability status.
+ * Unknown codes fall back to the pending presentation.
+ */
+export function availabilityStatusBadge(status: string): { label: string; tone: BadgeTone } {
+  return AVAILABILITY_STATUS[status] ?? { label: "Aguardando confirmação", tone: "neutral" }
+}

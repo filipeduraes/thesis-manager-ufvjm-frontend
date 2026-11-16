@@ -10,7 +10,7 @@ interface DefenseStatusConfirmModalProps {
   /** Destructive actions use the danger icon and the solid danger button. */
   destructive?: boolean
   /** When set, shows a reason field; `required` blocks confirming while it is empty. */
-  reason?: { required: boolean }
+  reason?: { required: boolean; label?: string }
   loading: boolean
   error: string
   onConfirm: (reason: string) => void
@@ -55,7 +55,7 @@ export default function DefenseStatusConfirmModal({
       {reason && (
         <label className="field">
           <span>
-            Motivo <small>{reason.required ? "(obrigatório)" : "(opcional)"}</small>
+            {reason.label ?? "Motivo"} <small>{reason.required ? "(obrigatório)" : "(opcional)"}</small>
           </span>
           <textarea
             className="feedback-area"

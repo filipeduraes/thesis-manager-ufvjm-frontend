@@ -347,8 +347,25 @@ export interface DefenseCommitteeMember {
   hasConflict: boolean
   conflictReason: string
   isInstitutional: boolean
+  /** Resposta do membro sobre o horário; volta a PENDING quando data ou duração mudam. */
+  availabilityStatus: AvailabilityStatusCode
+  availabilityStatusLabel: string
+  availabilityRespondedAt: string | null
+  availabilityNote: string
   createdAt: string
   evaluation: DefenseMemberEvaluationData | null
+}
+
+/** Códigos de AvailabilityStatus no backend. */
+export type AvailabilityStatusCode = "PENDING" | "CONFIRMED" | "DECLINED"
+
+/** Item de pendingConfirmations em GET /defenses/{id} (defense_availability_summary). */
+export interface DefensePendingConfirmation {
+  memberId: string
+  name: string
+  role: string
+  roleLabel: string
+  availabilityStatus: AvailabilityStatusCode
 }
 
 /** Entrada de statusHistory em GET /defenses/{id} (defense_status_history_payload). */
@@ -381,6 +398,10 @@ export interface DefenseData {
   members: DefenseCommitteeMember[]
   /** Só vem no detalhe (GET /defenses/{id}); bancas anteriores à migration 0005 vêm sem histórico. */
   statusHistory?: DefenseStatusHistoryEntry[]
+  /** Só no detalhe: há membros não suplentes e todos confirmaram disponibilidade. */
+  allMembersConfirmed?: boolean
+  /** Só no detalhe: não suplentes que ainda não confirmaram (pendentes ou indisponíveis). */
+  pendingConfirmations?: DefensePendingConfirmation[]
 }
 
 /** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */
@@ -438,6 +459,7 @@ export interface DefenseListParams {
  *   POST /defenses/{id}/members              — membro institucional
  *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
  *   DELETE /defenses/{id}/members/{member_id}
+ *   POST /defenses/{id}/members/{member_id}/availability    — o próprio membro confirma ou recusa
  *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
  */
 export const defenseApi = {
@@ -497,6 +519,16 @@ export const defenseApi = {
     apiRequest<{ evaluation: DefenseMemberEvaluationData }>(
       `/defenses/${defenseId}/members/${memberId}/evaluation`,
       { method: "PUT", body: JSON.stringify(body) },
+    ),
+
+  respondAvailability: (
+    defenseId: string,
+    memberId: string,
+    body: { status: Exclude<AvailabilityStatusCode, "PENDING">; note?: string },
+  ) =>
+    apiRequest<{ member: DefenseCommitteeMember }>(
+      `/defenses/${defenseId}/members/${memberId}/availability`,
+      { method: "POST", body: JSON.stringify(body) },
     ),
 
   update: (defenseId: string, body: UpdateDefenseInput) =>

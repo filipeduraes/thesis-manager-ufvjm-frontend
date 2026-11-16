@@ -3228,6 +3228,53 @@ footer .logo {
   overflow-wrap: anywhere
 }
 
+/* Disponibilidade e avaliação lado a lado; em telas estreitas os selos quebram linha. */
+.member-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px
+}
+
+.member-list .availability-note {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--font-size-xxs);
+  color: var(--slate)
+}
+
+/* Aviso de confirmações pendentes: informativo, não erro, por isso sem as cores de perigo. */
+.conflict-message.availability-pending {
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--navy);
+  margin: 8px 0 16px
+}
+
+.availability-response {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
+.availability-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm)
+}
+
+.availability-current small {
+  flex-basis: 100%;
+  color: var(--slate);
+  font-size: var(--font-size-xxs)
+}
+
+.availability-actions {
+  justify-content: flex-start
+}
+
 @media (max-width: 760px) {
   .defense-summary {
     grid-template-columns: 42px minmax(0, 1fr)
@@ -3245,6 +3292,11 @@ footer .logo {
 @media (max-width: 600px) {
   .committee-member-list>div {
     grid-template-columns: 38px minmax(0, 1fr) auto
+  }
+
+  .committee-member-list .member-badges {
+    grid-column: 2/-1;
+    justify-content: flex-start
   }
 }
 

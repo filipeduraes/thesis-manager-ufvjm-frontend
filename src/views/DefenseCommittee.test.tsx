@@ -5,6 +5,7 @@ import {
   ApiError,
   defenseApi,
   thesesApi,
+  type DefenseCommitteeMember,
   type DefenseData,
   type DefenseStatusHistoryEntry,
   type Thesis,
@@ -15,6 +16,7 @@ const getDefense = jest.spyOn(defenseApi, "get")
 const getThesis = jest.spyOn(thesesApi, "detail")
 const startDefense = jest.spyOn(defenseApi, "start")
 const revertStatus = jest.spyOn(defenseApi, "revertStatus")
+const respondAvailability = jest.spyOn(defenseApi, "respondAvailability")
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Agendada",
@@ -53,6 +55,7 @@ beforeEach(() => {
   getThesis.mockReset()
   startDefense.mockReset()
   revertStatus.mockReset()
+  respondAvailability.mockReset()
 })
 
 afterAll(() => {
@@ -273,4 +276,130 @@ test("requires a reason to revert and sends it", async () => {
   userEvent.click(confirm)
   await waitFor(() => expect(revertStatus).toHaveBeenCalledWith("defense-1", "Cancelada por engano"))
   expect((await screen.findByRole("alert")).textContent).toContain("Você não tem permissão para esta ação.")
+})
+
+const AVAILABILITY_LABELS: Record<string, string> = { PENDING: "Pendente", CONFIRMED: "Confirmada", DECLINED: "Recusada" }
+
+function buildMember(id: string, name: string, overrides: Partial<DefenseCommitteeMember> = {}): DefenseCommitteeMember {
+  const availabilityStatus = overrides.availabilityStatus ?? "PENDING"
+  return {
+    id,
+    role: "MEMBER",
+    roleLabel: "Membro",
+    name,
+    email: `${id}@ufvjm.edu.br`,
+    institution: "",
+    hasConflict: false,
+    conflictReason: "",
+    isInstitutional: true,
+    availabilityStatus,
+    availabilityStatusLabel: AVAILABILITY_LABELS[availabilityStatus] ?? availabilityStatus,
+    availabilityRespondedAt: null,
+    availabilityNote: "",
+    createdAt: "2026-11-01T12:00:00Z",
+    evaluation: null,
+    ...overrides,
+  }
+}
+
+function defenseWithMembers(status: string, members: DefenseCommitteeMember[]): DefenseData {
+  const pending = members.filter((member) => member.role !== "ALTERNATE" && member.availabilityStatus !== "CONFIRMED")
+  return {
+    ...buildDefense(status),
+    members,
+    allMembersConfirmed: members.length > 0 && pending.length === 0,
+    pendingConfirmations: pending.map((member) => ({
+      memberId: member.id,
+      name: member.name,
+      role: member.role,
+      roleLabel: member.roleLabel,
+      availabilityStatus: member.availabilityStatus,
+    })),
+  }
+}
+
+test("shows the availability badge of each member, with the note when unavailable", async () => {
+  renderCommittee(
+    defenseWithMembers("SCHEDULED", [
+      buildMember("ana", "Ana Pendente"),
+      buildMember("bruno", "Bruno Confirmado", { availabilityStatus: "CONFIRMED" }),
+      buildMember("carla", "Carla Indisponível", { availabilityStatus: "DECLINED", availabilityNote: "Viagem a congresso" }),
+    ]),
+  )
+  expect(await screen.findByText("Ana Pendente")).toBeTruthy()
+  expect(screen.getByText("Aguardando confirmação")).toBeTruthy()
+  expect(screen.getByText("Confirmado")).toBeTruthy()
+  expect(screen.getByText("Indisponível")).toBeTruthy()
+  expect(screen.getByText("Observação: Viagem a congresso")).toBeTruthy()
+})
+
+test("disables Iniciar banca while confirmations are pending and explains why", async () => {
+  renderCommittee(
+    defenseWithMembers("SCHEDULED", [
+      buildMember("ana", "Ana Pendente"),
+      buildMember("carla", "Carla Indisponível", { availabilityStatus: "DECLINED" }),
+      buildMember("davi", "Davi Suplente", { role: "ALTERNATE", roleLabel: "Suplente" }),
+    ]),
+    { canStartClose: true },
+  )
+  const start = await screen.findByRole("button", { name: "Iniciar banca" })
+  expect(start).toHaveProperty("disabled", true)
+  expect(screen.getByText("Aguardando confirmação de 2 membro(s)")).toBeTruthy()
+  const describedBy = start.getAttribute("aria-describedby")
+  const explanation = screen.getAllByRole("status").find((element) => element.id === describedBy)
+  expect(explanation?.textContent).toContain("Aguardando confirmação de 2 membro(s)")
+  expect(explanation?.textContent).toContain("Ana Pendente, Carla Indisponível")
+})
+
+test("enables Iniciar banca once every titular member confirmed", async () => {
+  renderCommittee(
+    defenseWithMembers("SCHEDULED", [buildMember("ana", "Ana", { availabilityStatus: "CONFIRMED" })]),
+    { canStartClose: true },
+  )
+  const start = await screen.findByRole("button", { name: "Iniciar banca" })
+  expect(start).toHaveProperty("disabled", false)
+  expect(screen.queryByText(/Aguardando confirmação de/)).toBeNull()
+})
+
+test("signed-in member confirms availability on a scheduled defense", async () => {
+  const me = buildMember("me", "Eu Mesmo")
+  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [me]) })
+  respondAvailability.mockResolvedValue({ member: { ...me, availabilityStatus: "CONFIRMED" } })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="ME@ufvjm.edu.br" />)
+
+  userEvent.click(await screen.findByRole("button", { name: "Confirmar disponibilidade" }))
+  await waitFor(() => expect(respondAvailability).toHaveBeenCalledWith("defense-1", "me", { status: "CONFIRMED" }))
+  await waitFor(() => expect(getDefense).toHaveBeenCalledTimes(2))
+})
+
+test("signed-in member declines availability with a note", async () => {
+  const me = buildMember("me", "Eu Mesmo")
+  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [me]) })
+  respondAvailability.mockResolvedValue({ member: { ...me, availabilityStatus: "DECLINED" } })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="me@ufvjm.edu.br" />)
+
+  userEvent.click(await screen.findByRole("button", { name: "Informar indisponibilidade" }))
+  const dialog = screen.getByRole("dialog")
+  userEvent.type(within(dialog).getByLabelText(/Observação/), "Banca no mesmo horário")
+  userEvent.click(within(dialog).getByRole("button", { name: "Informar indisponibilidade" }))
+  await waitFor(() =>
+    expect(respondAvailability).toHaveBeenCalledWith("defense-1", "me", { status: "DECLINED", note: "Banca no mesmo horário" }),
+  )
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+})
+
+test("hides the availability answer when the user is not a member or the defense started", async () => {
+  const me = buildMember("me", "Eu Mesmo")
+  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [me]) })
+  const { unmount } = render(
+    <DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="outra@ufvjm.edu.br" />,
+  )
+  await screen.findByText("Dados da banca")
+  expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
+  unmount()
+
+  getDefense.mockResolvedValue({ defense: defenseWithMembers("IN_PROGRESS", [me]) })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="me@ufvjm.edu.br" />)
+  await screen.findByText("Dados da banca")
+  expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
 })

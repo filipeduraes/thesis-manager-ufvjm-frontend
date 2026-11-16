@@ -17,9 +17,10 @@ import {
   InstitutionalMemberModal,
   PageTitle,
 } from "../components/common"
-import { defenseDecisionTone, defenseStatusTone } from "../data/defenseStatus"
+import { availabilityStatusBadge, defenseDecisionTone, defenseStatusTone } from "../data/defenseStatus"
 import type { BadgeTone } from "../data/thesisStatus"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
+import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
 import DefenseStatusConfirmModal from "./defense/DefenseStatusConfirmModal"
@@ -53,6 +54,16 @@ interface DefenseCommitteeProps {
   isAdvisor?: boolean
   /** Id do usuário autenticado, comparado ao orientador da tese. */
   currentUserId?: string
+  /**
+   * E-mail do usuário autenticado. O detalhe da banca não traz o id do usuário de cada
+   * membro, então o membro correspondente é localizado pelo e-mail, como em
+   * DefenseEvaluation; o backend só aceita a resposta do próprio membro (403).
+   */
+  currentUserEmail?: string
+}
+
+function pendingConfirmationsText(count: number): string {
+  return `Aguardando confirmação de ${count} membro(s)`
 }
 
 function evaluationStatusBadge(
@@ -87,6 +98,7 @@ export default function DefenseCommittee({
   canStartClose = false,
   isAdvisor = false,
   currentUserId,
+  currentUserEmail,
 }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -309,6 +321,13 @@ export default function DefenseCommittee({
   const canRevert = isAdmin && (isInProgress || isCancelled)
   const canManageSchedule = isScheduled && canManageDefense
   const hasStatusActions = canStart || canClose || canCancel || canRevert
+  // Só o detalhe traz pendingConfirmations; suplentes não entram nessa lista.
+  const pendingConfirmations = defense.pendingConfirmations ?? []
+  const awaitingConfirmations = isScheduled && pendingConfirmations.length > 0
+  const normalizedEmail = currentUserEmail?.toLowerCase()
+  const myMember = normalizedEmail
+    ? defense.members.find((member) => member.email.toLowerCase() === normalizedEmail)
+    : undefined
   const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
   const statusTone = defenseStatusTone(defense.status)
 
@@ -352,7 +371,12 @@ export default function DefenseCommittee({
           {hasStatusActions && (
             <div className="defense-actions">
               {canStart && (
-                <Button variant="success" onClick={() => setStatusModal("start")}>
+                <Button
+                  variant="success"
+                  disabled={awaitingConfirmations}
+                  describedBy={awaitingConfirmations ? "defense-pending-confirmations" : undefined}
+                  onClick={() => setStatusModal("start")}
+                >
                   Iniciar banca
                 </Button>
               )}
@@ -374,8 +398,30 @@ export default function DefenseCommittee({
             </div>
           )}
         </div>
+        {awaitingConfirmations && (
+          <div className="conflict-message availability-pending" id="defense-pending-confirmations" role="status">
+            <Icon name="clock" />
+            <div>
+              <strong>{pendingConfirmationsText(pendingConfirmations.length)}</strong>
+              <span>
+                A banca só pode ser iniciada depois que todos os membros titulares confirmarem a disponibilidade.
+                Falta: {pendingConfirmations.map((pending) => pending.name).join(", ")}.
+              </span>
+            </div>
+          </div>
+        )}
         <DefenseStatusTimeline status={defense.status} history={defense.statusHistory ?? []} />
       </Card>
+
+      {myMember && isScheduled && (
+        <Card>
+          <div className="section-head defense-section-head">
+            <h2>Sua disponibilidade</h2>
+          </div>
+          <p>Confirme se você pode participar da banca no horário agendado.</p>
+          <DefenseAvailabilityResponse defenseId={defense.id} member={myMember} onResponded={loadDefense} />
+        </Card>
+      )}
 
       <Card>
         <div className="section-head defense-section-head">
@@ -460,6 +506,7 @@ export default function DefenseCommittee({
           <div className="member-list committee-member-list">
             {defense.members.map((member) => {
               const evalStatus = evaluationStatusBadge(member)
+              const availability = availabilityStatusBadge(member.availabilityStatus)
               return (
                 <div key={member.id}>
                   <div className="avatar">
@@ -483,8 +530,14 @@ export default function DefenseCommittee({
                         declarado
                       </small>
                     )}
+                    {member.availabilityStatus === "DECLINED" && member.availabilityNote && (
+                      <small className="availability-note">Observação: {member.availabilityNote}</small>
+                    )}
                   </div>
-                  <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
+                  <div className="member-badges">
+                    <Badge tone={availability.tone}>{availability.label}</Badge>
+                    <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
+                  </div>
                   {canManage && !member.evaluation && (
                     <Button
                       variant="danger"
