@@ -45,7 +45,8 @@ interface PresentedDefenseListProps {
  *
  * Mirrors the filter bar and table of `AdvisorApproval`: the search applies on Enter or
  * "Filtrar", while the status select and the checkbox apply immediately. Evaluation
- * actions follow `viewerMembership` from the backend.
+ * actions follow `viewerMembership` and the defense link follows `viewerPermissions`:
+ * "Gerenciar banca" for whoever manages it, "Ver banca" for everyone else.
  */
 export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: PresentedDefenseListProps) {
   const [searchInput, setSearchInput] = useState("")
@@ -205,6 +206,7 @@ export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: Pr
             </div>
             {listState.defenses.map((defense) => {
               const membership = defense.viewerMembership
+              const openLabel = defense.viewerPermissions.canManage ? "Gerenciar banca" : "Ver banca"
               const scheduledDate = DATE_FORMATTER.format(new Date(defense.scheduledDatetime))
               const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
               return (
@@ -231,8 +233,8 @@ export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: Pr
                     <button
                       type="button"
                       className="icon-btn"
-                      aria-label="Gerenciar banca"
-                      title="Gerenciar banca"
+                      aria-label={openLabel}
+                      title={openLabel}
                       onClick={() => onOpenCommittee(defense.id)}
                     >
                       <Icon name="arrow" />

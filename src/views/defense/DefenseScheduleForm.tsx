@@ -7,6 +7,7 @@ import {
 } from "../../api/client"
 import {
   AccessTokenModal,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -68,11 +69,6 @@ function modalityText(draft: DefenseScheduleDraft): string {
   }
   if (draft.modality === "IN_PERSON") return "Presencial"
   return "Escolha a modalidade"
-}
-
-function initialsOf(name: string): string {
-  const parts = name.split(" ").filter(Boolean).slice(0, 2)
-  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("")
 }
 
 interface DefenseScheduleFormProps {
@@ -303,7 +299,10 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
               <div className="member-list">
                 {members.map((member) => (
                   <div key={member.key}>
-                    <div className="avatar">{initialsOf(member.draft.name)}</div>
+                    <Avatar
+                      name={member.draft.name}
+                      imageUrl={member.kind === "institutional" ? member.draft.avatarUrl : null}
+                    />
                     <div>
                       <strong>{member.draft.name}</strong>
                       <span>

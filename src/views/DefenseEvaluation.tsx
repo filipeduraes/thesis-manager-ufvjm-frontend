@@ -4,6 +4,7 @@ import {
   COMMITTEE_ROLE_LABELS,
   DEFENSE_RESULT_LABELS,
   defenseApi,
+  NO_DEFENSE_PERMISSIONS,
   type DefenseCommitteeMember,
   type DefenseData,
   type DefenseMemberEvaluationData,
@@ -249,6 +250,8 @@ export default function DefenseEvaluation({
   }
 
   const isInProgress = defense.status === "IN_PROGRESS"
+  // Quem pode encerrar vem do backend (canClose), não do perfil; sessões externas recebem tudo falso.
+  const canClose = (defense.viewerPermissions ?? NO_DEFENSE_PERMISSIONS).canClose
   const isAlternate = myMember.role === "ALTERNATE"
   const hasSubmitted = evaluation !== null
   const statusTone = defenseStatusTone(defense.status)
@@ -366,7 +369,11 @@ export default function DefenseEvaluation({
             <Icon name="alert" />
             <div>
               <strong>Avaliação salva. A banca não pôde ser encerrada automaticamente: {autoCloseError}</strong>
-              <span>A coordenação ou o orientador pode encerrar a banca manualmente.</span>
+              <span>
+                {canClose
+                  ? "Você pode encerrar a banca manualmente em Gerenciar banca."
+                  : "Quem gerencia a banca pode encerrá-la manualmente."}
+              </span>
             </div>
           </div>
         </Card>

@@ -55,10 +55,6 @@ export default function App() {
   const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles])
   const showSearch = activeProfiles.some((item) => item !== "Aluno")
   const canEvaluate = activeProfiles.includes("Orientador") || activeProfiles.includes("Coordenador")
-  const isAdmin = activeProfiles.includes("Administrador")
-  // Admin ou coordenador. O orientador da própria tese também pode iniciar, encerrar,
-  // cancelar e editar (_can_manage_defense); DefenseCommittee confirma isso via GET /theses/<id>.
-  const canStartClose = isAdmin || activeProfiles.includes("Coordenador")
 
   const allowedPages = useMemo(() => {
     const pages = new Set<Page>()
@@ -264,10 +260,6 @@ export default function App() {
         <DefenseCommittee
           defenseId={committeeDefenseId}
           goBack={() => navigate("schedule")}
-          isAdmin={isAdmin}
-          canStartClose={canStartClose}
-          isAdvisor={activeProfiles.includes("Orientador")}
-          currentUserId={session.user.id}
         />
       )}
       {page === "reports" && <ReportsView />}

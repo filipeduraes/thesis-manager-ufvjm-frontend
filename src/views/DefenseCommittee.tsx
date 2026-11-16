@@ -4,13 +4,14 @@ import {
   COMMITTEE_ROLE_LABELS,
   DEFENSE_RESULT_LABELS,
   defenseApi,
-  thesesApi,
+  NO_DEFENSE_PERMISSIONS,
   type DefenseCommitteeMember,
   type DefenseData,
   type ExternalMemberTokenResponse,
 } from "../api/client"
 import {
   AccessTokenModal,
+  Avatar,
   Badge,
   Button,
   Card,
@@ -46,17 +47,6 @@ interface DefenseCommitteeProps {
   /** UUID da defesa cujos membros serão gerenciados. */
   defenseId: string
   goBack: () => void
-  /** Usuário autenticado é administrador institucional (único que pode reverter status). */
-  isAdmin?: boolean
-  /**
-   * Usuário é admin ou coordenador. Iniciar, encerrar, cancelar e editar também ficam
-   * disponíveis ao orientador da própria tese, verificado nesta tela (_can_manage_defense).
-   */
-  canStartClose?: boolean
-  /** Usuário tem o papel de orientador; só gerencia a banca se orientar a tese. */
-  isAdvisor?: boolean
-  /** Id do usuário autenticado, comparado ao orientador da tese. */
-  currentUserId?: string
 }
 
 function evaluationStatusBadge(
@@ -75,23 +65,18 @@ function evaluationStatusBadge(
 /**
  * Tela de gestão dos membros de uma banca de defesa.
  *
- * Permite listar, adicionar e remover membros. A remoção só está disponível
- * enquanto a banca estiver no status SCHEDULED. O backend retorna 403 quando
- * o usuário não tem permissão para gerenciar a banca; a mensagem é exibida
- * diretamente.
+ * Which actions are shown (edit, cancel, start, close, revert, member management) and
+ * whether the pending summary and the other members' availability appear follow only
+ * `viewerPermissions` from `GET /defenses/{id}`; no role is inferred here. The flags do
+ * not include business preconditions, so "Iniciar banca" stays disabled while
+ * `allMembersConfirmed` is false and a refused close shows the backend message. Member
+ * removal is also limited to SCHEDULED defenses, as in `remove_member`.
  *
  * Para adicionar membro institucional, o e-mail é resolvido via
  * GET /api/v1/admin/users/lookup (somente admin/coordenador na rede institucional).
  * Para adicionar membro externo, usa-se POST /defenses/{id}/members/external.
  */
-export default function DefenseCommittee({
-  defenseId,
-  goBack,
-  isAdmin = false,
-  canStartClose = false,
-  isAdvisor = false,
-  currentUserId,
-}: DefenseCommitteeProps) {
+export default function DefenseCommittee({ defenseId, goBack }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
@@ -101,9 +86,6 @@ export default function DefenseCommittee({
   const [refreshing, setRefreshing] = useState(false)
   const firstLoadRef = useRef(true)
   const [scheduleModal, setScheduleModal] = useState<"edit" | "cancel" | null>(null)
-  // Espelha _can_manage_defense: orientador só gerencia a banca da tese que orienta.
-  const [isThesisAdvisor, setIsThesisAdvisor] = useState(false)
-  const [permissionError, setPermissionError] = useState("")
 
   // Ações de status: iniciar, encerrar e reverter abrem confirmação antes da chamada.
   const [statusModal, setStatusModal] = useState<StatusModalKind>(null)
@@ -160,34 +142,6 @@ export default function DefenseCommittee({
       mountedRef.current = false
     }
   }, [loadDefense])
-
-  const thesisId = defense?.thesis
-  useEffect(() => {
-    if (!thesisId || canStartClose || !isAdvisor || !currentUserId) {
-      setIsThesisAdvisor(false)
-      return
-    }
-    let cancelled = false
-    setPermissionError("")
-    thesesApi
-      .detail(thesisId)
-      .then(({ thesis }) => {
-        if (!cancelled) setIsThesisAdvisor(thesis.advisor.id === currentUserId)
-      })
-      .catch((reason: unknown) => {
-        if (cancelled) return
-        setIsThesisAdvisor(false)
-        // 403/404 significam apenas que o usuário não orienta esta tese.
-        const expected = reason instanceof ApiError && (reason.status === 403 || reason.status === 404)
-        if (!expected) {
-          const detail = reason instanceof Error && reason.message ? reason.message : "erro desconhecido"
-          setPermissionError(`Não foi possível verificar se você pode alterar esta banca: ${detail}`)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [thesisId, canStartClose, isAdvisor, currentUserId])
 
   const finishScheduleChange = () => {
     setScheduleModal(null)
@@ -336,24 +290,17 @@ export default function DefenseCommittee({
 
   const isScheduled = defense.status === "SCHEDULED"
   const isInProgress = defense.status === "IN_PROGRESS"
-  const isCancelled = defense.status === "CANCELLED"
-  const canManage = isScheduled
-  // Espelha _can_manage_defense (iniciar, encerrar, cancelar, editar) e a regra de
-  // revert-status (somente admin). O backend continua sendo quem decide.
-  const canManageDefense = canStartClose || isThesisAdvisor
-  const canStart = isScheduled && canManageDefense
-  const canClose = isInProgress && canManageDefense
-  const canCancel = isScheduled && canManageDefense
-  const canRevert = isAdmin && (isInProgress || isCancelled)
-  const canManageSchedule = isScheduled && canManageDefense
-  // regenerate-token aceita bancas agendadas ou em andamento (ACTIVE_DEFENSE_STATUSES).
-  const canRegenerateToken = (isScheduled || isInProgress) && canManageDefense
+  // As flags já combinam o direito do usuário e o status da banca; sem o campo, nada aparece.
+  const permissions = defense.viewerPermissions ?? NO_DEFENSE_PERMISSIONS
+  const { canStart, canClose, canCancel, canRevert, canEdit, canManageMembers } = permissions
+  // remove_member só aceita bancas agendadas, condição de status que canManageMembers não cobre.
+  const canRemoveMembers = canManageMembers && isScheduled
   const hasStatusActions = canStart || canClose || canCancel || canRevert
-  // Só o detalhe traz pendingConfirmations; suplentes não entram nessa lista. O resumo
-  // e os selos dos outros membros ficam com quem gerencia a banca (mesma regra de
-  // canManageDefense); os demais veem só a própria disponibilidade.
-  const pendingConfirmations = defense.pendingConfirmations ?? []
-  const awaitingConfirmations = isScheduled && canManageDefense && pendingConfirmations.length > 0
+  // canStart ignora as confirmações de disponibilidade; allMembersConfirmed decide se o
+  // botão fica habilitado. pendingConfirmations null quer dizer lista oculta, não vazia.
+  const startBlocked = canStart && defense.allMembersConfirmed !== true
+  const visiblePending = permissions.canManage ? defense.pendingConfirmations ?? [] : []
+  const pendingNames = visiblePending.map((pending) => pending.name)
   const myMemberId = defense.viewerMembership?.memberId ?? null
   const myMember = myMemberId ? defense.members.find((member) => member.id === myMemberId) : undefined
   const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
@@ -401,8 +348,8 @@ export default function DefenseCommittee({
               {canStart && (
                 <Button
                   variant="success"
-                  disabled={awaitingConfirmations}
-                  describedBy={awaitingConfirmations ? "defense-pending-confirmations" : undefined}
+                  disabled={startBlocked}
+                  describedBy={startBlocked ? "defense-pending-confirmations" : undefined}
                   onClick={() => setStatusModal("start")}
                 >
                   Iniciar banca
@@ -426,12 +373,14 @@ export default function DefenseCommittee({
             </div>
           )}
         </div>
-        {awaitingConfirmations && (
+        {startBlocked && (
           <div className="conflict-message availability-pending" id="defense-pending-confirmations" role="status">
             <Icon name="clock" />
             <div>
               <strong>
-                Aguardando confirmação de: {pendingConfirmations.map((pending) => pending.name).join(", ")}
+                {pendingNames.length > 0
+                  ? `Aguardando confirmação de: ${pendingNames.join(", ")}`
+                  : "Aguardando a confirmação dos membros titulares"}
               </strong>
               <span>
                 A banca só pode ser iniciada depois que todos os membros titulares confirmarem a disponibilidade.
@@ -454,7 +403,7 @@ export default function DefenseCommittee({
       <Card>
         <div className="section-head defense-section-head">
           <h2>Dados da banca</h2>
-          {canManageSchedule && (
+          {canEdit && (
             <div className="defense-actions">
               <Button variant="outline" onClick={() => setScheduleModal("edit")}>
                 Editar agendamento
@@ -490,12 +439,6 @@ export default function DefenseCommittee({
         </dl>
       </Card>
 
-      {permissionError && (
-        <div className="success-notice" role="alert">
-          {permissionError}
-        </div>
-      )}
-
       {removeError && (
         <div className="success-notice" role="alert">
           {removeError}
@@ -508,7 +451,7 @@ export default function DefenseCommittee({
             <h2>Comissão avaliadora</h2>
             <p>{defense.members.length} membro{defense.members.length !== 1 ? "s" : ""}</p>
           </div>
-          {canManage && (
+          {canManageMembers && (
             <div className="defense-actions">
               <Button
                 variant="outline"
@@ -535,17 +478,15 @@ export default function DefenseCommittee({
             {defense.members.map((member) => {
               const evalStatus = evaluationStatusBadge(member)
               const availability = availabilityStatusBadge(member.availabilityStatus)
-              const showAvailability = canManageDefense || member.id === myMemberId
+              // O backend já anula a disponibilidade dos outros para quem não gerencia; a
+              // condição evita exibir um selo "pendente" no lugar de um dado oculto.
+              const canSeeAvailability = permissions.canManage || member.id === myMemberId
+              const showAvailability = canSeeAvailability && member.availabilityStatus !== null
+              const canRegenerateToken = canManageMembers && !member.isInstitutional
+              const canRemove = canRemoveMembers && !member.evaluation
               return (
                 <div key={member.id}>
-                  <div className="avatar">
-                    {member.name
-                      .split(" ")
-                      .filter(Boolean)
-                      .slice(0, 2)
-                      .map((part) => part[0]?.toUpperCase())
-                      .join("")}
-                  </div>
+                  <Avatar name={member.name} imageUrl={member.isInstitutional ? member.avatarUrl : null} />
                   <div>
                     <strong>{member.name}</strong>
                     <span>
@@ -567,14 +508,14 @@ export default function DefenseCommittee({
                     {showAvailability && <Badge tone={availability.tone}>{availability.label}</Badge>}
                     <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
                   </div>
-                  {((canManage && !member.evaluation) || (canRegenerateToken && !member.isInstitutional)) && (
+                  {(canRemove || canRegenerateToken) && (
                     <div className="defense-actions">
-                      {canRegenerateToken && !member.isInstitutional && (
+                      {canRegenerateToken && (
                         <Button variant="outline" onClick={() => setRegenerateTarget(member)}>
                           Gerar novo token
                         </Button>
                       )}
-                      {canManage && !member.evaluation && (
+                      {canRemove && (
                         <Button
                           variant="danger"
                           disabled={removing === member.id}

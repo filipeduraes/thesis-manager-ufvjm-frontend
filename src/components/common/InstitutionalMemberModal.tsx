@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { ApiError, adminApi, COMMITTEE_ROLE_OPTIONS } from "../../api/client"
 import type { CommitteeRoleCode, InstitutionalMemberDraft } from "../../types"
+import Avatar from "./Avatar"
 import Badge from "./Badge"
 import Button from "./Button"
 import Icon from "./Icon"
@@ -10,11 +11,7 @@ interface FoundUser {
   id: string
   name: string
   email: string
-}
-
-function initialsOf(name: string): string {
-  const parts = name.split(" ").filter(Boolean).slice(0, 2)
-  return parts.map((part) => part[0]?.toUpperCase() ?? "").join("")
+  avatarUrl: string | null
 }
 
 interface InstitutionalMemberModalProps {
@@ -70,7 +67,13 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
     setSubmitLoading(true)
     setSubmitError("")
     try {
-      await onSubmit({ role, userId: foundUser.id, name: foundUser.name, email: foundUser.email })
+      await onSubmit({
+        role,
+        userId: foundUser.id,
+        name: foundUser.name,
+        email: foundUser.email,
+        avatarUrl: foundUser.avatarUrl,
+      })
       onClose()
     } catch (reason) {
       setSubmitError(reason instanceof Error ? reason.message : "Não foi possível adicionar o membro.")
@@ -122,7 +125,7 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
 
       {foundUser && (
         <div className="institutional-banner session-banner" aria-live="polite">
-          <div className="avatar">{initialsOf(foundUser.name)}</div>
+          <Avatar name={foundUser.name} imageUrl={foundUser.avatarUrl} />
           <div>
             <strong>{foundUser.name}</strong>
             <span>{foundUser.email}</span>

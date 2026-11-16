@@ -3,10 +3,16 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { ApiError, defenseApi, type DefenseListItem, type DefenseViewerMembership } from "../../api/client"
 import PresentedDefenseList from "./PresentedDefenseList"
+import { defensePermissions, type DefenseViewerKind } from "./defensePermissionsFixture"
 
 const listDefenses = jest.spyOn(defenseApi, "list")
 
-function buildDefense(id: string, title: string, membership: Partial<DefenseViewerMembership>): DefenseListItem {
+function buildDefense(
+  id: string,
+  title: string,
+  membership: Partial<DefenseViewerMembership>,
+  viewer: DefenseViewerKind = "manager",
+): DefenseListItem {
   return {
     id,
     thesis: `thesis-${id}`,
@@ -35,6 +41,7 @@ function buildDefense(id: string, title: string, membership: Partial<DefenseView
       hasEvaluated: false,
       ...membership,
     },
+    viewerPermissions: defensePermissions(viewer, "SCHEDULED"),
   }
 }
 
@@ -83,6 +90,17 @@ test("renders the table and shows evaluation actions according to viewerMembersh
   expect(screen.getAllByRole("button", { name: "Avaliar" })).toHaveLength(1)
   expect(screen.getAllByText("Parecer enviado")).toHaveLength(1)
   expect(screen.getAllByRole("button", { name: "Gerenciar banca" })).toHaveLength(3)
+})
+
+test("labels the defense link by viewerPermissions.canManage", async () => {
+  const managed = buildDefense("a", "Banca do meu curso", {}, "manager")
+  const asMember = buildDefense("b", "Banca de outro curso", { isMember: true, roleLabel: "Membro" }, "none")
+  listDefenses.mockResolvedValue(page([managed, asMember]))
+  renderList()
+
+  expect(await screen.findByText("Banca do meu curso")).toBeTruthy()
+  expect(screen.getAllByRole("button", { name: "Gerenciar banca" })).toHaveLength(1)
+  expect(screen.getAllByRole("button", { name: "Ver banca" })).toHaveLength(1)
 })
 
 test("shows the empty state when the backend returns no defenses", async () => {

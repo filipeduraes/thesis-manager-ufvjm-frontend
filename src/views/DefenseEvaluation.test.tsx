@@ -9,6 +9,7 @@ import {
   type DefenseMemberEvaluationData,
 } from "../api/client"
 import DefenseEvaluation from "./DefenseEvaluation"
+import { defensePermissions } from "./defense/defensePermissionsFixture"
 
 const getDefense = jest.spyOn(defenseApi, "get")
 const submitEvaluation = jest.spyOn(defenseApi, "submitEvaluation")
@@ -37,6 +38,7 @@ function member(evaluation: DefenseMemberEvaluationData | null = null): DefenseC
     hasConflict: false,
     conflictReason: "",
     isInstitutional: true,
+    avatarUrl: null,
     availabilityStatus: "CONFIRMED",
     availabilityStatusLabel: "Confirmada",
     availabilityRespondedAt: "2026-11-18T12:00:00Z",
@@ -142,6 +144,25 @@ test("keeps the evaluation as saved when the automatic close fails", async () =>
   expect(screen.getByText("Avaliação enviada")).toBeTruthy()
   expect(screen.queryByRole("alert")).toBeNull()
   expect(await screen.findByRole("button", { name: "Atualizar avaliação" })).toBeTruthy()
+})
+
+test("tells a viewer with canClose that the defense can be closed manually", async () => {
+  const inProgress: DefenseData = {
+    ...buildDefense("IN_PROGRESS"),
+    viewerPermissions: defensePermissions("manager", "IN_PROGRESS"),
+  }
+  getDefense.mockResolvedValueOnce({ defense: inProgress })
+  getDefense.mockResolvedValue({ defense: { ...inProgress, members: [member(SAVED_EVALUATION)] } })
+  submitEvaluation.mockResolvedValue({
+    evaluation: SAVED_EVALUATION,
+    autoCloseError: "A monografia não possui PDF atual.",
+    defenseStatus: "IN_PROGRESS",
+    defenseStatusLabel: "Em andamento",
+  })
+  renderEvaluation()
+
+  userEvent.click(await screen.findByRole("button", { name: "Registrar avaliação" }))
+  expect(await screen.findByText("Você pode encerrar a banca manualmente em Gerenciar banca.")).toBeTruthy()
 })
 
 test("locks a completed defense and omits the result while the backend has none", async () => {

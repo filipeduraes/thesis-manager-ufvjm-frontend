@@ -89,6 +89,8 @@ export interface InstitutionalMemberDraft {
   userId: string
   name: string
   email: string
+  /** Foto da conta Google retornada pela busca de usuário, para o avatar do formulário. */
+  avatarUrl: string | null
 }
 
 /** External committee member chosen in a form; the backend creates the invitation. */

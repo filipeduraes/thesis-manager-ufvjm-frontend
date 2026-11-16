@@ -51,6 +51,7 @@ function createdMember(name: string): DefenseCommitteeMember {
     hasConflict: false,
     conflictReason: "",
     isInstitutional: false,
+    avatarUrl: null,
     availabilityStatus: "PENDING",
     availabilityStatusLabel: "Pendente",
     availabilityRespondedAt: null,

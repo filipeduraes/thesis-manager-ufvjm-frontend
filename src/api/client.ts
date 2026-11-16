@@ -180,7 +180,8 @@ export interface AdminCourse {
 
 export interface UserLookupResult {
   found: boolean
-  user: { id: string; name: string; email: string; isActive: boolean } | null
+  /** `avatarUrl` é a foto da conta Google (https) ou null quando não há foto. */
+  user: { id: string; name: string; email: string; isActive: boolean; avatarUrl: string | null } | null
   message: string
 }
 
@@ -355,11 +356,17 @@ export interface DefenseCommitteeMember {
   hasConflict: boolean
   conflictReason: string
   isInstitutional: boolean
-  /** Resposta do membro sobre o horário; volta a PENDING quando data ou duração mudam. */
-  availabilityStatus: AvailabilityStatusCode
-  availabilityStatusLabel: string
+  /** Foto da conta Google do membro institucional; null para externos e para quem não tem foto. */
+  avatarUrl: string | null
+  /**
+   * Resposta do membro sobre o horário; volta a PENDING quando data ou duração mudam.
+   * Os quatro campos de disponibilidade vêm null para quem não gerencia a banca
+   * (`viewerPermissions.canManage`), exceto na linha do próprio membro.
+   */
+  availabilityStatus: AvailabilityStatusCode | null
+  availabilityStatusLabel: string | null
   availabilityRespondedAt: string | null
-  availabilityNote: string
+  availabilityNote: string | null
   createdAt: string
   evaluation: DefenseMemberEvaluationData | null
 }
@@ -411,10 +418,47 @@ export interface DefenseData {
   statusHistory?: DefenseStatusHistoryEntry[]
   /** Só no detalhe: há membros não suplentes e todos confirmaram disponibilidade. */
   allMembersConfirmed?: boolean
-  /** Só no detalhe: não suplentes que ainda não confirmaram (pendentes ou indisponíveis). */
-  pendingConfirmations?: DefensePendingConfirmation[]
+  /**
+   * Só no detalhe: não suplentes que ainda não confirmaram (pendentes ou indisponíveis).
+   * null significa que a lista está oculta para quem não gerencia a banca, não que
+   * ninguém está pendente.
+   */
+  pendingConfirmations?: DefensePendingConfirmation[] | null
   /** Só no detalhe (e na listagem): vínculo do usuário autenticado ou da sessão externa. */
   viewerMembership?: DefenseViewerMembership
+  /** Só no detalhe e na listagem: ações que o backend aceita deste usuário nesta banca. */
+  viewerPermissions?: DefenseViewerPermissions
+}
+
+/**
+ * Actions the signed-in viewer may perform on one defense (`DefenseViewerPermissions`
+ * in the backend). Each flag already combines the viewer's rights and the defense status,
+ * but not business preconditions: `canStart` ignores availability confirmations
+ * (`allMembersConfirmed`) and `canClose` ignores missing evaluations, so the backend may
+ * still reject those calls.
+ */
+export interface DefenseViewerPermissions {
+  /** The viewer manages the defense (`_can_manage_defense`): sees every member's availability. */
+  canManage: boolean
+  canEdit: boolean
+  canCancel: boolean
+  canStart: boolean
+  canClose: boolean
+  /** Administrators only, while the defense is in progress or cancelled. */
+  canRevert: boolean
+  /** Add members and regenerate external tokens while the defense is scheduled or in progress. */
+  canManageMembers: boolean
+}
+
+/** Permissions assumed when a payload has no `viewerPermissions`: nothing is allowed. */
+export const NO_DEFENSE_PERMISSIONS: DefenseViewerPermissions = {
+  canManage: false,
+  canEdit: false,
+  canCancel: false,
+  canStart: false,
+  canClose: false,
+  canRevert: false,
+  canManageMembers: false,
 }
 
 /**
@@ -466,6 +510,7 @@ export interface DefenseListItem extends DefenseData {
   student: ThesisUserBrief | null
   advisor: ThesisUserBrief | null
   viewerMembership: DefenseViewerMembership
+  viewerPermissions: DefenseViewerPermissions
 }
 
 export interface DefenseListParams {

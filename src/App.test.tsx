@@ -10,6 +10,7 @@ import {
   type SessionPayload,
   type ThesisListItem,
 } from "./api/client"
+import { defensePermissions } from "./views/defense/defensePermissionsFixture"
 
 const getSession = jest.spyOn(authApi, "getSession")
 const listDefenses = jest.spyOn(defenseApi, "list")
@@ -54,6 +55,7 @@ const DEFENSE: DefenseData = {
   createdAt: "2026-11-01T12:00:00Z",
   updatedAt: "2026-11-01T12:00:00Z",
   members: [],
+  viewerPermissions: defensePermissions("manager", "SCHEDULED"),
 }
 
 const LIST_ITEM: DefenseListItem = {
@@ -70,6 +72,7 @@ const LIST_ITEM: DefenseListItem = {
     canEvaluate: false,
     hasEvaluated: false,
   },
+  viewerPermissions: defensePermissions("manager", "SCHEDULED"),
 }
 
 function page<T>(results: T[]) {
@@ -142,7 +145,12 @@ const SCHEDULABLE_THESIS: ThesisListItem = {
 
 test("schedules, edits and cancels a defense, then returns to the list", async () => {
   const edited: DefenseData = { ...FUTURE_DEFENSE, scheduledDatetime: "2030-03-10T21:00:00+00:00" }
-  const cancelled: DefenseData = { ...edited, status: "CANCELLED", statusLabel: "Cancelada" }
+  const cancelled: DefenseData = {
+    ...edited,
+    status: "CANCELLED",
+    statusLabel: "Cancelada",
+    viewerPermissions: defensePermissions("manager", "CANCELLED"),
+  }
   listSchedulable.mockResolvedValue(page([SCHEDULABLE_THESIS]))
   scheduleDefense.mockResolvedValue({ defense: FUTURE_DEFENSE })
   getDefense.mockResolvedValueOnce({ defense: FUTURE_DEFENSE })

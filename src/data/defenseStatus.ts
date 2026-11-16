@@ -49,8 +49,11 @@ const AVAILABILITY_STATUS: Record<string, { label: string; tone: BadgeTone }> = 
 
 /**
  * Returns the label and `Badge` tone of a committee member's availability status.
- * Unknown codes fall back to the pending presentation.
+ * Unknown codes fall back to the pending presentation. Callers must not render the badge
+ * when the status is null (hidden from viewers who do not manage the defense); null also
+ * falls back to pending only to keep the function total.
  */
-export function availabilityStatusBadge(status: string): { label: string; tone: BadgeTone } {
-  return AVAILABILITY_STATUS[status] ?? { label: "Aguardando confirmação", tone: "neutral" }
+export function availabilityStatusBadge(status: string | null): { label: string; tone: BadgeTone } {
+  const known = status ? AVAILABILITY_STATUS[status] : undefined
+  return known ?? { label: "Aguardando confirmação", tone: "neutral" }
 }

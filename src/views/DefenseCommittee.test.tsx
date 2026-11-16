@@ -1,19 +1,17 @@
 import { afterAll, beforeEach, expect, jest, test } from "@jest/globals"
-import { act, render, screen, waitFor, within } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
   ApiError,
   defenseApi,
-  thesesApi,
   type DefenseCommitteeMember,
   type DefenseData,
   type DefenseStatusHistoryEntry,
-  type Thesis,
 } from "../api/client"
 import DefenseCommittee from "./DefenseCommittee"
+import { defensePermissions, type DefenseViewerKind } from "./defense/defensePermissionsFixture"
 
 const getDefense = jest.spyOn(defenseApi, "get")
-const getThesis = jest.spyOn(thesesApi, "detail")
 const startDefense = jest.spyOn(defenseApi, "start")
 const revertStatus = jest.spyOn(defenseApi, "revertStatus")
 const respondAvailability = jest.spyOn(defenseApi, "respondAvailability")
@@ -44,15 +42,8 @@ function buildDefense(status: string, statusHistory: DefenseStatusHistoryEntry[]
   }
 }
 
-function thesisAdvisedBy(advisorId: string): { thesis: Thesis } {
-  // Somente o campo usado pela tela importa para o teste.
-  const partial: Pick<Thesis, "advisor"> = { advisor: { id: advisorId, name: "Orientador", email: "o@ufvjm.edu.br" } }
-  return { thesis: partial as Thesis }
-}
-
 beforeEach(() => {
   getDefense.mockReset()
-  getThesis.mockReset()
   startDefense.mockReset()
   revertStatus.mockReset()
   respondAvailability.mockReset()
@@ -63,8 +54,7 @@ afterAll(() => {
 })
 
 test("coordinator sees edit and cancel actions and the defense details for a scheduled defense", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("SCHEDULED") })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} canStartClose />)
+  renderCommittee(buildDefense("SCHEDULED"), "manager")
 
   expect(await screen.findByRole("button", { name: "Editar agendamento" })).toBeTruthy()
   expect(screen.getByRole("button", { name: "Cancelar banca" })).toBeTruthy()
@@ -73,8 +63,7 @@ test("coordinator sees edit and cancel actions and the defense details for a sch
 })
 
 test("hides edit and cancel actions once the defense has started", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS") })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} canStartClose />)
+  renderCommittee(buildDefense("IN_PROGRESS"), "manager")
 
   expect(await screen.findByText("Dados da banca")).toBeTruthy()
   expect(screen.queryByRole("button", { name: "Editar agendamento" })).toBeNull()
@@ -82,29 +71,20 @@ test("hides edit and cancel actions once the defense has started", async () => {
 })
 
 test("advisor manages only the defense of a thesis they advise", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("SCHEDULED") })
-  getThesis.mockResolvedValue(thesisAdvisedBy("advisor-1"))
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} isAdvisor currentUserId="advisor-1" />)
+  // Orientador da tese: o backend envia canManage e as ações de banca agendada.
+  renderCommittee(buildDefense("SCHEDULED"), "manager")
   expect(await screen.findByRole("button", { name: "Editar agendamento" })).toBeTruthy()
 })
 
 test("advisor of another thesis does not see edit and cancel actions", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("SCHEDULED") })
-  getThesis.mockResolvedValue(thesisAdvisedBy("someone-else"))
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} isAdvisor currentUserId="advisor-1" />)
+  renderCommittee(buildDefense("SCHEDULED"), "none")
 
   expect(await screen.findByText("Dados da banca")).toBeTruthy()
-  await waitFor(() => expect(getThesis).toHaveBeenCalledWith("thesis-1"))
-  // Deixa a promessa da verificação de orientador resolver antes de conferir.
-  await act(async () => {
-    await Promise.resolve()
-  })
   expect(screen.queryByRole("button", { name: "Editar agendamento" })).toBeNull()
 })
 
 test("prefills the edit modal with the São Paulo start time", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("SCHEDULED") })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} canStartClose />)
+  renderCommittee(buildDefense("SCHEDULED"), "manager")
 
   userEvent.click(await screen.findByRole("button", { name: "Editar agendamento" }))
   expect(screen.getByLabelText("Data")).toHaveProperty("value", "2026-11-16")
@@ -119,9 +99,14 @@ function visibleStatusActions(): string[] {
   return STATUS_ACTIONS.filter((name) => screen.queryByRole("button", { name }) !== null)
 }
 
-function renderCommittee(defense: DefenseData, props: { canStartClose?: boolean; isAdmin?: boolean } = {}) {
-  getDefense.mockResolvedValue({ defense })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} {...props} />)
+/** Renders the screen with the `viewerPermissions` the backend sends to `viewer` for this status. */
+function renderCommittee(defense: DefenseData, viewer: DefenseViewerKind = "none") {
+  getDefense.mockResolvedValue({ defense: withViewer(defense, viewer) })
+  return render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} />)
+}
+
+function withViewer(defense: DefenseData, viewer: DefenseViewerKind): DefenseData {
+  return { ...defense, viewerPermissions: defensePermissions(viewer, defense.status) }
 }
 
 test.each([
@@ -186,41 +171,32 @@ test("shows a discreet note when there is no status history", async () => {
 })
 
 test.each([
-  ["coordinator", "SCHEDULED", { canStartClose: true }, ["Iniciar banca", "Cancelar banca"]],
-  ["coordinator", "IN_PROGRESS", { canStartClose: true }, ["Encerrar banca"]],
-  ["coordinator", "COMPLETED", { canStartClose: true }, []],
-  ["coordinator", "CANCELLED", { canStartClose: true }, []],
-  ["admin", "IN_PROGRESS", { canStartClose: true, isAdmin: true }, ["Encerrar banca", "Reverter status"]],
-  ["admin", "CANCELLED", { canStartClose: true, isAdmin: true }, ["Reverter status"]],
-  ["committee member", "SCHEDULED", {}, []],
-])("%s on a %s defense sees %j", async (_profile, status, props, expected) => {
-  renderCommittee(buildDefense(status), props)
+  ["coordinator", "SCHEDULED", "manager" as const, ["Iniciar banca", "Cancelar banca"]],
+  ["coordinator", "IN_PROGRESS", "manager" as const, ["Encerrar banca"]],
+  ["coordinator", "COMPLETED", "manager" as const, []],
+  ["coordinator", "CANCELLED", "manager" as const, []],
+  ["admin", "IN_PROGRESS", "admin" as const, ["Encerrar banca", "Reverter status"]],
+  ["admin", "CANCELLED", "admin" as const, ["Reverter status"]],
+  ["committee member", "SCHEDULED", "none" as const, []],
+])("%s on a %s defense sees %j", async (_profile, status, viewer, expected) => {
+  renderCommittee(buildDefense(status), viewer)
   await screen.findByText("Dados da banca")
   expect(visibleStatusActions()).toEqual(expected)
 })
 
 test("advisor of the thesis can start and cancel; advisor of another thesis sees no actions", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("SCHEDULED") })
-  getThesis.mockResolvedValue(thesisAdvisedBy("advisor-1"))
-  const { unmount } = render(
-    <DefenseCommittee defenseId="defense-1" goBack={() => undefined} isAdvisor currentUserId="advisor-1" />,
-  )
+  const { unmount } = renderCommittee(buildDefense("SCHEDULED"), "manager")
   expect(await screen.findByRole("button", { name: "Iniciar banca" })).toBeTruthy()
   expect(visibleStatusActions()).toEqual(["Iniciar banca", "Cancelar banca"])
   unmount()
 
-  getThesis.mockResolvedValue(thesisAdvisedBy("someone-else"))
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} isAdvisor currentUserId="advisor-1" />)
+  renderCommittee(buildDefense("SCHEDULED"), "none")
   await screen.findByText("Dados da banca")
-  await waitFor(() => expect(getThesis).toHaveBeenCalledTimes(2))
-  await act(async () => {
-    await Promise.resolve()
-  })
   expect(visibleStatusActions()).toEqual([])
 })
 
 test("keeps the top card free of status action buttons", async () => {
-  renderCommittee(buildDefense("SCHEDULED"), { canStartClose: true })
+  renderCommittee(buildDefense("SCHEDULED"), "manager")
   await screen.findByText("Dados da banca")
   expect(screen.getAllByRole("button", { name: "Iniciar banca" })).toHaveLength(1)
   expect(screen.getAllByRole("button", { name: "Cancelar banca" })).toHaveLength(1)
@@ -230,14 +206,14 @@ test("keeps the top card free of status action buttons", async () => {
 
 test("confirms before starting and reloads the defense afterwards", async () => {
   startDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS") })
-  renderCommittee(buildDefense("SCHEDULED"), { canStartClose: true })
+  renderCommittee({ ...buildDefense("SCHEDULED"), allMembersConfirmed: true }, "manager")
   userEvent.click(await screen.findByRole("button", { name: "Iniciar banca" }))
 
   const dialog = screen.getByRole("dialog")
   expect(dialog.textContent).toContain("A banca passa para Em andamento e os membros já podem avaliar.")
   expect(startDefense).not.toHaveBeenCalled()
 
-  getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS") })
+  getDefense.mockResolvedValue({ defense: withViewer(buildDefense("IN_PROGRESS"), "manager") })
   const confirmButtons = screen.getAllByRole("button", { name: "Iniciar banca" })
   const confirmInDialog = confirmButtons.find((button) => dialog.contains(button))
   if (!confirmInDialog) throw new Error("confirm button not found")
@@ -251,7 +227,7 @@ test("confirms before starting and reloads the defense afterwards", async () => 
 
 test.each([403, 404])("shows a neutral message when the backend answers %i", async (status) => {
   startDefense.mockRejectedValue(new ApiError("detalhe técnico", status))
-  renderCommittee(buildDefense("SCHEDULED"), { canStartClose: true })
+  renderCommittee({ ...buildDefense("SCHEDULED"), allMembersConfirmed: true }, "manager")
   userEvent.click(await screen.findByRole("button", { name: "Iniciar banca" }))
   const dialog = screen.getByRole("dialog")
   const confirmInDialog = screen.getAllByRole("button", { name: "Iniciar banca" }).find((button) => dialog.contains(button))
@@ -264,7 +240,7 @@ test.each([403, 404])("shows a neutral message when the backend answers %i", asy
 
 test("requires a reason to revert and sends it", async () => {
   revertStatus.mockRejectedValue(new ApiError("detalhe técnico", 404))
-  renderCommittee(buildDefense("CANCELLED"), { canStartClose: true, isAdmin: true })
+  renderCommittee(buildDefense("CANCELLED"), "admin")
   userEvent.click(await screen.findByRole("button", { name: "Reverter status" }))
   const dialog = screen.getByRole("dialog")
   const confirm = screen.getAllByRole("button", { name: "Reverter status" }).find((button) => dialog.contains(button))
@@ -292,6 +268,7 @@ function buildMember(id: string, name: string, overrides: Partial<DefenseCommitt
     hasConflict: false,
     conflictReason: "",
     isInstitutional: true,
+    avatarUrl: null,
     availabilityStatus,
     availabilityStatusLabel: AVAILABILITY_LABELS[availabilityStatus] ?? availabilityStatus,
     availabilityRespondedAt: null,
@@ -313,7 +290,7 @@ function defenseWithMembers(status: string, members: DefenseCommitteeMember[]): 
       name: member.name,
       role: member.role,
       roleLabel: member.roleLabel,
-      availabilityStatus: member.availabilityStatus,
+      availabilityStatus: member.availabilityStatus ?? "PENDING",
     })),
   }
 }
@@ -325,7 +302,7 @@ test("shows the availability badge of each member, with the note when unavailabl
       buildMember("bruno", "Bruno Confirmado", { availabilityStatus: "CONFIRMED" }),
       buildMember("carla", "Carla Indisponível", { availabilityStatus: "DECLINED", availabilityNote: "Viagem a congresso" }),
     ]),
-    { canStartClose: true },
+    "manager",
   )
   expect(await screen.findByText("Ana Pendente")).toBeTruthy()
   expect(screen.getByText("Aguardando confirmação")).toBeTruthy()
@@ -341,7 +318,7 @@ test("disables Iniciar banca while confirmations are pending and explains why", 
       buildMember("carla", "Carla Indisponível", { availabilityStatus: "DECLINED" }),
       buildMember("davi", "Davi Suplente", { role: "ALTERNATE", roleLabel: "Suplente" }),
     ]),
-    { canStartClose: true },
+    "manager",
   )
   const start = await screen.findByRole("button", { name: "Iniciar banca" })
   expect(start).toHaveProperty("disabled", true)
@@ -355,7 +332,7 @@ test("disables Iniciar banca while confirmations are pending and explains why", 
 test("enables Iniciar banca once every titular member confirmed", async () => {
   renderCommittee(
     defenseWithMembers("SCHEDULED", [buildMember("ana", "Ana", { availabilityStatus: "CONFIRMED" })]),
-    { canStartClose: true },
+    "manager",
   )
   const start = await screen.findByRole("button", { name: "Iniciar banca" })
   expect(start).toHaveProperty("disabled", false)
@@ -420,7 +397,7 @@ test("shows the access token once after adding an external member", async () => 
     accessToken: "UFVJM-AAAA-BBBB-CCCC-DDDD",
     accessTokenExpiresAt: "2026-12-15T15:00:00Z",
   })
-  renderCommittee(buildDefense("SCHEDULED"), { canStartClose: true })
+  renderCommittee(buildDefense("SCHEDULED"), "manager")
 
   userEvent.click(await screen.findByRole("button", { name: "Membro externo" }))
   userEvent.type(screen.getByPlaceholderText("Nome do avaliador"), "Paula Externa")
@@ -451,7 +428,7 @@ test("regenerates an external member token after confirmation", async () => {
     accessToken: "UFVJM-NEW0-NEW0-NEW0-NEW0",
     accessTokenExpiresAt: "2026-12-15T15:00:00Z",
   })
-  renderCommittee(defenseWithMembers("IN_PROGRESS", [member, buildMember("ana", "Ana Interna")]), { canStartClose: true })
+  renderCommittee(defenseWithMembers("IN_PROGRESS", [member, buildMember("ana", "Ana Interna")]), "manager")
 
   const buttons = await screen.findAllByRole("button", { name: "Gerar novo token" })
   expect(buttons).toHaveLength(1)
@@ -473,13 +450,13 @@ test("hides Gerar novo token without management permission", async () => {
 })
 
 test("hides Gerar novo token on a completed defense", async () => {
-  renderCommittee(defenseWithMembers("COMPLETED", [externalMember("ext", "Paula Externa")]), { canStartClose: true })
+  renderCommittee(defenseWithMembers("COMPLETED", [externalMember("ext", "Paula Externa")]), "manager")
   await screen.findByText("Paula Externa")
   expect(screen.queryByRole("button", { name: "Gerar novo token" })).toBeNull()
 })
 
 test("edit modal keeps an older remote location editable and validates a changed link", async () => {
-  renderCommittee({ ...buildDefense("SCHEDULED"), modality: "REMOTE", modalityLabel: "Remota", location: "Sala virtual" }, { canStartClose: true })
+  renderCommittee({ ...buildDefense("SCHEDULED"), modality: "REMOTE", modalityLabel: "Remota", location: "Sala virtual" }, "manager")
   userEvent.click(await screen.findByRole("button", { name: "Editar agendamento" }))
   const dialog = screen.getByRole("dialog")
   const save = within(dialog).getByRole("button", { name: "Salvar alterações" })
@@ -549,13 +526,130 @@ test("member who does not manage the defense sees only the own availability", as
 })
 
 test("thesis advisor responsible for the defense sees the pending summary and every badge", async () => {
-  getDefense.mockResolvedValue({
-    defense: asViewer(defenseWithMembers("SCHEDULED", [buildMember("ana", "Ana Pendente")]), null),
-  })
-  getThesis.mockResolvedValue(thesisAdvisedBy("advisor-1"))
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} isAdvisor currentUserId="advisor-1" />)
+  renderCommittee(asViewer(defenseWithMembers("SCHEDULED", [buildMember("ana", "Ana Pendente")]), null), "manager")
 
   expect(await screen.findByText("Aguardando confirmação de: Ana Pendente")).toBeTruthy()
   expect(screen.getByText("Aguardando confirmação")).toBeTruthy()
   expect(screen.getByRole("button", { name: "Iniciar banca" })).toHaveProperty("disabled", true)
+})
+
+const closeDefense = jest.spyOn(defenseApi, "close")
+
+const ALL_ACTIONS = [
+  "Iniciar banca",
+  "Encerrar banca",
+  "Cancelar banca",
+  "Reverter status",
+  "Editar agendamento",
+  "Membro institucional",
+  "Membro externo",
+  "Gerar novo token",
+  "Remover",
+]
+
+function visibleActions(): string[] {
+  return ALL_ACTIONS.filter((name) => screen.queryByRole("button", { name }) !== null)
+}
+
+/** Payload as the backend sends it to a viewer without canManage: other members' availability is null. */
+function hiddenAvailability(member: DefenseCommitteeMember): DefenseCommitteeMember {
+  return { ...member, availabilityStatus: null, availabilityStatusLabel: null, availabilityRespondedAt: null, availabilityNote: null }
+}
+
+test("coordinator of another course who is a member sees no actions and no other member badges", async () => {
+  const me = buildMember("me", "Eu Coordenador", { availabilityStatus: "CONFIRMED" })
+  const others = [
+    hiddenAvailability(buildMember("ana", "Ana Pendente")),
+    hiddenAvailability(externalMember("ext", "Paula Externa")),
+  ]
+  const defense: DefenseData = {
+    ...asViewer(buildDefense("SCHEDULED"), "me"),
+    members: [me, ...others],
+    allMembersConfirmed: false,
+    pendingConfirmations: null,
+  }
+  renderCommittee(defense, "none")
+
+  expect(await screen.findByText("Paula Externa")).toBeTruthy()
+  expect(visibleActions()).toEqual([])
+  expect(screen.queryByText(/Aguardando confirmação/)).toBeNull()
+  // Só o próprio selo: na resposta de disponibilidade e na linha do membro.
+  expect(screen.getAllByText("Confirmado")).toHaveLength(2)
+  expect(screen.getByRole("button", { name: "Informar indisponibilidade" })).toBeTruthy()
+})
+
+test.each([
+  ["canEdit", ["Editar agendamento"]],
+  ["canCancel", ["Cancelar banca"]],
+  ["canStart", ["Iniciar banca"]],
+  ["canClose", ["Encerrar banca"]],
+  ["canRevert", ["Reverter status"]],
+  ["canManageMembers", ["Membro institucional", "Membro externo", "Gerar novo token", "Remover"]],
+] as const)("only %s shows %j", async (flag, expected) => {
+  const defense: DefenseData = {
+    ...defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa")]),
+    viewerPermissions: { ...defensePermissions("none", "SCHEDULED"), [flag]: true },
+  }
+  getDefense.mockResolvedValue({ defense })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} />)
+
+  await screen.findByText("Paula Externa")
+  expect(visibleActions()).toEqual(expected)
+})
+
+test("adds members on a defense in progress but does not offer removal", async () => {
+  renderCommittee(defenseWithMembers("IN_PROGRESS", [externalMember("ext", "Paula Externa")]), "manager")
+  await screen.findByText("Paula Externa")
+  expect(visibleActions()).toEqual(["Encerrar banca", "Membro institucional", "Membro externo", "Gerar novo token"])
+})
+
+test("shows Iniciar banca disabled with an explanation when canStart is true but nobody can confirm yet", async () => {
+  renderCommittee({ ...buildDefense("SCHEDULED"), allMembersConfirmed: false, pendingConfirmations: [] }, "manager")
+  const start = await screen.findByRole("button", { name: "Iniciar banca" })
+  expect(start).toHaveProperty("disabled", true)
+  const describedBy = start.getAttribute("aria-describedby")
+  const explanation = screen.getAllByRole("status").find((element) => element.id === describedBy)
+  expect(explanation?.textContent).toContain("Aguardando a confirmação dos membros titulares")
+})
+
+test("does not show the pending summary when pendingConfirmations is null", async () => {
+  const defense: DefenseData = {
+    ...defenseWithMembers("SCHEDULED", [buildMember("ana", "Ana Pendente")]),
+    pendingConfirmations: null,
+  }
+  renderCommittee(defense, "manager")
+  const start = await screen.findByRole("button", { name: "Iniciar banca" })
+  expect(start).toHaveProperty("disabled", true)
+  expect(screen.queryByText(/Aguardando confirmação de:/)).toBeNull()
+})
+
+test("shows the backend message when closing is refused for missing evaluations", async () => {
+  closeDefense.mockReset()
+  closeDefense.mockRejectedValue(
+    new ApiError("Todos os membros não-suplentes precisam ter avaliado antes do encerramento.", 400),
+  )
+  renderCommittee(defenseWithMembers("IN_PROGRESS", [buildMember("ana", "Ana Interna")]), "manager")
+  userEvent.click(await screen.findByRole("button", { name: "Encerrar banca" }))
+  const dialog = screen.getByRole("dialog")
+  userEvent.click(within(dialog).getByRole("button", { name: "Encerrar banca" }))
+
+  await waitFor(() => expect(closeDefense).toHaveBeenCalledWith("defense-1"))
+  expect((await within(dialog).findByRole("alert")).textContent).toContain(
+    "Todos os membros não-suplentes precisam ter avaliado antes do encerramento.",
+  )
+})
+
+test("shows the institutional member photo and keeps initials for external members", async () => {
+  renderCommittee(
+    defenseWithMembers("SCHEDULED", [
+      buildMember("ana", "Ana Souza", { avatarUrl: "https://lh3.googleusercontent.com/ana" }),
+      externalMember("ext", "Paula Externa"),
+    ]),
+    "manager",
+  )
+  await screen.findByText("Ana Souza")
+  const photos = screen.getAllByRole("presentation", { hidden: true })
+  expect(photos).toHaveLength(1)
+  expect(photos[0]?.getAttribute("src")).toBe("https://lh3.googleusercontent.com/ana")
+  expect(screen.getByText("PE")).toBeTruthy()
 })
