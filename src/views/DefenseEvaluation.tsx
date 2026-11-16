@@ -4,7 +4,6 @@ import {
   COMMITTEE_ROLE_LABELS,
   DEFENSE_RESULT_LABELS,
   defenseApi,
-  thesesApi,
   type DefenseCommitteeMember,
   type DefenseData,
   type DefenseMemberEvaluationData,
@@ -99,7 +98,6 @@ export default function DefenseEvaluation({
   const [refreshing, setRefreshing] = useState(false)
   // Avaliação salva, mas o encerramento automático falhou (a banca segue em andamento).
   const [autoCloseError, setAutoCloseError] = useState("")
-  const [resultLabel, setResultLabel] = useState<string | null>(null)
   const mountedRef = useRef(false)
   const firstLoadRef = useRef(true)
 
@@ -156,29 +154,9 @@ export default function DefenseEvaluation({
     }
   }, [loadDefense])
 
-  // O payload da banca não traz o resultado; ele é o status final da tese, que só
-  // admin, coordenação, orientador e aluno podem ler (GET /theses/<id>, institucional).
-  // Para os demais membros, 403/404 apenas deixam o resultado sem exibir.
-  const thesisId = defense?.thesis
   const isCompleted = defense?.status === "COMPLETED"
-  useEffect(() => {
-    if (!isCompleted || !thesisId || variant === "external") {
-      setResultLabel(null)
-      return
-    }
-    let cancelled = false
-    thesesApi
-      .detail(thesisId)
-      .then(({ thesis }) => {
-        if (!cancelled) setResultLabel(DEFENSE_RESULT_LABELS[thesis.status] ?? null)
-      })
-      .catch(() => {
-        if (!cancelled) setResultLabel(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isCompleted, thesisId, variant])
+  // result/resultLabel vêm do próprio detalhe para qualquer usuário que vê a banca.
+  const resultLabel = defense?.resultLabel ?? null
 
   const submitEvaluation = async () => {
     if (!myMember) return

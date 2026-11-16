@@ -2,13 +2,11 @@ import { afterAll, beforeEach, expect, jest, test } from "@jest/globals"
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
-  ApiError,
   defenseApi,
   thesesApi,
   type DefenseCommitteeMember,
   type DefenseData,
   type DefenseMemberEvaluationData,
-  type Thesis,
 } from "../api/client"
 import DefenseEvaluation from "./DefenseEvaluation"
 
@@ -66,10 +64,8 @@ function buildDefense(status: string, evaluation: DefenseMemberEvaluationData | 
   }
 }
 
-function thesisWithStatus(status: Thesis["status"]): { thesis: Thesis } {
-  // Somente o status final da tese importa para o resultado exibido.
-  const partial: Pick<Thesis, "status"> = { status }
-  return { thesis: partial as Thesis }
+function completedWithResult(): DefenseData {
+  return { ...buildDefense("COMPLETED", SAVED_EVALUATION), result: "APPROVED", resultLabel: "Aprovada" }
 }
 
 function renderEvaluation() {
@@ -107,8 +103,7 @@ test("institutional member still submits the evaluation with decision and score"
 
 test("reloads after the last evaluation and shows the result of the automatic close", async () => {
   getDefense.mockResolvedValueOnce({ defense: buildDefense("IN_PROGRESS") })
-  getDefense.mockResolvedValue({ defense: buildDefense("COMPLETED", SAVED_EVALUATION) })
-  getThesis.mockResolvedValue(thesisWithStatus("APPROVED"))
+  getDefense.mockResolvedValue({ defense: completedWithResult() })
   submitEvaluation.mockResolvedValue({
     evaluation: SAVED_EVALUATION,
     autoCloseError: null,
@@ -120,7 +115,7 @@ test("reloads after the last evaluation and shows the result of the automatic cl
   userEvent.click(await screen.findByRole("button", { name: "Registrar avaliação" }))
   expect(await screen.findByText("Banca encerrada. Resultado: Aprovada")).toBeTruthy()
   expect(getDefense).toHaveBeenCalledTimes(2)
-  expect(getThesis).toHaveBeenCalledWith("thesis-1")
+  expect(getThesis).not.toHaveBeenCalled()
   expect(screen.queryByRole("button", { name: /avaliação$/ })).toBeNull()
   // fieldset disabled não altera a propriedade disabled do input no jsdom, só :disabled.
   expect(screen.getByRole("radio", { name: /Reprovada/ }).matches(":disabled")).toBe(true)
@@ -149,13 +144,12 @@ test("keeps the evaluation as saved when the automatic close fails", async () =>
   expect(await screen.findByRole("button", { name: "Atualizar avaliação" })).toBeTruthy()
 })
 
-test("locks a completed defense and omits the result the user cannot read", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("COMPLETED", SAVED_EVALUATION) })
-  getThesis.mockRejectedValue(new ApiError("Monografia não encontrada.", 404))
+test("locks a completed defense and omits the result while the backend has none", async () => {
+  getDefense.mockResolvedValue({ defense: { ...buildDefense("COMPLETED", SAVED_EVALUATION), result: null, resultLabel: null } })
   renderEvaluation()
 
   expect(await screen.findByText("Banca encerrada.")).toBeTruthy()
-  await waitFor(() => expect(getThesis).toHaveBeenCalledWith("thesis-1"))
+  await waitFor(() => expect(getThesis).not.toHaveBeenCalled())
   expect(screen.queryByText(/Resultado:/)).toBeNull()
   expect(screen.queryByRole("button", { name: /avaliação$/ })).toBeNull()
   expect(screen.queryByText("Avaliação disponível quando a banca estiver em andamento")).toBeNull()
@@ -166,5 +160,21 @@ test("external evaluator does not query the thesis for the result", async () => 
   render(<DefenseEvaluation defenseId="defense-1" userEmail="x@externo.org" memberId="member-1" variant="external" />)
 
   expect(await screen.findByText("Banca encerrada.")).toBeTruthy()
+  expect(getThesis).not.toHaveBeenCalled()
+})
+
+test("committee examiner sees the result recorded in the defense detail", async () => {
+  getDefense.mockResolvedValue({ defense: completedWithResult() })
+  renderEvaluation()
+
+  expect(await screen.findByText("Banca encerrada. Resultado: Aprovada")).toBeTruthy()
+  expect(getThesis).not.toHaveBeenCalled()
+})
+
+test("external evaluator sees the result recorded in the defense detail", async () => {
+  getDefense.mockResolvedValue({ defense: { ...completedWithResult(), result: "APPROVED_WITH_REMARKS", resultLabel: "Aprovada com ressalvas" } })
+  render(<DefenseEvaluation defenseId="defense-1" userEmail="x@externo.org" memberId="member-1" variant="external" />)
+
+  expect(await screen.findByText("Banca encerrada. Resultado: Aprovada com ressalvas")).toBeTruthy()
   expect(getThesis).not.toHaveBeenCalled()
 })

@@ -57,16 +57,6 @@ interface DefenseCommitteeProps {
   isAdvisor?: boolean
   /** Id do usuário autenticado, comparado ao orientador da tese. */
   currentUserId?: string
-  /**
-   * E-mail do usuário autenticado. O detalhe da banca não traz o id do usuário de cada
-   * membro, então o membro correspondente é localizado pelo e-mail, como em
-   * DefenseEvaluation; o backend só aceita a resposta do próprio membro (403).
-   */
-  currentUserEmail?: string
-}
-
-function pendingConfirmationsText(count: number): string {
-  return `Aguardando confirmação de ${count} membro(s)`
 }
 
 function evaluationStatusBadge(
@@ -101,7 +91,6 @@ export default function DefenseCommittee({
   canStartClose = false,
   isAdvisor = false,
   currentUserId,
-  currentUserEmail,
 }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -360,13 +349,13 @@ export default function DefenseCommittee({
   // regenerate-token aceita bancas agendadas ou em andamento (ACTIVE_DEFENSE_STATUSES).
   const canRegenerateToken = (isScheduled || isInProgress) && canManageDefense
   const hasStatusActions = canStart || canClose || canCancel || canRevert
-  // Só o detalhe traz pendingConfirmations; suplentes não entram nessa lista.
+  // Só o detalhe traz pendingConfirmations; suplentes não entram nessa lista. O resumo
+  // e os selos dos outros membros ficam com quem gerencia a banca (mesma regra de
+  // canManageDefense); os demais veem só a própria disponibilidade.
   const pendingConfirmations = defense.pendingConfirmations ?? []
-  const awaitingConfirmations = isScheduled && pendingConfirmations.length > 0
-  const normalizedEmail = currentUserEmail?.toLowerCase()
-  const myMember = normalizedEmail
-    ? defense.members.find((member) => member.email.toLowerCase() === normalizedEmail)
-    : undefined
+  const awaitingConfirmations = isScheduled && canManageDefense && pendingConfirmations.length > 0
+  const myMemberId = defense.viewerMembership?.memberId ?? null
+  const myMember = myMemberId ? defense.members.find((member) => member.id === myMemberId) : undefined
   const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
   const statusTone = defenseStatusTone(defense.status)
 
@@ -441,10 +430,11 @@ export default function DefenseCommittee({
           <div className="conflict-message availability-pending" id="defense-pending-confirmations" role="status">
             <Icon name="clock" />
             <div>
-              <strong>{pendingConfirmationsText(pendingConfirmations.length)}</strong>
+              <strong>
+                Aguardando confirmação de: {pendingConfirmations.map((pending) => pending.name).join(", ")}
+              </strong>
               <span>
                 A banca só pode ser iniciada depois que todos os membros titulares confirmarem a disponibilidade.
-                Falta: {pendingConfirmations.map((pending) => pending.name).join(", ")}.
               </span>
             </div>
           </div>
@@ -457,7 +447,6 @@ export default function DefenseCommittee({
           <div className="section-head defense-section-head">
             <h2>Sua disponibilidade</h2>
           </div>
-          <p>Confirme se você pode participar da banca no horário agendado.</p>
           <DefenseAvailabilityResponse defenseId={defense.id} member={myMember} onResponded={loadDefense} />
         </Card>
       )}
@@ -546,6 +535,7 @@ export default function DefenseCommittee({
             {defense.members.map((member) => {
               const evalStatus = evaluationStatusBadge(member)
               const availability = availabilityStatusBadge(member.availabilityStatus)
+              const showAvailability = canManageDefense || member.id === myMemberId
               return (
                 <div key={member.id}>
                   <div className="avatar">
@@ -569,12 +559,12 @@ export default function DefenseCommittee({
                         declarado
                       </small>
                     )}
-                    {member.availabilityStatus === "DECLINED" && member.availabilityNote && (
+                    {showAvailability && member.availabilityStatus === "DECLINED" && member.availabilityNote && (
                       <small className="availability-note">Observação: {member.availabilityNote}</small>
                     )}
                   </div>
                   <div className="member-badges">
-                    <Badge tone={availability.tone}>{availability.label}</Badge>
+                    {showAvailability && <Badge tone={availability.tone}>{availability.label}</Badge>}
                     <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
                   </div>
                   {((canManage && !member.evaluation) || (canRegenerateToken && !member.isInstitutional)) && (

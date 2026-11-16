@@ -268,7 +268,6 @@ export default function App() {
           canStartClose={canStartClose}
           isAdvisor={activeProfiles.includes("Orientador")}
           currentUserId={session.user.id}
-          currentUserEmail={session.user.email}
         />
       )}
       {page === "reports" && <ReportsView />}

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { defenseApi, type DefenseCommitteeMember } from "../../api/client"
-import { Badge, Button } from "../../components/common"
+import { Badge, Button, Icon } from "../../components/common"
 import { availabilityStatusBadge } from "../../data/defenseStatus"
 import DefenseStatusConfirmModal from "./DefenseStatusConfirmModal"
 import { statusActionErrorMessage } from "./defenseErrors"
@@ -17,8 +17,10 @@ interface DefenseAvailabilityResponseProps {
  * Lets a committee member confirm or decline availability for a scheduled defense
  * through `POST /api/v1/defenses/{id}/members/{memberId}/availability`.
  *
- * The backend accepts only the member's own answer and only while the defense is
- * SCHEDULED; the parent renders this component only in that case.
+ * A pending member sees a notice with both answers; a member who already answered
+ * sees only their own badge and the option to change the answer. The backend accepts
+ * only the member's own answer and only while the defense is SCHEDULED; the parent
+ * renders this component only in that case.
  */
 export default function DefenseAvailabilityResponse({ defenseId, member, onResponded }: DefenseAvailabilityResponseProps) {
   const [confirming, setConfirming] = useState(false)
@@ -26,7 +28,10 @@ export default function DefenseAvailabilityResponse({ defenseId, member, onRespo
   const [declining, setDeclining] = useState(false)
   const [confirmError, setConfirmError] = useState("")
   const [declineError, setDeclineError] = useState("")
+  const isPending = member.availabilityStatus !== "CONFIRMED" && member.availabilityStatus !== "DECLINED"
   const badge = availabilityStatusBadge(member.availabilityStatus)
+  const showConfirm = member.availabilityStatus !== "CONFIRMED"
+  const showDecline = member.availabilityStatus !== "DECLINED"
 
   const confirmAvailability = async () => {
     setConfirming(true)
@@ -57,13 +62,22 @@ export default function DefenseAvailabilityResponse({ defenseId, member, onRespo
 
   return (
     <div className="availability-response">
-      <div className="availability-current">
-        <span>Sua resposta:</span>
-        <Badge tone={badge.tone}>{badge.label}</Badge>
-        {member.availabilityStatus === "DECLINED" && member.availabilityNote && (
-          <small>Observação: {member.availabilityNote}</small>
-        )}
-      </div>
+      {isPending ? (
+        <div className="conflict-message availability-pending" role="status">
+          <Icon name="clock" />
+          <div>
+            <strong>Você ainda não confirmou sua disponibilidade para esta banca.</strong>
+          </div>
+        </div>
+      ) : (
+        <div className="availability-current">
+          <span>Sua resposta:</span>
+          <Badge tone={badge.tone}>{badge.label}</Badge>
+          {member.availabilityStatus === "DECLINED" && member.availabilityNote && (
+            <small>Observação: {member.availabilityNote}</small>
+          )}
+        </div>
+      )}
 
       {confirmError && (
         <div className="success-notice" role="alert">
@@ -72,16 +86,16 @@ export default function DefenseAvailabilityResponse({ defenseId, member, onRespo
       )}
 
       <div className="defense-actions availability-actions">
-        <Button
-          variant="success"
-          disabled={confirming || member.availabilityStatus === "CONFIRMED"}
-          onClick={() => void confirmAvailability()}
-        >
-          {confirming ? "Confirmando…" : "Confirmar disponibilidade"}
-        </Button>
-        <Button variant="danger" disabled={confirming} onClick={() => setDeclineOpen(true)}>
-          Informar indisponibilidade
-        </Button>
+        {showConfirm && (
+          <Button variant="success" disabled={confirming} onClick={() => void confirmAvailability()}>
+            {confirming ? "Confirmando…" : "Confirmar disponibilidade"}
+          </Button>
+        )}
+        {showDecline && (
+          <Button variant="danger" disabled={confirming} onClick={() => setDeclineOpen(true)}>
+            Informar indisponibilidade
+          </Button>
+        )}
       </div>
 
       {declineOpen && (

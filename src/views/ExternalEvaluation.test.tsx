@@ -137,3 +137,21 @@ test("explains when the invitation has no defense", () => {
   expect(screen.getByRole("heading", { name: "Nenhuma banca vinculada" })).toBeTruthy()
   expect(getDefense).not.toHaveBeenCalled()
 })
+
+test("external member who already confirmed sees the own badge and the option to change", async () => {
+  getDefense.mockResolvedValue({
+    defense: { ...buildDefense("defense-1", "SCHEDULED"), members: [{ ...externalMember(), availabilityStatus: "CONFIRMED" }] },
+  })
+  render(<ExternalEvaluation goLogin={() => undefined} externalSession={session([{ defenseId: "defense-1", memberId: "member-ext" }])} />)
+
+  expect(await screen.findByText("Confirmado")).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Informar indisponibilidade" })).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
+  expect(screen.queryByText("Você ainda não confirmou sua disponibilidade para esta banca.")).toBeNull()
+})
+
+test("pending external member sees the availability reminder", async () => {
+  getDefense.mockResolvedValue({ defense: buildDefense("defense-1", "SCHEDULED") })
+  render(<ExternalEvaluation goLogin={() => undefined} externalSession={session([{ defenseId: "defense-1", memberId: "member-ext" }])} />)
+  expect(await screen.findByText("Você ainda não confirmou sua disponibilidade para esta banca.")).toBeTruthy()
+})

@@ -325,6 +325,7 @@ test("shows the availability badge of each member, with the note when unavailabl
       buildMember("bruno", "Bruno Confirmado", { availabilityStatus: "CONFIRMED" }),
       buildMember("carla", "Carla Indisponível", { availabilityStatus: "DECLINED", availabilityNote: "Viagem a congresso" }),
     ]),
+    { canStartClose: true },
   )
   expect(await screen.findByText("Ana Pendente")).toBeTruthy()
   expect(screen.getByText("Aguardando confirmação")).toBeTruthy()
@@ -344,10 +345,10 @@ test("disables Iniciar banca while confirmations are pending and explains why", 
   )
   const start = await screen.findByRole("button", { name: "Iniciar banca" })
   expect(start).toHaveProperty("disabled", true)
-  expect(screen.getByText("Aguardando confirmação de 2 membro(s)")).toBeTruthy()
+  expect(screen.getByText("Aguardando confirmação de: Ana Pendente, Carla Indisponível")).toBeTruthy()
   const describedBy = start.getAttribute("aria-describedby")
   const explanation = screen.getAllByRole("status").find((element) => element.id === describedBy)
-  expect(explanation?.textContent).toContain("Aguardando confirmação de 2 membro(s)")
+  expect(explanation?.textContent).toContain("Aguardando confirmação de:")
   expect(explanation?.textContent).toContain("Ana Pendente, Carla Indisponível")
 })
 
@@ -363,9 +364,9 @@ test("enables Iniciar banca once every titular member confirmed", async () => {
 
 test("signed-in member confirms availability on a scheduled defense", async () => {
   const me = buildMember("me", "Eu Mesmo")
-  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [me]) })
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("SCHEDULED", [me]), "me") })
   respondAvailability.mockResolvedValue({ member: { ...me, availabilityStatus: "CONFIRMED" } })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="ME@ufvjm.edu.br" />)
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined}  />)
 
   userEvent.click(await screen.findByRole("button", { name: "Confirmar disponibilidade" }))
   await waitFor(() => expect(respondAvailability).toHaveBeenCalledWith("defense-1", "me", { status: "CONFIRMED" }))
@@ -374,9 +375,9 @@ test("signed-in member confirms availability on a scheduled defense", async () =
 
 test("signed-in member declines availability with a note", async () => {
   const me = buildMember("me", "Eu Mesmo")
-  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [me]) })
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("SCHEDULED", [me]), "me") })
   respondAvailability.mockResolvedValue({ member: { ...me, availabilityStatus: "DECLINED" } })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="me@ufvjm.edu.br" />)
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined}  />)
 
   userEvent.click(await screen.findByRole("button", { name: "Informar indisponibilidade" }))
   const dialog = screen.getByRole("dialog")
@@ -390,16 +391,16 @@ test("signed-in member declines availability with a note", async () => {
 
 test("hides the availability answer when the user is not a member or the defense started", async () => {
   const me = buildMember("me", "Eu Mesmo")
-  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [me]) })
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("SCHEDULED", [me]), null) })
   const { unmount } = render(
-    <DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="outra@ufvjm.edu.br" />,
+    <DefenseCommittee defenseId="defense-1" goBack={() => undefined}  />,
   )
   await screen.findByText("Dados da banca")
   expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
   unmount()
 
-  getDefense.mockResolvedValue({ defense: defenseWithMembers("IN_PROGRESS", [me]) })
-  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} currentUserEmail="me@ufvjm.edu.br" />)
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("IN_PROGRESS", [me]), "me") })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined}  />)
   await screen.findByText("Dados da banca")
   expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
 })
@@ -496,4 +497,65 @@ test("edit modal keeps an older remote location editable and validates a changed
   userEvent.clear(link)
   userEvent.type(link, "https://meet.google.com/nova")
   expect(save).toHaveProperty("disabled", false)
+})
+
+function asViewer(defense: DefenseData, memberId: string | null): DefenseData {
+  return {
+    ...defense,
+    viewerMembership: { isMember: memberId !== null, memberId, role: null, roleLabel: null, canEvaluate: false, hasEvaluated: false },
+  }
+}
+
+test("pending signed-in member sees the reminder with both answers", async () => {
+  const me = buildMember("me", "Eu Mesmo")
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("SCHEDULED", [me]), "me") })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} />)
+
+  expect(await screen.findByText("Você ainda não confirmou sua disponibilidade para esta banca.")).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Confirmar disponibilidade" })).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Informar indisponibilidade" })).toBeTruthy()
+})
+
+test.each([
+  ["CONFIRMED" as const, "Confirmado", "Informar indisponibilidade", "Confirmar disponibilidade"],
+  ["DECLINED" as const, "Indisponível", "Confirmar disponibilidade", "Informar indisponibilidade"],
+])("member who answered %s sees only the own badge and the option to change", async (status, label, change, hidden) => {
+  const me = buildMember("me", "Eu Mesmo", { availabilityStatus: status })
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("SCHEDULED", [me]), "me") })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} />)
+
+  expect(await screen.findByRole("button", { name: change })).toBeTruthy()
+  expect(screen.queryByRole("button", { name: hidden })).toBeNull()
+  expect(screen.queryByText("Você ainda não confirmou sua disponibilidade para esta banca.")).toBeNull()
+  // Selo na resposta e na linha do próprio membro na comissão.
+  expect(screen.getAllByText(label)).toHaveLength(2)
+})
+
+test("member who does not manage the defense sees only the own availability", async () => {
+  const me = buildMember("me", "Eu Mesmo", { availabilityStatus: "CONFIRMED" })
+  const others = [
+    buildMember("ana", "Ana Pendente"),
+    buildMember("carla", "Carla Indisponível", { availabilityStatus: "DECLINED", availabilityNote: "Viagem" }),
+  ]
+  getDefense.mockResolvedValue({ defense: asViewer(defenseWithMembers("SCHEDULED", [me, ...others]), "me") })
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} />)
+
+  expect(await screen.findByText("Carla Indisponível")).toBeTruthy()
+  expect(screen.queryByText(/Aguardando confirmação de:/)).toBeNull()
+  expect(screen.queryByText("Aguardando confirmação")).toBeNull()
+  expect(screen.queryByText("Indisponível")).toBeNull()
+  expect(screen.queryByText("Observação: Viagem")).toBeNull()
+  expect(screen.getAllByText("Confirmado")).toHaveLength(2)
+})
+
+test("thesis advisor responsible for the defense sees the pending summary and every badge", async () => {
+  getDefense.mockResolvedValue({
+    defense: asViewer(defenseWithMembers("SCHEDULED", [buildMember("ana", "Ana Pendente")]), null),
+  })
+  getThesis.mockResolvedValue(thesisAdvisedBy("advisor-1"))
+  render(<DefenseCommittee defenseId="defense-1" goBack={() => undefined} isAdvisor currentUserId="advisor-1" />)
+
+  expect(await screen.findByText("Aguardando confirmação de: Ana Pendente")).toBeTruthy()
+  expect(screen.getByText("Aguardando confirmação")).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Iniciar banca" })).toHaveProperty("disabled", true)
 })

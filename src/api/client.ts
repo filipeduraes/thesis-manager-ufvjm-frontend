@@ -401,6 +401,9 @@ export interface DefenseData {
   notes: string
   status: string
   statusLabel: string
+  /** Resultado gravado no encerramento (manual ou automático); null até COMPLETED. */
+  result?: string | null
+  resultLabel?: string | null
   createdAt: string
   updatedAt: string
   members: DefenseCommitteeMember[]
@@ -410,6 +413,8 @@ export interface DefenseData {
   allMembersConfirmed?: boolean
   /** Só no detalhe: não suplentes que ainda não confirmaram (pendentes ou indisponíveis). */
   pendingConfirmations?: DefensePendingConfirmation[]
+  /** Só no detalhe (e na listagem): vínculo do usuário autenticado ou da sessão externa. */
+  viewerMembership?: DefenseViewerMembership
 }
 
 /**
