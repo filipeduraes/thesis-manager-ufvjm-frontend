@@ -80,6 +80,7 @@ test("opens the only assigned defense directly and lets the member confirm avail
   expect(screen.getByText("14:00 às 15:30")).toBeTruthy()
   expect(screen.getAllByText("https://meet.example.org/banca")).toHaveLength(2)
   expect(screen.getByText("Avaliação disponível quando a banca estiver em andamento")).toBeTruthy()
+  expect(screen.getByRole("radio", { name: /Aprovada com ressalvas/ }).matches(":disabled")).toBe(true)
   expect(screen.queryByRole("button", { name: "Registrar avaliação" })).toBeNull()
   expect(screen.queryByRole("button", { name: "Voltar" })).toBeNull()
 
@@ -94,7 +95,7 @@ test("enables the evaluation form only while the defense is in progress", async 
 
   expect(await screen.findByRole("button", { name: "Registrar avaliação" })).toBeTruthy()
   expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
-  expect(screen.getByRole("radio", { name: /Aprovada com ressalvas/ })).toHaveProperty("disabled", false)
+  expect(screen.getByRole("radio", { name: /Aprovada com ressalvas/ }).matches(":disabled")).toBe(false)
 })
 
 test("lists several assigned defenses and opens the chosen one", async () => {

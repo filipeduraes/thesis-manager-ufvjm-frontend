@@ -3243,10 +3243,12 @@ footer .logo {
   color: var(--slate)
 }
 
-/* Avisos informativos (confirmações pendentes, token exibido uma vez): não são erro,
+/* Avisos informativos (confirmações pendentes, token exibido uma vez, encerramento
+   automático que falhou com a avaliação salva): não são erro,
    por isso não usam as cores de perigo de .conflict-message. */
 .conflict-message.availability-pending,
-.conflict-message.access-token-warning {
+.conflict-message.access-token-warning,
+.conflict-message.auto-close-warning {
   border-color: var(--line);
   background: var(--bg);
   color: var(--navy)

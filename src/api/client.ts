@@ -422,6 +422,15 @@ export interface ExternalMemberTokenResponse {
   accessTokenExpiresAt: string
 }
 
+/** Resposta de PUT .../evaluation: a última avaliação pode encerrar a banca automaticamente. */
+export interface SubmitEvaluationResponse {
+  evaluation: DefenseMemberEvaluationData
+  /** Mensagem quando o encerramento automático falhou; a avaliação continua salva. */
+  autoCloseError: string | null
+  defenseStatus: string
+  defenseStatusLabel: string
+}
+
 /** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */
 export interface ScheduleDefenseInput {
   /** ISO 8601 com deslocamento explícito (ex.: 2026-11-20T14:00:00-03:00). */
@@ -535,7 +544,7 @@ export const defenseApi = {
     memberId: string,
     body: { decision: string; score?: string | null; notes?: string },
   ) =>
-    apiRequest<{ evaluation: DefenseMemberEvaluationData }>(
+    apiRequest<SubmitEvaluationResponse>(
       `/defenses/${defenseId}/members/${memberId}/evaluation`,
       { method: "PUT", body: JSON.stringify(body) },
     ),

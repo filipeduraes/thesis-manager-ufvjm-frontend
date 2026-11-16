@@ -4,6 +4,7 @@ import {
   COMMITTEE_ROLE_LABELS,
   DEFENSE_RESULT_LABELS,
   defenseApi,
+  thesesApi,
   type DefenseCommitteeMember,
   type DefenseData,
   type DefenseMemberEvaluationData,
@@ -96,6 +97,9 @@ export default function DefenseEvaluation({
   const [submitError, setSubmitError] = useState("")
   const [evaluation, setEvaluation] = useState<DefenseMemberEvaluationData | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  // Avaliação salva, mas o encerramento automático falhou (a banca segue em andamento).
+  const [autoCloseError, setAutoCloseError] = useState("")
+  const [resultLabel, setResultLabel] = useState<string | null>(null)
   const mountedRef = useRef(false)
   const firstLoadRef = useRef(true)
 
@@ -152,6 +156,30 @@ export default function DefenseEvaluation({
     }
   }, [loadDefense])
 
+  // O payload da banca não traz o resultado; ele é o status final da tese, que só
+  // admin, coordenação, orientador e aluno podem ler (GET /theses/<id>, institucional).
+  // Para os demais membros, 403/404 apenas deixam o resultado sem exibir.
+  const thesisId = defense?.thesis
+  const isCompleted = defense?.status === "COMPLETED"
+  useEffect(() => {
+    if (!isCompleted || !thesisId || variant === "external") {
+      setResultLabel(null)
+      return
+    }
+    let cancelled = false
+    thesesApi
+      .detail(thesisId)
+      .then(({ thesis }) => {
+        if (!cancelled) setResultLabel(DEFENSE_RESULT_LABELS[thesis.status] ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setResultLabel(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isCompleted, thesisId, variant])
+
   const submitEvaluation = async () => {
     if (!myMember) return
     setSubmitting(true)
@@ -170,16 +198,20 @@ export default function DefenseEvaluation({
         }
         body.score = numeric.toFixed(2)
       }
-      const { evaluation: ev } = await defenseApi.submitEvaluation(
+      const response = await defenseApi.submitEvaluation(
         defenseId,
         myMember.id,
         body,
       )
+      const ev = response.evaluation
       setEvaluation(ev)
       setDecision((ev.decision as DecisionCode) ?? "APPROVED")
       setScore(ev.score ?? "")
       setNotes(ev.notes ?? "")
+      setAutoCloseError(response.autoCloseError ?? "")
       onSubmitted?.()
+      // A última avaliação pode ter encerrado a banca: recarrega status e resultado.
+      loadDefense()
     } catch (reason) {
       setSubmitError(evaluationErrorMessage(reason))
     } finally {
@@ -334,7 +366,35 @@ export default function DefenseEvaluation({
         </Card>
       )}
 
-      {!isAlternate && !isInProgress && (
+      {isCompleted && (
+        <Card>
+          <div className="conflict-message resolved" role="status" aria-live="polite">
+            <Icon name="check" />
+            <div>
+              <strong>{resultLabel ? `Banca encerrada. Resultado: ${resultLabel}` : "Banca encerrada."}</strong>
+              <span>
+                {resultLabel
+                  ? "As avaliações não podem mais ser alteradas."
+                  : "As avaliações não podem mais ser alteradas. O resultado final é divulgado pela coordenação do curso."}
+              </span>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {isInProgress && autoCloseError && (
+        <Card>
+          <div className="conflict-message auto-close-warning" role="status" aria-live="polite">
+            <Icon name="alert" />
+            <div>
+              <strong>Avaliação salva. A banca não pôde ser encerrada automaticamente: {autoCloseError}</strong>
+              <span>A coordenação ou o orientador pode encerrar a banca manualmente.</span>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {!isAlternate && !isInProgress && !isCompleted && (
         <Card>
           <div className="conflict-message" role="status" aria-live="polite">
             <Icon name="clock" />
@@ -467,6 +527,12 @@ export default function DefenseEvaluation({
             <p className="immutable-note">
               <Icon name="lock" size={13} /> A avaliação pode ser atualizada
               enquanto a banca estiver em andamento.
+            </p>
+          )}
+
+          {isCompleted && (
+            <p className="immutable-note">
+              <Icon name="lock" size={13} /> Banca encerrada: a avaliação está bloqueada.
             </p>
           )}
         </Card>
