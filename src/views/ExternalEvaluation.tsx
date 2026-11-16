@@ -1,250 +1,172 @@
-import { useState } from "react"
-import { presentedDefenses } from "../data/mockData"
+import { useEffect, useState } from "react"
+import { defenseApi, type DefenseData, type ExternalAssignment, type SessionPayload } from "../api/client"
 import { Badge, Button, Card, Icon, Logo } from "../components/common"
+import { defenseStatusTone } from "../data/defenseStatus"
+import DefenseEvaluation from "./DefenseEvaluation"
+import { formatDefenseTimeRange } from "./defense/defenseSchedule"
+
+const EXPIRATION_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  dateStyle: "short",
+  timeStyle: "short",
+  timeZone: "America/Sao_Paulo",
+})
+
+const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: "America/Sao_Paulo",
+})
+
+type AssignmentDetail =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; defense: DefenseData }
 
 interface ExternalEvaluationProps {
-  mode?: "external" | "internal"
-  defenseId?: string
   goLogin: () => void
-  goBack: () => void
-  onSubmitted?: (defenseId?: string) => void
-  externalSession?: {
-    name: string
-    email: string
-    institution: string
-    expiresAt: string
-  } | null
+  externalSession?: SessionPayload["externalInvitation"]
 }
 
-export default function ExternalEvaluation({
-  mode = "external",
-  defenseId,
-  goLogin,
-  goBack,
-  onSubmitted,
-  externalSession,
-}: ExternalEvaluationProps) {
-  // TODO: API Integration - GET /api/v1/external-evaluations/session
-  // Response: { thesis: Thesis, tokenExpiresAt: string, evaluation?: Evaluation }
-  const [submitted, setSubmitted] = useState(false)
-  const internalDefense = presentedDefenses.find(
-    (defense) => defense.id === defenseId,
+interface AssignmentListProps {
+  assignments: ExternalAssignment[]
+  onSelect: (assignment: ExternalAssignment) => void
+}
+
+/** Lists the defenses of the invitation so the member can pick one. */
+function AssignmentList({ assignments, onSelect }: AssignmentListProps) {
+  const [details, setDetails] = useState<Record<string, AssignmentDetail>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    // GET /defenses responde 403 para sessões externas; o detalhe de cada banca é permitido.
+    assignments.forEach((assignment) => {
+      setDetails((current) => ({ ...current, [assignment.defenseId]: { status: "loading" } }))
+      defenseApi
+        .get(assignment.defenseId)
+        .then(({ defense }) => {
+          if (!cancelled) setDetails((current) => ({ ...current, [assignment.defenseId]: { status: "ready", defense } }))
+        })
+        .catch((reason: unknown) => {
+          if (cancelled) return
+          const message = reason instanceof Error && reason.message ? reason.message : "Não foi possível carregar a banca."
+          setDetails((current) => ({ ...current, [assignment.defenseId]: { status: "error", message } }))
+        })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [assignments])
+
+  return (
+    <Card>
+      <h1>Escolha a banca</h1>
+      <p>Seu convite dá acesso a mais de uma banca. Selecione a que deseja abrir.</p>
+      <div className="selection-list external-assignments">
+        {assignments.map((assignment) => {
+          const detail = details[assignment.defenseId] ?? { status: "loading" }
+          return (
+            <button key={assignment.memberId} type="button" onClick={() => onSelect(assignment)}>
+              <div>
+                {detail.status === "ready" ? (
+                  <>
+                    <strong>
+                      {DATE_FORMATTER.format(new Date(detail.defense.scheduledDatetime))} ·{" "}
+                      {formatDefenseTimeRange(detail.defense.scheduledDatetime, detail.defense.durationMinutes)}
+                    </strong>
+                    <span>
+                      {detail.defense.modalityLabel}
+                      {detail.defense.location ? ` · ${detail.defense.location}` : ""}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <strong>Banca</strong>
+                    <span role={detail.status === "error" ? "alert" : undefined}>
+                      {detail.status === "error" ? detail.message : "Carregando dados da banca…"}
+                    </span>
+                  </>
+                )}
+              </div>
+              {detail.status === "ready" && (
+                <Badge tone={defenseStatusTone(detail.defense.status)}>{detail.defense.statusLabel}</Badge>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </Card>
   )
-  const isInternal = mode === "internal"
-  const leaveEvaluation = isInternal ? goBack : goLogin
-  if (externalSession) {
-    return (
-      <main className="external-workspace">
-        <header className="external-header">
-          <Logo />
-          <span>Acesso temporário de banca</span>
-          <Button variant="ghost" icon="logout" onClick={goLogin}>
-            Encerrar sessão
-          </Button>
-        </header>
-        <div className="external-content">
-          <div className="institutional-banner session-banner">
-            <Icon name="lock" />
-            <div>
-              <strong>Sessão autenticada</strong>
-              <span>{externalSession.name} · {externalSession.email}</span>
-              {externalSession.institution && <span>{externalSession.institution}</span>}
-            </div>
-            <Badge tone="success">Ativa</Badge>
-          </div>
-          <Card className="evaluation-form">
-            <h1>Acesso de membro externo confirmado</h1>
-            <p>
-              A sessão expira em {new Date(externalSession.expiresAt).toLocaleString("pt-BR")}.
-              A API ainda não oferece consulta de defesa nem envio de avaliação, então esta tela não registra pareceres.
-            </p>
-          </Card>
-        </div>
-      </main>
-    )
-  }
-  // TODO: API Integration - POST /api/v1/external-evaluations
-  // Request: { grade, feedback, decision }; Response: { evaluationId, submittedAt }
+}
+
+/**
+ * Workspace of an external committee member authenticated by invitation token.
+ *
+ * Uses `externalInvitation.assignments` from `GET /api/v1/session`: with one defense it
+ * opens it directly, with more it lists them first. The defense screen reuses
+ * `DefenseEvaluation` (details, availability while SCHEDULED, evaluation while IN_PROGRESS).
+ */
+export default function ExternalEvaluation({ goLogin, externalSession }: ExternalEvaluationProps) {
+  const assignments = externalSession?.assignments ?? []
+  const singleAssignment = assignments.length === 1 ? assignments[0] : undefined
+  const [selected, setSelected] = useState<ExternalAssignment | null>(null)
+  const current = singleAssignment ?? selected
+
   return (
     <main className="external-workspace">
       <header className="external-header">
         <Logo />
-        <span>Avaliação de banca</span>
-        <Button variant="ghost" icon="logout" onClick={leaveEvaluation}>
-          {isInternal ? "Voltar para bancas" : "Voltar para o login"}
+        <span>Acesso temporário de banca</span>
+        <Button variant="ghost" icon="logout" onClick={goLogin}>
+          Encerrar sessão
         </Button>
       </header>
-      {isInternal ? (
-        <div className="institutional-banner session-banner">
-          <Icon name="users" />
-          <div>
-            <strong>Acesso institucional</strong>
-            <span>
-              Você está avaliando como integrante da comissão desta defesa.
-            </span>
-          </div>
-          <Badge tone="success">Membro confirmado</Badge>
-        </div>
-      ) : (
-        <div className="token-banner session-banner">
-          <Icon name="lock" />
-          <div>
-            <strong>Sessão temporária</strong>
-            <span>Token UFVJM-8H4K-22 · expira em 03h 42min</span>
-          </div>
-          <Badge tone="success">Ativa</Badge>
-        </div>
-      )}
       <div className="external-content">
-        <div className="external-title">
-          <div>
-            <p className="eyebrow">
-              Banca de defesa · {internalDefense?.date ?? "27 jun 2025"}
-            </p>
-            <h1>
-              {internalDefense?.thesis ??
-                "Arquiteturas sustentáveis para cidades inteligentes"}
-            </h1>
-            <p>
-              {internalDefense
-                ? `${internalDefense.student} · ${internalDefense.course}`
-                : "Marina Alves · Engenharia de Sistemas"}
-            </p>
-          </div>
-          {submitted && <Badge tone="success">Avaliação registrada</Badge>}
-        </div>
-        <div className="evaluation-split">
-          <Card className="pdf-viewer evaluation-reader">
-            <div className="pdf-toolbar">
-              <span>
-                <Icon name="file" /> monografia_final_v2.pdf
-              </span>
-              <div className="pdf-controls">
-                <button>−</button>
-                <strong>100%</strong>
-                <button>+</button>
-                <span>1 / 24</span>
-                <Button variant="ghost" icon="download">
-                  Baixar
-                </Button>
-              </div>
-            </div>
-            <div className="pdf-page">
-              <div className="pdf-lines">
-                <b />
-                <i />
-                <i />
-                <i />
-                <i />
-              </div>
-              <span>Visualizador de PDF</span>
-            </div>
-          </Card>
-          <Card className={`evaluation-form ${submitted ? "readonly" : ""}`}>
-            <div className="section-head">
+        {externalSession ? (
+          <>
+            <div className="institutional-banner session-banner">
+              <Icon name="lock" />
               <div>
-                <p className="eyebrow">Seu parecer</p>
-                <h2>Avaliação final</h2>
-              </div>
-              {submitted && (
-                <Badge tone="light">
-                  <Icon name="lock" size={12} /> Somente leitura
-                </Badge>
-              )}
-            </div>
-            {submitted && (
-              <div className="evaluation-complete" role="status">
-                <Icon name="check" />
-                <div>
-                  <strong>Avaliação registrada com sucesso</strong>
-                  <span>
-                    Seu parecer foi vinculado à ata desta banca e não poderá
-                    mais ser alterado.
-                  </span>
-                </div>
-              </div>
-            )}
-            <fieldset disabled={submitted}>
-              <label className="field grade-field">
+                <strong>Sessão autenticada</strong>
                 <span>
-                  Nota final <small>(0 a 10)</small>
+                  {externalSession.name} · {externalSession.email}
                 </span>
-                <div>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    defaultValue="8.7"
-                  />
-                  <b>/ 10</b>
-                </div>
-              </label>
-              <label className="field">
-                <span>Feedback para o aluno</span>
-                <textarea
-                  className="feedback-area"
-                  defaultValue="O trabalho apresenta contribuição relevante, com metodologia adequada e resultados bem fundamentados. Recomenda-se revisar as referências conforme as normas institucionais."
-                />
-                <small className="counter">236 / 2.500 caracteres</small>
-              </label>
-              <div className="field">
-                <span>Decisão final</span>
-                <div className="radio-list decision-radios">
-                  {["Aprovado", "Aprovado com correções", "Reprovado"].map(
-                    (r, i) => (
-                      <label key={r}>
-                        <input
-                          type="radio"
-                          name="rec"
-                          defaultChecked={i === 1}
-                        />
-                        <span>
-                          <strong>{r}</strong>
-                          <small>
-                            {i === 0
-                              ? "Apto para publicação"
-                              : i === 1
-                                ? "Requer ajustes antes da publicação"
-                                : "Não atende aos critérios da banca"}
-                          </small>
-                        </span>
-                      </label>
-                    ),
-                  )}
-                </div>
+                {externalSession.institution && <span>{externalSession.institution}</span>}
+                <span>A sessão expira em {EXPIRATION_FORMATTER.format(new Date(externalSession.expiresAt))}.</span>
               </div>
-            </fieldset>
-            <div className="form-actions">
-              {submitted ? (
-                <Button variant="success" onClick={leaveEvaluation}>
-                  {isInternal
-                    ? "Concluir e voltar para bancas"
-                    : "Concluir e voltar para o login"}
-                </Button>
-              ) : (
-                <>
-                  <Button variant="secondary">Salvar rascunho</Button>
-                  <Button
-                    variant="success"
-                    onClick={() => {
-                      setSubmitted(true)
-                      onSubmitted?.(defenseId)
-                    }}
-                  >
-                    Registrar avaliação
-                  </Button>
-                </>
-              )}
+              <Badge tone="success">Ativa</Badge>
             </div>
-            {!submitted && (
-              <p className="immutable-note">
-                <Icon name="lock" size={13} /> Após o envio, a avaliação não
-                poderá ser alterada.
-              </p>
+
+            {current ? (
+              <DefenseEvaluation
+                key={current.memberId}
+                defenseId={current.defenseId}
+                memberId={current.memberId}
+                userEmail={externalSession.email}
+                goBack={singleAssignment ? undefined : () => setSelected(null)}
+                variant="external"
+              />
+            ) : assignments.length > 1 ? (
+              <AssignmentList assignments={assignments} onSelect={setSelected} />
+            ) : (
+              <Card className="evaluation-form">
+                <h1>Nenhuma banca vinculada</h1>
+                <p>
+                  Seu convite não está vinculado a nenhuma banca no momento. Procure a coordenação do curso ou o
+                  orientador que enviou o token.
+                </p>
+              </Card>
             )}
+          </>
+        ) : (
+          <Card className="evaluation-form">
+            <h1>Dados do convite indisponíveis</h1>
+            <p role="alert">
+              Não foi possível carregar os dados do seu convite. Encerre a sessão e entre novamente com o token
+              recebido.
+            </p>
           </Card>
-        </div>
+        )}
       </div>
     </main>
   )

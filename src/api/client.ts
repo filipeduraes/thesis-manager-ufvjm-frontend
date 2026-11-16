@@ -1,4 +1,4 @@
-import type { Profile } from "../types"
+import type { CommitteeRoleCode, DefenseModalityCode, Profile } from "../types"
 
 const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
 const API_ROOT = `${API_ORIGIN}/api/v1`
@@ -77,7 +77,15 @@ export interface SessionPayload {
     email: string
     institution: string
     expiresAt: string
+    /** Bancas do convite (vínculo um-para-um com o membro externo, então hoje no máximo uma). */
+    assignments?: ExternalAssignment[]
   } | null
+}
+
+/** Item de externalInvitation.assignments em GET /session (external_invitation_assignments). */
+export interface ExternalAssignment {
+  defenseId: string
+  memberId: string
 }
 
 export interface DevUser {
@@ -172,7 +180,8 @@ export interface AdminCourse {
 
 export interface UserLookupResult {
   found: boolean
-  user: { id: string; name: string; email: string; isActive: boolean } | null
+  /** `avatarUrl` é a foto da conta Google (https) ou null quando não há foto. */
+  user: { id: string; name: string; email: string; isActive: boolean; avatarUrl: string | null } | null
   message: string
 }
 
@@ -303,6 +312,336 @@ export interface ExternalInvitationRecord {
   status: string
   expiresAt: string
   usedAt: string | null
+}
+
+// ─── Defense API ──────────────────────────────────────────────────────────────
+
+export const DEFENSE_RESULT_LABELS: Record<string, string> = {
+  APPROVED: "Aprovada",
+  APPROVED_WITH_REMARKS: "Aprovada com ressalvas",
+  REJECTED: "Reprovada",
+}
+
+export const COMMITTEE_ROLE_LABELS: Record<string, string> = {
+  PRESIDENT: "Presidente",
+  MEMBER: "Membro",
+  ALTERNATE: "Suplente",
+}
+
+export const COMMITTEE_ROLE_OPTIONS = [
+  { value: "PRESIDENT", label: "Presidente" },
+  { value: "MEMBER", label: "Membro" },
+  { value: "ALTERNATE", label: "Suplente" },
+] as const
+
+/** Avaliação individual de um membro da banca, retornada pelo backend. */
+export interface DefenseMemberEvaluationData {
+  id: string
+  decision: string
+  decisionLabel: string
+  submittedAt: string
+  score?: string | null
+  notes?: string
+  updatedAt?: string
+}
+
+/** Membro da comissão, tal como retornado em defense_member_payload. */
+export interface DefenseCommitteeMember {
+  id: string
+  role: string
+  roleLabel: string
+  name: string
+  email: string
+  institution: string
+  hasConflict: boolean
+  conflictReason: string
+  isInstitutional: boolean
+  /** Foto da conta Google do membro institucional; null para externos e para quem não tem foto. */
+  avatarUrl: string | null
+  /**
+   * Resposta do membro sobre o horário; volta a PENDING quando data ou duração mudam.
+   * Os quatro campos de disponibilidade vêm null para quem não gerencia a banca
+   * (`viewerPermissions.canManage`), exceto na linha do próprio membro.
+   */
+  availabilityStatus: AvailabilityStatusCode | null
+  availabilityStatusLabel: string | null
+  availabilityRespondedAt: string | null
+  availabilityNote: string | null
+  createdAt: string
+  evaluation: DefenseMemberEvaluationData | null
+}
+
+/** Códigos de AvailabilityStatus no backend. */
+export type AvailabilityStatusCode = "PENDING" | "CONFIRMED" | "DECLINED"
+
+/** Item de pendingConfirmations em GET /defenses/{id} (defense_availability_summary). */
+export interface DefensePendingConfirmation {
+  memberId: string
+  name: string
+  role: string
+  roleLabel: string
+  availabilityStatus: AvailabilityStatusCode
+}
+
+/** Entrada de statusHistory em GET /defenses/{id} (defense_status_history_payload). */
+export interface DefenseStatusHistoryEntry {
+  /** null no agendamento (primeira entrada). */
+  previousStatus: string | null
+  previousStatusLabel: string | null
+  newStatus: string
+  newStatusLabel: string
+  /** Nome ou e-mail de quem mudou; null em transições automáticas. */
+  changedBy: string | null
+  reason: string
+  createdAt: string
+}
+
+/** Payload de uma defesa, tal como retornado por defense_payload. */
+export interface DefenseData {
+  id: string
+  thesis: string
+  scheduledDatetime: string
+  durationMinutes: number
+  modality: string
+  modalityLabel: string
+  location: string
+  notes: string
+  status: string
+  statusLabel: string
+  /** Resultado gravado no encerramento (manual ou automático); null até COMPLETED. */
+  result?: string | null
+  resultLabel?: string | null
+  createdAt: string
+  updatedAt: string
+  members: DefenseCommitteeMember[]
+  /** Só vem no detalhe (GET /defenses/{id}); bancas anteriores à migration 0005 vêm sem histórico. */
+  statusHistory?: DefenseStatusHistoryEntry[]
+  /** Só no detalhe: há membros não suplentes e todos confirmaram disponibilidade. */
+  allMembersConfirmed?: boolean
+  /**
+   * Só no detalhe: não suplentes que ainda não confirmaram (pendentes ou indisponíveis).
+   * null significa que a lista está oculta para quem não gerencia a banca, não que
+   * ninguém está pendente.
+   */
+  pendingConfirmations?: DefensePendingConfirmation[] | null
+  /** Só no detalhe (e na listagem): vínculo do usuário autenticado ou da sessão externa. */
+  viewerMembership?: DefenseViewerMembership
+  /** Só no detalhe e na listagem: ações que o backend aceita deste usuário nesta banca. */
+  viewerPermissions?: DefenseViewerPermissions
+}
+
+/**
+ * Actions the signed-in viewer may perform on one defense (`DefenseViewerPermissions`
+ * in the backend). Each flag already combines the viewer's rights and the defense status,
+ * but not business preconditions: `canStart` ignores availability confirmations
+ * (`allMembersConfirmed`) and `canClose` ignores missing evaluations, so the backend may
+ * still reject those calls.
+ */
+export interface DefenseViewerPermissions {
+  /** The viewer manages the defense (`_can_manage_defense`): sees every member's availability. */
+  canManage: boolean
+  canEdit: boolean
+  canCancel: boolean
+  canStart: boolean
+  canClose: boolean
+  /** Administrators only, while the defense is in progress or cancelled. */
+  canRevert: boolean
+  /** Add members and regenerate external tokens while the defense is scheduled or in progress. */
+  canManageMembers: boolean
+}
+
+/** Permissions assumed when a payload has no `viewerPermissions`: nothing is allowed. */
+export const NO_DEFENSE_PERMISSIONS: DefenseViewerPermissions = {
+  canManage: false,
+  canEdit: false,
+  canCancel: false,
+  canStart: false,
+  canClose: false,
+  canRevert: false,
+  canManageMembers: false,
+}
+
+/**
+ * Resposta de POST /defenses/{id}/members/external e de .../regenerate-token.
+ * O accessToken vem uma única vez (Cache-Control: no-store) e nunca deve ser guardado.
+ */
+export interface ExternalMemberTokenResponse {
+  member: DefenseCommitteeMember
+  accessToken: string
+  accessTokenExpiresAt: string
+}
+
+/** Resposta de PUT .../evaluation: a última avaliação pode encerrar a banca automaticamente. */
+export interface SubmitEvaluationResponse {
+  evaluation: DefenseMemberEvaluationData
+  /** Mensagem quando o encerramento automático falhou; a avaliação continua salva. */
+  autoCloseError: string | null
+  defenseStatus: string
+  defenseStatusLabel: string
+}
+
+/** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */
+export interface ScheduleDefenseInput {
+  /** ISO 8601 com deslocamento explícito (ex.: 2026-11-20T14:00:00-03:00). */
+  scheduledDatetime: string
+  durationMinutes: number
+  modality: DefenseModalityCode
+  location: string
+  notes?: string
+}
+
+/** Corpo de PATCH /defenses/{id} (UpdateDefenseSerializer): todos os campos são opcionais. */
+export type UpdateDefenseInput = Partial<ScheduleDefenseInput>
+
+/** Situação do usuário autenticado na banca, calculada pelo backend. */
+export interface DefenseViewerMembership {
+  isMember: boolean
+  memberId: string | null
+  role: CommitteeRoleCode | null
+  roleLabel: string | null
+  canEvaluate: boolean
+  hasEvaluated: boolean
+}
+
+/** Item de GET /defenses (defense_list_payload). */
+export interface DefenseListItem extends DefenseData {
+  thesisTitle: string
+  thesisReferenceCode: string
+  student: ThesisUserBrief | null
+  advisor: ThesisUserBrief | null
+  viewerMembership: DefenseViewerMembership
+  viewerPermissions: DefenseViewerPermissions
+}
+
+export interface DefenseListParams {
+  /** Busca livre: título, código, aluno principal, orientador ou local. */
+  q?: string
+  /** Códigos DefenseStatus separados por vírgula (ex.: "SCHEDULED,IN_PROGRESS"). */
+  status?: string
+  /** Somente bancas ativas em que o usuário é membro titular sem parecer. */
+  pendingEvaluation?: boolean
+  page?: number
+  pageSize?: number
+}
+
+/**
+ * Endpoints relacionados à banca de defesa.
+ * Endpoints reais (theses/urls.py):
+ *   GET  /defenses                           — bancas visíveis ao usuário (paginado)
+ *   GET  /defenses/schedulable-theses        — teses aptas a agendar (paginado)
+ *   POST /theses/{thesisId}/defenses         — agenda nova banca
+ *   GET  /defenses/{id}
+ *   PATCH /defenses/{id}                     — altera data, duração, modalidade, local ou notas (só SCHEDULED)
+ *   POST /defenses/{id}/cancel               — cancela banca agendada (motivo opcional)
+ *   POST /defenses/{id}/members              — membro institucional
+ *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
+ *   DELETE /defenses/{id}/members/{member_id}
+ *   POST /defenses/{id}/members/{member_id}/availability    — o próprio membro confirma ou recusa
+ *   POST /defenses/{id}/members/{member_id}/regenerate-token — novo token do membro externo
+ *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
+ */
+export const defenseApi = {
+  list: (params: DefenseListParams = {}) =>
+    apiRequest<PaginatedResponse<DefenseListItem>>(
+      `/defenses${queryString({ ...params })}`,
+    ),
+
+  schedulableTheses: (params: { page?: number; pageSize?: number } = {}) =>
+    apiRequest<PaginatedResponse<ThesisListItem>>(
+      `/defenses/schedulable-theses${queryString({ ...params })}`,
+    ),
+
+  schedule: (thesisId: string, body: ScheduleDefenseInput) =>
+    apiRequest<{ defense: DefenseData }>(
+      `/theses/${encodeURIComponent(thesisId)}/defenses`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  get: (defenseId: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}`),
+
+  addInstitutionalMember: (
+    defenseId: string,
+    body: { role: string; userId: string; conflictReason?: string },
+  ) =>
+    apiRequest<{ member: DefenseCommitteeMember }>(
+      `/defenses/${defenseId}/members`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  addExternalMember: (
+    defenseId: string,
+    body: {
+      role: string
+      name: string
+      email: string
+      institution?: string
+      conflictReason?: string
+    },
+  ) =>
+    apiRequest<ExternalMemberTokenResponse>(
+      `/defenses/${defenseId}/members/external`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  removeMember: (defenseId: string, memberId: string) =>
+    apiRequest<void>(`/defenses/${defenseId}/members/${memberId}`, {
+      method: "DELETE",
+    }),
+
+  submitEvaluation: (
+    defenseId: string,
+    memberId: string,
+    body: { decision: string; score?: string | null; notes?: string },
+  ) =>
+    apiRequest<SubmitEvaluationResponse>(
+      `/defenses/${defenseId}/members/${memberId}/evaluation`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+
+  respondAvailability: (
+    defenseId: string,
+    memberId: string,
+    body: { status: Exclude<AvailabilityStatusCode, "PENDING">; note?: string },
+  ) =>
+    apiRequest<{ member: DefenseCommitteeMember }>(
+      `/defenses/${defenseId}/members/${memberId}/availability`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  regenerateToken: (defenseId: string, memberId: string) =>
+    apiRequest<ExternalMemberTokenResponse>(
+      `/defenses/${defenseId}/members/${memberId}/regenerate-token`,
+      { method: "POST" },
+    ),
+
+  update: (defenseId: string, body: UpdateDefenseInput) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  cancel: (defenseId: string, reason: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  revertStatus: (defenseId: string, reason: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/revert-status`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  start: (defenseId: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/start`, {
+      method: "POST",
+    }),
+
+  close: (defenseId: string) =>
+    apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}/close`, {
+      method: "POST",
+    }),
 }
 
 export type ThesisStatus =

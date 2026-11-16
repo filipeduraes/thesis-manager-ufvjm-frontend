@@ -263,7 +263,8 @@ p {
   position: relative
 }
 
-.field>span {
+.field>span,
+.field>label {
   font-size: var(--font-size-md);
   font-weight: 600
 }
@@ -557,6 +558,25 @@ textarea:focus {
   height: 100%;
   display: block;
   object-fit: cover
+}
+
+/* O tamanho do avatar não pode depender do container: regras como
+   `.institutional-banner>div { flex: 1 }` têm especificidade maior que `.avatar` e o
+   esticavam até virar uma elipse. Os limites repetem o tamanho de cada variante. */
+.avatar {
+  min-width: 38px;
+  max-width: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  aspect-ratio: 1;
+  flex-shrink: 0
+}
+
+.avatar.small {
+  min-width: 34px;
+  max-width: 34px;
+  min-height: 34px;
+  max-height: 34px
 }
 
 .profile-pill strong,
@@ -1349,8 +1369,7 @@ textarea:focus {
 }
 
 .button-stack,
-.radio-list,
-.alternatives {
+.radio-list {
   display: flex;
   flex-direction: column;
   gap: 8px
@@ -1876,6 +1895,24 @@ footer>span {
 }
 
 .legend,
+.direct-defense-access {
+  padding: 12px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--slate);
+  font-size: var(--font-size-sm)
+}
+
+.direct-defense-access summary {
+  cursor: pointer
+}
+
+.direct-defense-access[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
 .presented-defense-list {
   display: flex;
   flex-direction: column;
@@ -3049,50 +3086,6 @@ footer .logo {
   color: var(--navy)
 }
 
-.presented-intro {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  background: var(--soft);
-  font-size: var(--font-size-base);
-  color: var(--slate)
-}
-
-.presented-intro>div {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--green);
-  color: var(--navy)
-}
-
-.presented-defense {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 18px
-}
-
-.defense-date {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--slate);
-  font-size: var(--font-size-sm)
-}
-
-.presented-defense-copy .course {
-  margin: 0 0 5px
-}
-
-.presented-defense-copy p {
-  margin-top: 4px;
-  color: var(--slate);
-  font-size: var(--font-size-sm)
-}
-
 .schedule-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(310px, .7fr);
@@ -3102,6 +3095,330 @@ footer .logo {
 
 .schedule-fields {
   margin: 20px 0
+}
+
+/* Lista de bancas: reaproveita .full-table da tela "Acompanhamento e aprovação", mas as
+   linhas são <div> (contêm botões) e têm colunas próprias; os rótulos mobile de lá
+   miram button.row e não se aplicam aqui. */
+.defense-table .row {
+  grid-template-columns: 1.8fr 1.1fr .9fr .7fr .8fr auto
+}
+
+.defense-table .row>span {
+  min-width: 0;
+  overflow-wrap: anywhere
+}
+
+.defense-table .row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px
+}
+
+.defense-table .row-actions>.btn {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 12px
+}
+
+@media (max-width: 600px) {
+  .defense-table .row {
+    grid-template-columns: minmax(0, 1fr)
+  }
+
+  .defense-table .row>span {
+    grid-column: 1/-1
+  }
+
+  .defense-table .row>span:nth-child(2)::before {
+    content: "Data: ";
+    font-weight: 700
+  }
+
+  .defense-table .row>span:nth-child(3)::before {
+    content: "Local: ";
+    font-weight: 700
+  }
+
+  .defense-table .row>span:nth-child(5)::before {
+    content: "Minha participação: ";
+    font-weight: 700
+  }
+}
+
+.member-lookup-row {
+  display: flex;
+  gap: 8px
+}
+
+.member-lookup-row>input {
+  flex: 1;
+  min-width: 0
+}
+
+/* Card "Status da banca": reaproveita .steps/.step (progresso) e .timeline (histórico)
+   das telas de monografia; aqui ficam só o reset da lista e a etapa cancelada. */
+.defense-steps {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 24px;
+  max-width: none
+}
+
+.defense-steps .step.cancelled>span {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger)
+}
+
+.defense-steps .step.cancelled small {
+  color: var(--danger);
+  font-weight: 600
+}
+
+.defense-history-title {
+  font-size: var(--font-size-md);
+  margin: 0
+}
+
+.defense-history {
+  margin-top: 12px
+}
+
+.defense-history-empty {
+  margin: 8px 0 0;
+  color: var(--slate);
+  font-size: var(--font-size-sm)
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0
+}
+
+/* Tela de gerenciamento da banca: as regras de .thesis-summary e .member-list são
+   compartilhadas com outras telas e pressupõem poucos filhos, então os ajustes ficam
+   restritos a estes modificadores. */
+.defense-summary {
+  grid-template-columns: 42px minmax(0, 1fr) auto
+}
+
+.defense-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px
+}
+
+.defense-actions>.btn {
+  flex: 0 0 auto;
+  width: auto
+}
+
+.defense-section-head {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px
+}
+
+.defense-section-head h2 {
+  margin: 0
+}
+
+.defense-section-head+.defense-details {
+  margin-top: 0
+}
+
+.committee-member-list>div {
+  grid-template-columns: 38px minmax(0, 1fr) auto auto
+}
+
+.committee-member-list>div>div {
+  min-width: 0;
+  overflow-wrap: anywhere
+}
+
+/* Disponibilidade e avaliação lado a lado; em telas estreitas os selos quebram linha. */
+.member-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px
+}
+
+.member-list .availability-note {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--font-size-xxs);
+  color: var(--slate)
+}
+
+/* Avisos informativos (confirmações pendentes, token exibido uma vez, encerramento
+   automático que falhou com a avaliação salva): não são erro,
+   por isso não usam as cores de perigo de .conflict-message. */
+.conflict-message.availability-pending,
+.conflict-message.access-token-warning,
+.conflict-message.auto-close-warning {
+  border-color: var(--line);
+  background: var(--bg);
+  color: var(--navy)
+}
+
+.conflict-message.availability-pending {
+  margin: 8px 0 16px
+}
+
+.access-token code {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--navy);
+  font-family: monospace;
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+  user-select: all
+}
+
+.access-token small {
+  display: block;
+  min-height: 1em;
+  margin-top: 6px;
+  color: var(--slate);
+  font-size: var(--font-size-xxs)
+}
+
+@media (max-width: 600px) {
+  .access-token .token-row {
+    grid-template-columns: 1fr
+  }
+}
+
+.availability-response {
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
+.availability-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm)
+}
+
+.availability-current small {
+  flex-basis: 100%;
+  color: var(--slate);
+  font-size: var(--font-size-xxs)
+}
+
+.availability-actions {
+  justify-content: flex-start
+}
+
+@media (max-width: 760px) {
+  .defense-summary {
+    grid-template-columns: 42px minmax(0, 1fr)
+  }
+
+  .defense-summary>.defense-actions {
+    grid-column: 1/-1
+  }
+
+  .defense-section-head>.defense-actions {
+    width: 100%
+  }
+}
+
+@media (max-width: 600px) {
+  .committee-member-list>div {
+    grid-template-columns: 38px minmax(0, 1fr) auto
+  }
+
+  .committee-member-list .member-badges {
+    grid-column: 2/-1;
+    justify-content: flex-start
+  }
+}
+
+.defense-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px
+}
+
+.defense-details dd {
+  overflow-wrap: anywhere
+}
+
+@media (max-width: 900px) {
+  .defense-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr))
+  }
+}
+
+@media (max-width: 600px) {
+  .defense-details {
+    grid-template-columns: 1fr
+  }
+}
+
+.field small.field-error {
+  color: var(--danger)
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--danger)
+}
+
+.duration-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px
+}
+
+.duration-presets button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--slate);
+  font-size: var(--font-size-sm);
+  padding: 6px 10px
+}
+
+.duration-presets button.active {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: var(--navy);
+  font-weight: 700
+}
+
+.field .expected-end {
+  color: var(--navy);
+  font-weight: 700
+}
+
+.plain-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px
 }
 
 .conflict-panel .card,
@@ -3137,24 +3454,6 @@ footer .logo {
   margin-top: 4px;
   color: var(--slate);
   line-height: 1.45
-}
-
-.alternatives>strong {
-  font-size: var(--font-size-sm)
-}
-
-.alternatives button {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 11px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--white);
-  color: var(--navy);
-  font-size: var(--font-size-sm);
-  text-align: left
 }
 
 .external-header {
@@ -3194,6 +3493,10 @@ footer .logo {
 
 .institutional-banner>div {
   flex: 1
+}
+
+.institutional-banner>.avatar {
+  flex: none
 }
 
 .institutional-banner strong,
@@ -3470,15 +3773,6 @@ footer .logo {
     grid-template-columns: 1fr
   }
 
-  .presented-defense {
-    grid-template-columns: 150px minmax(0, 1fr) auto
-  }
-
-  .presented-defense>.btn {
-    grid-column: 2/-1;
-    justify-self: end
-  }
-
   .review-decision,
   .evaluation-form {
     position: static
@@ -3501,7 +3795,6 @@ footer .logo {
   .stepper,
   .integrity-grid,
   .tracking-layout,
-  .presented-defense,
   .work-list {
     grid-template-columns: 1fr
   }
@@ -3542,16 +3835,6 @@ footer .logo {
   .defense-tabs>button {
     flex: 1;
     justify-content: center
-  }
-
-  .presented-defense>.btn {
-    grid-column: auto;
-    width: 100%;
-    justify-self: stretch
-  }
-
-  .presented-defense>.badge {
-    justify-self: start
   }
 
   .external-header {

@@ -6,6 +6,8 @@ import type { Page } from "./types"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
 import AdvisorApproval from "./views/AdvisorApproval"
+import DefenseCommittee from "./views/DefenseCommittee"
+import DefenseEvaluation from "./views/DefenseEvaluation"
 import DefenseScheduling from "./views/DefenseScheduling"
 import ExternalEvaluation from "./views/ExternalEvaluation"
 import LoginView from "./views/LoginView"
@@ -22,6 +24,7 @@ const routeTitles: Partial<Record<Page, string>> = {
   approval: "Orientandos",
   schedule: "Bancas",
   evaluation: "Avaliação",
+  committee: "Gerenciar banca",
   reports: "Relatórios",
   users: "Usuários",
   courses: "Cursos",
@@ -38,14 +41,15 @@ export default function App() {
   const [mobileMenu, setMobileMenu] = useState(false)
   const [reviewThesisId, setReviewThesisId] = useState<string>()
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
-  const [evaluatedDefenses, setEvaluatedDefenses] = useState<string[]>([])
+  const [committeeDefenseId, setCommitteeDefenseId] = useState<string>()
 
   const roleCodeKey = session?.user?.roles?.map((role) => role.code).join("|") ?? ""
+  const userRoleCode = session?.user?.roleCode
   const activeProfiles = useMemo(() => {
     const fromRoles = profilesFromCodes(roleCodeKey ? roleCodeKey.split("|") : [])
     if (fromRoles.length > 0) return fromRoles
-    return [codeToProfile(session?.user?.roleCode)]
-  }, [roleCodeKey, session?.user?.roleCode])
+    return [codeToProfile(userRoleCode)]
+  }, [roleCodeKey, userRoleCode])
   const profile = activeProfiles[0] ?? "Aluno"
   const profileLabel = activeProfiles.join(", ") || session?.user?.roleLabel || "Aluno"
   const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles])
@@ -58,7 +62,11 @@ export default function App() {
     for (const activeProfile of activeProfiles) {
       for (const item of menuByProfile[activeProfile] ?? []) pages.add(item.page)
     }
-    if (canEvaluate) pages.add("evaluation")
+    // Avaliação e membros são abertos a partir da lista de bancas; quem pode agir é
+    // decidido pelo backend (viewerMembership, _can_manage_defense), então as páginas
+    // precisam estar liberadas para todo perfil que acessa "schedule".
+    if (canEvaluate || pages.has("schedule")) pages.add("evaluation")
+    if (pages.has("schedule")) pages.add("committee")
     return pages
   }, [activeProfiles, canEvaluate, menuItems])
 
@@ -148,6 +156,16 @@ export default function App() {
     setPage(allowedPages.has(nextPage) ? nextPage : "dashboard")
   }
 
+  const openCommittee = (defenseId: string) => {
+    setCommitteeDefenseId(defenseId)
+    setPage("committee")
+  }
+
+  const openEvaluation = (defenseId: string) => {
+    setEvaluationDefense(defenseId)
+    navigate("evaluation")
+  }
+
   const openReview = (thesisId: string) => {
     setReviewThesisId(thesisId)
     setPage(allowedPages.has("approval") ? "approval" : "dashboard")
@@ -199,12 +217,7 @@ export default function App() {
 
   if (session.authType === "external") {
     return (
-      <ExternalEvaluation
-        mode="external"
-        goLogin={() => void logout()}
-        goBack={() => void logout()}
-        externalSession={session.externalInvitation}
-      />
+      <ExternalEvaluation goLogin={() => void logout()} externalSession={session.externalInvitation} />
     )
   }
 
@@ -234,24 +247,19 @@ export default function App() {
       {page === "submission" && <StudentSubmission />}
       {page === "approval" && <AdvisorApproval initialThesisId={reviewThesisId} profile={profile} />}
       {page === "schedule" && (
-        <DefenseScheduling
-          canEvaluate={canEvaluate}
-          evaluatedDefenseIds={evaluatedDefenses}
-          onEvaluate={(defenseId) => {
-            setEvaluationDefense(defenseId)
-            navigate("evaluation")
-          }}
+        <DefenseScheduling onEvaluate={openEvaluation} onOpenCommittee={openCommittee} />
+      )}
+      {page === "evaluation" && evaluationDefense && session.user && (
+        <DefenseEvaluation
+          defenseId={evaluationDefense}
+          userEmail={session.user.email}
+          goBack={() => navigate("schedule")}
         />
       )}
-      {page === "evaluation" && (
-        <ExternalEvaluation
-          mode="internal"
-          defenseId={evaluationDefense}
-          goLogin={() => void logout()}
+      {page === "committee" && committeeDefenseId && (
+        <DefenseCommittee
+          defenseId={committeeDefenseId}
           goBack={() => navigate("schedule")}
-          onSubmitted={(defenseId) => {
-            if (defenseId) setEvaluatedDefenses((current) => current.includes(defenseId) ? current : [...current, defenseId])
-          }}
         />
       )}
       {page === "reports" && <ReportsView />}

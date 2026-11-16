@@ -1,9 +1,7 @@
 import type {
   AdvisorSubmission,
   AuditLog,
-  CommitteeMember,
   Course,
-  PresentedDefense,
   RepositoryWork,
   Thesis,
   User,
@@ -310,87 +308,6 @@ export const advisorSubmissions: AdvisorSubmission[] = [
     submittedAt: "02 jun",
     status: "Reprovada",
     version: "v2",
-  },
-]
-
-export const committeeMembers: CommitteeMember[] = [
-  {
-    initials: "RS",
-    name: "Prof. Ricardo Souza",
-    role: "Orientador · Presidente",
-    status: "Confirmado",
-  },
-  {
-    initials: "CF",
-    name: "Profa. Carla Freitas",
-    role: "Membro interno",
-    status: "Confirmado",
-  },
-  {
-    initials: "LM",
-    name: "Prof. Lucas Monteiro",
-    role: "Membro externo",
-    status: "Pendente",
-  },
-]
-
-export const presentedDefenses: PresentedDefense[] = [
-  {
-    id: "DEF-2026-0021",
-    thesis: "Tecnologias sociais para gestão hídrica no Vale do Jequitinhonha",
-    student: "Camila Nunes",
-    course: "Engenharia Ambiental",
-    date: "12 mar 2026 · 14:00",
-    role: "Orientador · Presidente",
-    evaluated: false,
-  },
-  {
-    id: "DEF-2026-0018",
-    thesis: "Educação patrimonial e memória no Alto Jequitinhonha",
-    student: "Rafael Costa",
-    course: "História",
-    date: "08 mar 2026 · 09:00",
-    role: "Membro interno",
-    evaluated: false,
-  },
-  {
-    id: "DEF-2026-0014",
-    thesis: "Inteligência artificial aplicada ao diagnóstico por imagem",
-    student: "Beatriz Rocha",
-    course: "Sistemas de Informação",
-    date: "28 fev 2026 · 15:30",
-    role: "Coordenador · Membro interno",
-    evaluated: true,
-  },
-]
-
-export const approvedTheses: Thesis[] = [
-  {
-    id: "TCC-2025-0148",
-    title: "Arquiteturas sustentáveis para cidades inteligentes",
-    student: "Marina Alves",
-    course: "Engenharia de Sistemas",
-    advisor: "Prof. Ricardo Souza",
-    status: "Aprovada",
-    version: "v2",
-  },
-  {
-    id: "TCC-2025-0124",
-    title: "Gestão pública e transformação digital",
-    student: "João Ribeiro",
-    course: "Administração",
-    advisor: "Profa. Helena Prado",
-    status: "Aprovada",
-    version: "v1",
-  },
-  {
-    id: "TCC-2025-0119",
-    title: "Conservação de espécies nativas do Cerrado",
-    student: "Lívia Santos",
-    course: "Ciências Biológicas",
-    advisor: "Profa. Carla Freitas",
-    status: "Aprovada",
-    version: "v3",
   },
 ]
 
