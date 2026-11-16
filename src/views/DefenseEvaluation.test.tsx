@@ -103,6 +103,19 @@ test("institutional member still submits the evaluation with decision and score"
   expect(screen.queryByText(/Banca encerrada/)).toBeNull()
 })
 
+test("keeps the refresh button inside the summary actions instead of the icon column", async () => {
+  getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS") })
+  renderEvaluation()
+
+  const refreshButton = await screen.findByRole("button", { name: "Atualizar" })
+  // O defeito era de layout: sem o contêiner .defense-actions o botão caía na coluna de 42px do ícone.
+  // eslint-disable-next-line testing-library/no-node-access
+  const actions = refreshButton.closest(".defense-actions")
+  expect(actions).not.toBeNull()
+  expect(actions?.textContent).toContain("Em andamento")
+  expect(actions?.textContent).toContain("Membro")
+})
+
 test("reloads after the last evaluation and shows the result of the automatic close", async () => {
   getDefense.mockResolvedValueOnce({ defense: buildDefense("IN_PROGRESS") })
   getDefense.mockResolvedValue({ defense: completedWithResult() })

@@ -269,7 +269,7 @@ export default function DefenseEvaluation({
     <div className="page-content">
       <PageTitle eyebrow="Avaliação de banca" title="Minha avaliação" />
 
-      <Card className="thesis-summary">
+      <Card className="thesis-summary defense-summary">
         <div className="file-icon">
           <Icon name="calendar" />
         </div>
@@ -279,11 +279,13 @@ export default function DefenseEvaluation({
           </h3>
           {defense.location && <span>{defense.location}</span>}
         </div>
-        <Badge tone={statusTone}>{defense.statusLabel}</Badge>
-        <span>{COMMITTEE_ROLE_LABELS[myMember.role] ?? myMember.roleLabel}</span>
-        <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
-          {refreshing ? "Atualizando…" : "Atualizar"}
-        </Button>
+        <div className="defense-actions">
+          <Badge tone={statusTone}>{defense.statusLabel}</Badge>
+          <span>{COMMITTEE_ROLE_LABELS[myMember.role] ?? myMember.roleLabel}</span>
+          <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
+            {refreshing ? "Atualizando…" : "Atualizar"}
+          </Button>
+        </div>
       </Card>
 
       {variant === "external" && (
