@@ -7,8 +7,10 @@ import {
   thesesApi,
   type DefenseCommitteeMember,
   type DefenseData,
+  type ExternalMemberTokenResponse,
 } from "../api/client"
 import {
+  AccessTokenModal,
   Badge,
   Button,
   Card,
@@ -16,6 +18,7 @@ import {
   Icon,
   InstitutionalMemberModal,
   PageTitle,
+  type IssuedAccessToken,
 } from "../components/common"
 import { availabilityStatusBadge, defenseDecisionTone, defenseStatusTone } from "../data/defenseStatus"
 import type { BadgeTone } from "../data/thesisStatus"
@@ -121,6 +124,12 @@ export default function DefenseCommittee({
   const [revertLoading, setRevertLoading] = useState(false)
   const [revertError, setRevertError] = useState("")
 
+  // Token do membro externo: fica só neste estado enquanto o modal está aberto.
+  const [issuedTokens, setIssuedTokens] = useState<IssuedAccessToken[]>([])
+  const [regenerateTarget, setRegenerateTarget] = useState<DefenseCommitteeMember | null>(null)
+  const [regenerateLoading, setRegenerateLoading] = useState(false)
+  const [regenerateError, setRegenerateError] = useState("")
+
   const mountedRef = useRef(true)
 
   const loadDefense = useCallback(() => {
@@ -202,14 +211,42 @@ export default function DefenseCommittee({
     loadDefense()
   }
 
+  const showIssuedToken = (response: ExternalMemberTokenResponse) => {
+    setIssuedTokens([
+      {
+        memberId: response.member.id,
+        memberName: response.member.name,
+        token: response.accessToken,
+        expiresAt: response.accessTokenExpiresAt,
+      },
+    ])
+  }
+
   const addExternalMember = async (draft: ExternalMemberDraft) => {
-    await defenseApi.addExternalMember(defenseId, {
+    const response = await defenseApi.addExternalMember(defenseId, {
       role: draft.role,
       name: draft.name,
       email: draft.email,
       institution: draft.institution || undefined,
     })
+    showIssuedToken(response)
     loadDefense()
+  }
+
+  const regenerateToken = async () => {
+    if (!regenerateTarget) return
+    setRegenerateLoading(true)
+    setRegenerateError("")
+    try {
+      const response = await defenseApi.regenerateToken(defenseId, regenerateTarget.id)
+      setRegenerateTarget(null)
+      showIssuedToken(response)
+      loadDefense()
+    } catch (reason) {
+      setRegenerateError(statusActionErrorMessage(reason, "Não foi possível gerar um novo token."))
+    } finally {
+      setRegenerateLoading(false)
+    }
   }
 
   const startDefense = async () => {
@@ -320,6 +357,8 @@ export default function DefenseCommittee({
   const canCancel = isScheduled && canManageDefense
   const canRevert = isAdmin && (isInProgress || isCancelled)
   const canManageSchedule = isScheduled && canManageDefense
+  // regenerate-token aceita bancas agendadas ou em andamento (ACTIVE_DEFENSE_STATUSES).
+  const canRegenerateToken = (isScheduled || isInProgress) && canManageDefense
   const hasStatusActions = canStart || canClose || canCancel || canRevert
   // Só o detalhe traz pendingConfirmations; suplentes não entram nessa lista.
   const pendingConfirmations = defense.pendingConfirmations ?? []
@@ -538,14 +577,23 @@ export default function DefenseCommittee({
                     <Badge tone={availability.tone}>{availability.label}</Badge>
                     <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
                   </div>
-                  {canManage && !member.evaluation && (
-                    <Button
-                      variant="danger"
-                      disabled={removing === member.id}
-                      onClick={() => void removeMember(member.id)}
-                    >
-                      {removing === member.id ? "Removendo…" : "Remover"}
-                    </Button>
+                  {((canManage && !member.evaluation) || (canRegenerateToken && !member.isInstitutional)) && (
+                    <div className="defense-actions">
+                      {canRegenerateToken && !member.isInstitutional && (
+                        <Button variant="outline" onClick={() => setRegenerateTarget(member)}>
+                          Gerar novo token
+                        </Button>
+                      )}
+                      {canManage && !member.evaluation && (
+                        <Button
+                          variant="danger"
+                          disabled={removing === member.id}
+                          onClick={() => void removeMember(member.id)}
+                        >
+                          {removing === member.id ? "Removendo…" : "Remover"}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               )
@@ -561,6 +609,25 @@ export default function DefenseCommittee({
       {addModal === "external" && (
         <ExternalMemberModal onClose={() => setAddModal(null)} onSubmit={addExternalMember} />
       )}
+
+      {regenerateTarget && (
+        <DefenseStatusConfirmModal
+          title="Gerar novo token?"
+          description={`O token atual de ${regenerateTarget.name} deixa de funcionar e as sessões abertas com ele são encerradas. A disponibilidade e a avaliação já registradas são mantidas.`}
+          confirmLabel="Gerar novo token"
+          pendingLabel="Gerando…"
+          destructive
+          loading={regenerateLoading}
+          error={regenerateError}
+          onConfirm={() => void regenerateToken()}
+          onClose={() => {
+            setRegenerateTarget(null)
+            setRegenerateError("")
+          }}
+        />
+      )}
+
+      {issuedTokens.length > 0 && <AccessTokenModal tokens={issuedTokens} onClose={() => setIssuedTokens([])} />}
 
       {scheduleModal === "edit" && (
         <DefenseEditModal defense={defense} onClose={() => setScheduleModal(null)} onSaved={finishScheduleChange} />

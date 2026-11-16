@@ -403,3 +403,76 @@ test("hides the availability answer when the user is not a member or the defense
   await screen.findByText("Dados da banca")
   expect(screen.queryByRole("button", { name: "Confirmar disponibilidade" })).toBeNull()
 })
+
+const addExternalMember = jest.spyOn(defenseApi, "addExternalMember")
+const regenerateToken = jest.spyOn(defenseApi, "regenerateToken")
+
+function externalMember(id: string, name: string): DefenseCommitteeMember {
+  return buildMember(id, name, { isInstitutional: false, email: `${id}@externo.org`, institution: "UFMG" })
+}
+
+test("shows the access token once after adding an external member", async () => {
+  addExternalMember.mockReset()
+  const created = externalMember("ext", "Paula Externa")
+  addExternalMember.mockResolvedValue({
+    member: created,
+    accessToken: "UFVJM-AAAA-BBBB-CCCC-DDDD",
+    accessTokenExpiresAt: "2026-12-15T15:00:00Z",
+  })
+  renderCommittee(buildDefense("SCHEDULED"), { canStartClose: true })
+
+  userEvent.click(await screen.findByRole("button", { name: "Membro externo" }))
+  userEvent.type(screen.getByPlaceholderText("Nome do avaliador"), "Paula Externa")
+  userEvent.type(screen.getByPlaceholderText("avaliador@email.com"), "ext@externo.org")
+  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [created]) })
+  userEvent.click(screen.getByRole("button", { name: "Adicionar membro externo" }))
+
+  const dialog = await screen.findByRole("dialog", { name: "Token de acesso" })
+  expect(within(dialog).getByText("UFVJM-AAAA-BBBB-CCCC-DDDD")).toBeTruthy()
+  expect(within(dialog).getByText("Guarde este token: ele não será exibido novamente.")).toBeTruthy()
+  expect(addExternalMember).toHaveBeenCalledWith("defense-1", {
+    role: "MEMBER",
+    name: "Paula Externa",
+    email: "ext@externo.org",
+    institution: undefined,
+  })
+
+  userEvent.click(within(dialog).getByRole("button", { name: "Concluir" }))
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
+  expect(screen.queryByText("UFVJM-AAAA-BBBB-CCCC-DDDD")).toBeNull()
+})
+
+test("regenerates an external member token after confirmation", async () => {
+  regenerateToken.mockReset()
+  const member = externalMember("ext", "Paula Externa")
+  regenerateToken.mockResolvedValue({
+    member,
+    accessToken: "UFVJM-NEW0-NEW0-NEW0-NEW0",
+    accessTokenExpiresAt: "2026-12-15T15:00:00Z",
+  })
+  renderCommittee(defenseWithMembers("IN_PROGRESS", [member, buildMember("ana", "Ana Interna")]), { canStartClose: true })
+
+  const buttons = await screen.findAllByRole("button", { name: "Gerar novo token" })
+  expect(buttons).toHaveLength(1)
+  userEvent.click(buttons[0] as HTMLElement)
+  const confirm = screen.getByRole("dialog")
+  expect(confirm.textContent).toContain("O token atual de Paula Externa deixa de funcionar")
+  expect(regenerateToken).not.toHaveBeenCalled()
+  userEvent.click(within(confirm).getByRole("button", { name: "Gerar novo token" }))
+
+  await waitFor(() => expect(regenerateToken).toHaveBeenCalledWith("defense-1", "ext"))
+  const tokenDialog = await screen.findByRole("dialog", { name: "Token de acesso" })
+  expect(within(tokenDialog).getByText("UFVJM-NEW0-NEW0-NEW0-NEW0")).toBeTruthy()
+})
+
+test("hides Gerar novo token without management permission", async () => {
+  renderCommittee(defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa")]))
+  await screen.findByText("Paula Externa")
+  expect(screen.queryByRole("button", { name: "Gerar novo token" })).toBeNull()
+})
+
+test("hides Gerar novo token on a completed defense", async () => {
+  renderCommittee(defenseWithMembers("COMPLETED", [externalMember("ext", "Paula Externa")]), { canStartClose: true })
+  await screen.findByText("Paula Externa")
+  expect(screen.queryByRole("button", { name: "Gerar novo token" })).toBeNull()
+})

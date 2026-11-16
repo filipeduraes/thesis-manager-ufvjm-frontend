@@ -6,6 +6,7 @@ import {
   type ThesisListItem,
 } from "../../api/client"
 import {
+  AccessTokenModal,
   Badge,
   Button,
   Card,
@@ -13,6 +14,7 @@ import {
   Icon,
   InstitutionalMemberModal,
   Modal,
+  type IssuedAccessToken,
 } from "../../components/common"
 import type {
   DefenseScheduleDraft,
@@ -38,6 +40,8 @@ interface MemberFailure {
 interface ScheduledOutcome {
   defenseId: string
   failures: MemberFailure[]
+  /** Tokens dos membros externos enviados; somem do estado quando o modal fecha. */
+  tokens: IssuedAccessToken[]
 }
 
 type ThesesState =
@@ -144,16 +148,24 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     setOutcome(null)
   }
 
-  const sendMember = (defenseId: string, member: PendingMember) => {
+  /** Sends one member; resolves with the one-time access token for external members. */
+  const sendMember = async (defenseId: string, member: PendingMember): Promise<IssuedAccessToken | null> => {
     if (member.kind === "institutional") {
-      return defenseApi.addInstitutionalMember(defenseId, { role: member.draft.role, userId: member.draft.userId })
+      await defenseApi.addInstitutionalMember(defenseId, { role: member.draft.role, userId: member.draft.userId })
+      return null
     }
-    return defenseApi.addExternalMember(defenseId, {
+    const response = await defenseApi.addExternalMember(defenseId, {
       role: member.draft.role,
       name: member.draft.name,
       email: member.draft.email,
       institution: member.draft.institution || undefined,
     })
+    return {
+      memberId: response.member.id,
+      memberName: response.member.name,
+      token: response.accessToken,
+      expiresAt: response.accessTokenExpiresAt,
+    }
   }
 
   const confirmSchedule = async () => {
@@ -175,12 +187,14 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     // Envio sequencial: o backend verifica conflito de horário por membro, e a ordem
     // previsível facilita identificar qual inclusão falhou.
     const failures: MemberFailure[] = []
+    const tokens: IssuedAccessToken[] = []
     for (let index = 0; index < members.length; index += 1) {
       const member = members[index]
       if (!member) continue
       setSubmitStep(`Adicionando membros (${index + 1} de ${members.length})…`)
       try {
-        await sendMember(defenseId, member)
+        const issued = await sendMember(defenseId, member)
+        if (issued) tokens.push(issued)
       } catch (reason) {
         failures.push({
           key: member.key,
@@ -191,11 +205,21 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     }
     setSubmitting(false)
     setSubmitStep("")
-    if (failures.length === 0) {
+    if (failures.length === 0 && tokens.length === 0) {
       onOpenCommittee(defenseId)
       return
     }
-    setOutcome({ defenseId, failures })
+    // Com tokens, a navegação espera o modal fechar: eles não são exibidos de novo.
+    setOutcome({ defenseId, failures, tokens })
+  }
+
+  const closeTokens = () => {
+    if (!outcome) return
+    if (outcome.failures.length === 0) {
+      onOpenCommittee(outcome.defenseId)
+      return
+    }
+    setOutcome({ ...outcome, tokens: [] })
   }
 
   const thesesCount = thesesState.status === "ready" ? thesesState.count : 0
@@ -340,7 +364,11 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
               </div>
             )}
 
-            {outcome ? (
+            {outcome && outcome.failures.length === 0 ? (
+              <div className="success-notice" role="status">
+                Banca agendada. Guarde os tokens dos membros externos antes de continuar.
+              </div>
+            ) : outcome ? (
               <div role="alert">
                 <div className="success-notice">
                   Banca agendada, mas {outcome.failures.length === 1 ? "1 membro não foi adicionado" : `${outcome.failures.length} membros não foram adicionados`}:
@@ -413,6 +441,8 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
           )}
         </Modal>
       )}
+
+      {outcome && outcome.tokens.length > 0 && <AccessTokenModal tokens={outcome.tokens} onClose={closeTokens} />}
 
       {memberModal === "institutional" && (
         <InstitutionalMemberModal onClose={() => setMemberModal(null)} onSubmit={addInstitutionalDraft} />

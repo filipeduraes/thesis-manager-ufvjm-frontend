@@ -404,6 +404,16 @@ export interface DefenseData {
   pendingConfirmations?: DefensePendingConfirmation[]
 }
 
+/**
+ * Resposta de POST /defenses/{id}/members/external e de .../regenerate-token.
+ * O accessToken vem uma única vez (Cache-Control: no-store) e nunca deve ser guardado.
+ */
+export interface ExternalMemberTokenResponse {
+  member: DefenseCommitteeMember
+  accessToken: string
+  accessTokenExpiresAt: string
+}
+
 /** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */
 export interface ScheduleDefenseInput {
   /** ISO 8601 com deslocamento explícito (ex.: 2026-11-20T14:00:00-03:00). */
@@ -460,6 +470,7 @@ export interface DefenseListParams {
  *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
  *   DELETE /defenses/{id}/members/{member_id}
  *   POST /defenses/{id}/members/{member_id}/availability    — o próprio membro confirma ou recusa
+ *   POST /defenses/{id}/members/{member_id}/regenerate-token — novo token do membro externo
  *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
  */
 export const defenseApi = {
@@ -501,7 +512,7 @@ export const defenseApi = {
       conflictReason?: string
     },
   ) =>
-    apiRequest<{ member: DefenseCommitteeMember }>(
+    apiRequest<ExternalMemberTokenResponse>(
       `/defenses/${defenseId}/members/external`,
       { method: "POST", body: JSON.stringify(body) },
     ),
@@ -529,6 +540,12 @@ export const defenseApi = {
     apiRequest<{ member: DefenseCommitteeMember }>(
       `/defenses/${defenseId}/members/${memberId}/availability`,
       { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  regenerateToken: (defenseId: string, memberId: string) =>
+    apiRequest<ExternalMemberTokenResponse>(
+      `/defenses/${defenseId}/members/${memberId}/regenerate-token`,
+      { method: "POST" },
     ),
 
   update: (defenseId: string, body: UpdateDefenseInput) =>
