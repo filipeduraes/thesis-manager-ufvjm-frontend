@@ -1,4 +1,5 @@
 import {
+  Avatar,
   Badge,
   Button,
   Card,
@@ -58,6 +59,15 @@ export default function StyleGuideView() {
           <Button variant="outline">Outline</Button>
           <Button disabled>Desabilitado</Button>
           <Button variant="ghost">Texto / ghost</Button>
+        </div>
+      </Card>
+      <Card>
+        <p className="eyebrow">Identificação</p>
+        <h3>Avatares</h3>
+        <div className="component-row">
+          <Avatar name="Ana Souza" />
+          <Avatar name="Bruno Lima" size="small" />
+          <Avatar name="Foto indisponível" imageUrl="/imagem-inexistente.png" />
         </div>
       </Card>
       <div className="style-grid">

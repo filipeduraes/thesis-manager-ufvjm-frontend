@@ -560,6 +560,25 @@ textarea:focus {
   object-fit: cover
 }
 
+/* O tamanho do avatar não pode depender do container: regras como
+   `.institutional-banner>div { flex: 1 }` têm especificidade maior que `.avatar` e o
+   esticavam até virar uma elipse. Os limites repetem o tamanho de cada variante. */
+.avatar {
+  min-width: 38px;
+  max-width: 38px;
+  min-height: 38px;
+  max-height: 38px;
+  aspect-ratio: 1;
+  flex-shrink: 0
+}
+
+.avatar.small {
+  min-width: 34px;
+  max-width: 34px;
+  min-height: 34px;
+  max-height: 34px
+}
+
 .profile-pill strong,
 .profile-pill span {
   display: block;
@@ -3474,6 +3493,10 @@ footer .logo {
 
 .institutional-banner>div {
   flex: 1
+}
+
+.institutional-banner>.avatar {
+  flex: none
 }
 
 .institutional-banner strong,
