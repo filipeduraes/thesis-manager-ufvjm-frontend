@@ -80,6 +80,7 @@ function page<T>(results: T[]) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear()
   jest.clearAllMocks()
   getSession.mockResolvedValue(COORDINATOR_SESSION)
   listDefenses.mockResolvedValue(page([LIST_ITEM]))
@@ -198,7 +199,8 @@ test("schedules, edits and cancels a defense, then returns to the list", async (
   expect(screen.getByRole("listitem", { current: "step" }).textContent).toContain("Cancelada")
   expect(screen.queryByRole("button", { name: "Editar agendamento" })).toBeNull()
 
-  userEvent.click(screen.getByRole("button", { name: "Voltar" }))
+  const breadcrumb = screen.getByRole("navigation", { name: "Caminho" })
+  userEvent.click(within(breadcrumb).getByRole("button", { name: "Bancas" }))
   userEvent.click(await screen.findByRole("tab", { name: "Bancas 1" }))
   expect(await screen.findByText("Monografia de teste")).toBeTruthy()
 })

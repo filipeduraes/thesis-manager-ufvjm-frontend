@@ -17,8 +17,22 @@ export default function PublicRepository({
   go: (p: Page) => void
   embedded?: boolean
 }) {
-  // TODO: API Integration - GET /api/v1/repository/theses
-  // Query: { q, course, startYear, endYear, tags }; Response: { items, total }
+  // TODO(auditoria): repositório público ainda mock; atribuído a outros desenvolvedores.
+  // Backend disponível hoje (anônimo, somente publicadas):
+  //   GET /api/v1/public/theses             (q, courseId, advisorId, year, keyword, page, pageSize)
+  //   GET /api/v1/public/theses/<id>        (detalhe, URLs públicas do PDF)
+  //   GET /api/v1/public/theses/<id>/download (stream do PDF da versão atual)
+  // Faltam no backend:
+  //   - listagem deve devolver `abstract`, `type`, `typeLabel` e `journal` e
+  //     apontar `currentFile.downloadUrl`/`previewUrl` para o endpoint anônimo
+  //     (`thesis_list_payload` hoje devolve `/api/v1/theses/.../download`, 401
+  //     para visitantes); detalhe (`public_thesis_payload`) já aponta para o
+  //     endpoint público;
+  //   - `GET /api/v1/public/theses/filters` (cursos/orientadores/anos/
+  //     palavras-chave presentes em publicados);
+  //   - cache versionado com invalidação na publicação.
+  // Remover `repositoryWorks` (mockData.ts) ao conectar; preservar paginação e
+  // estados de loading/erro/vazio.
   const [query, setQuery] = useState("")
   const [empty, setEmpty] = useState(false)
   const [selectedWork, setSelectedWork] =

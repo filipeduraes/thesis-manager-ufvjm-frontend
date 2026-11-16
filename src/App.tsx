@@ -75,6 +75,11 @@ export default function App() {
     return menuItem?.label ?? routeTitles[page] ?? ""
   }, [menuItems, page])
 
+  useEffect(() => {
+    const pageTitle = page === "repository" ? "Repositório de Monografias" : title
+    document.title = pageTitle ? `${pageTitle} · Monografias UFVJM` : "Monografias UFVJM"
+  }, [page, title])
+
   const refreshSession = async () => {
     const current = await authApi.getSession()
     setSession(current)

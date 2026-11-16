@@ -13,6 +13,7 @@ import {
   AccessTokenModal,
   Avatar,
   Badge,
+  Breadcrumb,
   Button,
   Card,
   ExternalMemberModal,
@@ -28,6 +29,7 @@ import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
 import DefenseStatusConfirmModal from "./defense/DefenseStatusConfirmModal"
+import DefenseThesisCard from "./defense/DefenseThesisCard"
 import DefenseStatusTimeline from "./defense/DefenseStatusTimeline"
 import { statusActionErrorMessage } from "./defense/defenseErrors"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
@@ -260,6 +262,9 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   if (loading) {
     return (
       <div className="page-content">
+        <Breadcrumb
+          items={[{ label: "Bancas", onClick: goBack }, { label: "Gerenciar banca" }]}
+        />
         <PageTitle eyebrow="Banca de defesa" title="Carregando…" />
         <Card>
           <p aria-live="polite">Carregando dados da banca…</p>
@@ -271,15 +276,13 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   if (loadError) {
     return (
       <div className="page-content">
+        <Breadcrumb
+          items={[{ label: "Bancas", onClick: goBack }, { label: "Gerenciar banca" }]}
+        />
         <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
         <Card>
           <div className="success-notice" role="alert">
             {loadError}
-          </div>
-          <div className="form-actions">
-            <Button variant="ghost" onClick={goBack}>
-              Voltar
-            </Button>
           </div>
         </Card>
       </div>
@@ -317,7 +320,12 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
 
   return (
     <div className="page-content">
+      <Breadcrumb
+        items={[{ label: "Bancas", onClick: goBack }, { label: "Gerenciar banca" }]}
+      />
       <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
+
+      <DefenseThesisCard summary={defense.thesisSummary} />
 
       <Card className="thesis-summary defense-summary">
         <div className="file-icon">
@@ -333,9 +341,6 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
           <Badge tone={statusTone}>{defense.statusLabel}</Badge>
           <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
             {refreshing ? "Atualizando…" : "Atualizar"}
-          </Button>
-          <Button variant="ghost" onClick={goBack}>
-            Voltar
           </Button>
         </div>
       </Card>

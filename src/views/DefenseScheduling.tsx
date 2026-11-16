@@ -6,6 +6,13 @@ import PresentedDefenseList from "./defense/PresentedDefenseList"
 
 type DefenseView = "schedule" | "presented"
 
+const DEFENSE_VIEW_STORAGE_KEY = "ufvjm:defense-view"
+
+function initialDefenseView(): DefenseView {
+  const stored = window.sessionStorage.getItem(DEFENSE_VIEW_STORAGE_KEY)
+  return stored === "presented" || stored === "schedule" ? stored : "schedule"
+}
+
 interface DefenseSchedulingProps {
   onEvaluate: (defenseId: string) => void
   onOpenCommittee: (defenseId: string) => void
@@ -18,9 +25,13 @@ interface DefenseSchedulingProps {
  * available before the list tab is opened and does not change with the list filters.
  */
 export default function DefenseScheduling({ onEvaluate, onOpenCommittee }: DefenseSchedulingProps) {
-  const [activeView, setActiveView] = useState<DefenseView>("schedule")
+  const [activeView, setActiveView] = useState<DefenseView>(initialDefenseView)
   // null enquanto carrega ou se a contagem falhar; a lista mostra o próprio erro.
   const [totalCount, setTotalCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    window.sessionStorage.setItem(DEFENSE_VIEW_STORAGE_KEY, activeView)
+  }, [activeView])
 
   useEffect(() => {
     let cancelled = false

@@ -1,6 +1,7 @@
 import {
   Avatar,
   Badge,
+  Breadcrumb,
   Button,
   Card,
   Field,
@@ -104,13 +105,13 @@ export default function StyleGuideView() {
       <Card>
         <p className="eyebrow">Navegação e feedback</p>
         <h3>Breadcrumbs, paginação e notas</h3>
-        <div className="breadcrumb">
-          <span>Início</span>
-          <Icon name="arrow" size={14} />
-          <span>Monografias</span>
-          <Icon name="arrow" size={14} />
-          <strong>Detalhe</strong>
-        </div>
+        <Breadcrumb
+          items={[
+            { label: "Início" },
+            { label: "Monografias" },
+            { label: "Detalhe" },
+          ]}
+        />
         <Pagination />
         <div className="inline-alert">
           <Icon name="alert" />

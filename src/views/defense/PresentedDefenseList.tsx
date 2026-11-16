@@ -7,6 +7,41 @@ import { formatDefenseTimeRange } from "./defenseSchedule"
 // Mesmo tamanho de página da tela "Acompanhamento e aprovação".
 const DEFENSE_PAGE_SIZE = 10
 
+const FILTERS_STORAGE_KEY = "ufvjm:defense-list-filters"
+
+interface PersistedDefenseFilters {
+  searchInput: string
+  query: string
+  statusFilter: string
+  pendingOnly: boolean
+  page: number
+}
+
+const EMPTY_FILTERS: PersistedDefenseFilters = {
+  searchInput: "",
+  query: "",
+  statusFilter: "",
+  pendingOnly: false,
+  page: 1,
+}
+
+function readPersistedFilters(): PersistedDefenseFilters {
+  try {
+    const raw = window.sessionStorage.getItem(FILTERS_STORAGE_KEY)
+    if (!raw) return EMPTY_FILTERS
+    const parsed = JSON.parse(raw) as Partial<PersistedDefenseFilters>
+    return {
+      searchInput: typeof parsed.searchInput === "string" ? parsed.searchInput : "",
+      query: typeof parsed.query === "string" ? parsed.query : "",
+      statusFilter: typeof parsed.statusFilter === "string" ? parsed.statusFilter : "",
+      pendingOnly: parsed.pendingOnly === true,
+      page: typeof parsed.page === "number" && parsed.page > 0 ? Math.floor(parsed.page) : 1,
+    }
+  } catch {
+    return EMPTY_FILTERS
+  }
+}
+
 const DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
@@ -49,15 +84,21 @@ interface PresentedDefenseListProps {
  * "Gerenciar banca" for whoever manages it, "Ver banca" for everyone else.
  */
 export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: PresentedDefenseListProps) {
-  const [searchInput, setSearchInput] = useState("")
-  const [query, setQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [pendingOnly, setPendingOnly] = useState(false)
-  const [page, setPage] = useState(1)
+  const [initialFilters] = useState(readPersistedFilters)
+  const [searchInput, setSearchInput] = useState(initialFilters.searchInput)
+  const [query, setQuery] = useState(initialFilters.query)
+  const [statusFilter, setStatusFilter] = useState(initialFilters.statusFilter)
+  const [pendingOnly, setPendingOnly] = useState(initialFilters.pendingOnly)
+  const [page, setPage] = useState(initialFilters.page)
   const [reloadKey, setReloadKey] = useState(0)
   const [listState, setListState] = useState<ListState>({ status: "loading" })
   const [defenseUuid, setDefenseUuid] = useState("")
   const trimmedUuid = defenseUuid.trim()
+
+  useEffect(() => {
+    const filters: PersistedDefenseFilters = { searchInput, query, statusFilter, pendingOnly, page }
+    window.sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters))
+  }, [searchInput, query, statusFilter, pendingOnly, page])
 
   useEffect(() => {
     // A flag descarta respostas fora de ordem quando os filtros mudam rapidamente.

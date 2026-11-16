@@ -1,3 +1,11 @@
+// TODO(auditoria): painel da coordenação ainda mock; atribuído a outros desenvolvedores.
+// Dados reais disponíveis hoje:
+//   thesesApi.list({ scope: "coordinated", status: "ADVISOR_APPROVED" }) — aguardando agendamento
+//   defenseApi.list({ status: "SCHEDULED" }) — próximas bancas
+// KPIs acadêmicos (monografias, taxa de aprovação, bancas) dependem de
+// `GET /api/v1/reports/overview`, ainda não implementado (ver ReportsView
+// e FUNCIONALIDADES.md, seção "Pendências identificadas na auditoria").
+// Remover `coordinatorQueue` (mockData.ts) ao conectar.
 import type { Page } from "../../types"
 import { coordinatorQueue } from "../../data/mockData"
 import { Badge, Button, Card, Icon, Kpi } from "../../components/common"

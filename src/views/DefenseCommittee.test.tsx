@@ -201,7 +201,7 @@ test("keeps the top card free of status action buttons", async () => {
   expect(screen.getAllByRole("button", { name: "Iniciar banca" })).toHaveLength(1)
   expect(screen.getAllByRole("button", { name: "Cancelar banca" })).toHaveLength(1)
   expect(screen.getByRole("button", { name: "Atualizar" })).toBeTruthy()
-  expect(screen.getByRole("button", { name: "Voltar" })).toBeTruthy()
+  expect(within(screen.getByRole("navigation", { name: "Caminho" })).getByRole("button", { name: "Bancas" })).toBeTruthy()
 })
 
 test("confirms before starting and reloads the defense afterwards", async () => {

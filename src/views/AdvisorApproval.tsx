@@ -11,6 +11,7 @@ import {
 } from "../api/client"
 import {
   Badge,
+  Breadcrumb,
   Button,
   Card,
   Field,
@@ -315,22 +316,20 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
   if (selectedId) {
     return (
       <div className="page-content">
-        <div className="breadcrumb">
-          <button type="button" onClick={closeDetail}>
-            {pageLabel}
-          </button>
-          <Icon name="arrow" size={14} />
-          <span>Detalhe da submissão</span>
-          {detail && !detailLoading && (
-            <Button
-              variant="secondary"
-              className="breadcrumb-action"
-              onClick={() => void loadDetail(detail.id)}
-            >
-              Atualizar
-            </Button>
-          )}
-        </div>
+        <Breadcrumb
+          items={[{ label: pageLabel, onClick: closeDetail }, { label: "Detalhe da submissão" }]}
+          action={
+            detail && !detailLoading ? (
+              <Button
+                variant="secondary"
+                className="breadcrumb-action"
+                onClick={() => void loadDetail(detail.id)}
+              >
+                Atualizar
+              </Button>
+            ) : undefined
+          }
+        />
         {detailLoading && (
           <Card>
             <div className="pdf-feedback">

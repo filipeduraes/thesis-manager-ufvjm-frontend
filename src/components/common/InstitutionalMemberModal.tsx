@@ -1,18 +1,12 @@
 import { useState } from "react"
-import { ApiError, adminApi, COMMITTEE_ROLE_OPTIONS } from "../../api/client"
+import { COMMITTEE_ROLE_OPTIONS, type UserSuggestion } from "../../api/client"
 import type { CommitteeRoleCode, InstitutionalMemberDraft } from "../../types"
-import Avatar from "./Avatar"
-import Badge from "./Badge"
+import { normalizeInstitutionalEmail } from "../../hooks/useUserLookup"
 import Button from "./Button"
 import Icon from "./Icon"
 import Modal from "./Modal"
-
-interface FoundUser {
-  id: string
-  name: string
-  email: string
-  avatarUrl: string | null
-}
+import UserFoundCard from "./UserFoundCard"
+import UserSuggestInput from "./UserSuggestInput"
 
 interface InstitutionalMemberModalProps {
   onClose: () => void
@@ -24,55 +18,32 @@ interface InstitutionalMemberModalProps {
 }
 
 /**
- * Modal that finds an institutional user by e-mail and picks their committee role.
+ * Modal that finds an institutional user and picks their committee role.
  *
- * The lookup uses `GET /api/v1/admin/users/lookup`, which the backend restricts to
- * administrators and coordinators on the institutional network (403 otherwise).
+ * Typing filters live (up to three matches, keyboard or mouse); picking one
+ * fills the e-mail. The backend search endpoint is restricted to managers
+ * (admin/coordinator/advisor): other roles see the 403 message.
  */
 export default function InstitutionalMemberModal({ onClose, onSubmit }: InstitutionalMemberModalProps) {
   const [email, setEmail] = useState("")
+  const [selectedUser, setSelectedUser] = useState<UserSuggestion | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState("")
   const [role, setRole] = useState<CommitteeRoleCode>("MEMBER")
-  const [lookupLoading, setLookupLoading] = useState(false)
-  const [foundUser, setFoundUser] = useState<FoundUser | null>(null)
-  const [lookupError, setLookupError] = useState("")
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError, setSubmitError] = useState("")
 
-  const lookupUser = async () => {
-    const normalizedEmail = email.trim().toLowerCase()
-    if (!normalizedEmail) return
-    setLookupLoading(true)
-    setLookupError("")
-    setFoundUser(null)
-    try {
-      const result = await adminApi.lookupUser(normalizedEmail)
-      if (result.found && result.user) {
-        setFoundUser(result.user)
-      } else {
-        setLookupError(result.message || "Usuário não encontrado.")
-      }
-    } catch (reason) {
-      const forbidden = reason instanceof ApiError && reason.status === 403
-      const fallback = reason instanceof Error ? reason.message : "Não foi possível buscar o usuário."
-      setLookupError(
-        forbidden ? "Busca de usuários disponível apenas para administradores na rede institucional." : fallback,
-      )
-    } finally {
-      setLookupLoading(false)
-    }
-  }
-
   const submitMember = async () => {
-    if (!foundUser) return
+    if (!selectedUser) return
     setSubmitLoading(true)
     setSubmitError("")
     try {
       await onSubmit({
         role,
-        userId: foundUser.id,
-        name: foundUser.name,
-        email: foundUser.email,
-        avatarUrl: foundUser.avatarUrl,
+        userId: selectedUser.id,
+        name: selectedUser.name,
+        email: selectedUser.email,
+        avatarUrl: selectedUser.avatarUrl,
       })
       onClose()
     } catch (reason) {
@@ -80,6 +51,15 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
       setSubmitLoading(false)
     }
   }
+
+  const query = email.trim()
+  const foundHint = selectedUser
+    ? `Usuário encontrado: ${selectedUser.name}.`
+    : searchError
+      ? searchError
+      : query.length >= 2 && !searching
+        ? "Nenhum usuário correspondente."
+        : ""
 
   return (
     <Modal className="admin-modal invite-modal" onClose={onClose} labelledBy="institutional-member-title">
@@ -98,40 +78,43 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
         </div>
       )}
 
-      <label className="field">
-        <span>E-mail institucional</span>
-        <div className="member-lookup-row">
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value)
-              setFoundUser(null)
-              setLookupError("")
-            }}
-            placeholder="professor@ufvjm.edu.br"
-          />
-          <Button disabled={!email.trim() || lookupLoading} onClick={() => void lookupUser()}>
-            {lookupLoading ? "Buscando…" : "Buscar"}
-          </Button>
-        </div>
-      </label>
+      <div className="field">
+        <label htmlFor="institutional-member-user">
+          <span>Usuário ou e-mail institucional</span>
+        </label>
+        <UserSuggestInput
+          id="institutional-member-user"
+          value={email}
+          onChange={(next) => {
+            setEmail(next)
+            setSelectedUser(null)
+            setSubmitError("")
+          }}
+          onBlur={() => {
+            if (email.trim()) setEmail(normalizeInstitutionalEmail(email))
+          }}
+          onSelect={(user) => {
+            setEmail(user.email)
+            setSelectedUser(user)
+            setSubmitError("")
+          }}
+          onSuggestionsChange={({ loading, error }) => {
+            setSearching(loading)
+            setSearchError(error)
+          }}
+          placeholder="nome.sobrenome, usuário ou nome.sobrenome@ufvjm.edu.br"
+          autoComplete="email"
+          autoFocus
+        />
+        {query.length >= 2 && (
+          <span className="field-hint" aria-live="polite">
+            {foundHint}
+          </span>
+        )}
+      </div>
 
-      {lookupError && (
-        <div className="success-notice" role="alert">
-          {lookupError}
-        </div>
-      )}
-
-      {foundUser && (
-        <div className="institutional-banner session-banner" aria-live="polite">
-          <Avatar name={foundUser.name} imageUrl={foundUser.avatarUrl} />
-          <div>
-            <strong>{foundUser.name}</strong>
-            <span>{foundUser.email}</span>
-          </div>
-          <Badge tone="success">Encontrado</Badge>
-        </div>
+      {selectedUser && (
+        <UserFoundCard name={selectedUser.name} email={selectedUser.email} avatarUrl={selectedUser.avatarUrl} />
       )}
 
       <label className="field">
@@ -149,7 +132,7 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
         <Button variant="secondary" onClick={onClose}>
           Cancelar
         </Button>
-        <Button disabled={!foundUser || submitLoading} onClick={() => void submitMember()}>
+        <Button disabled={!selectedUser || submitLoading} onClick={() => void submitMember()}>
           {submitLoading ? "Adicionando…" : "Adicionar membro"}
         </Button>
       </div>

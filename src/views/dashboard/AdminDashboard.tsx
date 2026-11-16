@@ -1,3 +1,13 @@
+// TODO(auditoria): painel administrativo ainda mock; atribuído a outros desenvolvedores.
+// Dados reais disponíveis hoje:
+//   adminApi.users("?status=Ativo&pageSize=1") — total de usuários ativos (count)
+//   adminApi.courses("?pageSize=1") — total de cursos (count)
+//   adminApi.auditLogs("?pageSize=N") — eventos de auditoria
+// KPIs acadêmicos (monografias, taxa de aprovação) dependem de
+// `GET /api/v1/reports/overview`, ainda não implementado (ver ReportsView
+// e FUNCIONALIDADES.md, seção "Pendências identificadas na auditoria").
+// Infraestrutura/saúde de serviços NÃO tem fonte confiável no backend; não inventar.
+// Remover `systemServices` e `auditSnippet` (mockData.ts) ao conectar.
 import type { Page } from "../../types"
 import { auditSnippet, systemServices } from "../../data/mockData"
 import { Badge, Card, Kpi } from "../../components/common"

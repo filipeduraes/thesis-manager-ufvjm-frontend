@@ -9,9 +9,10 @@ import {
   type DefenseData,
   type DefenseMemberEvaluationData,
 } from "../api/client"
-import { Badge, Button, Card, Icon, PageTitle } from "../components/common"
+import { Badge, Breadcrumb, Button, Card, Icon, PageTitle, type BreadcrumbItem } from "../components/common"
 import { defenseStatusTone } from "../data/defenseStatus"
 import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
+import DefenseThesisCard from "./defense/DefenseThesisCard"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
 
 type DecisionCode = "APPROVED" | "APPROVED_WITH_REMARKS" | "REJECTED"
@@ -198,9 +199,15 @@ export default function DefenseEvaluation({
     }
   }
 
+  const breadcrumbItems: BreadcrumbItem[] = []
+  if (goBack) breadcrumbItems.push({ label: "Bancas", onClick: goBack })
+  breadcrumbItems.push({ label: "Minha avaliação" })
+  const evaluationBreadcrumb = <Breadcrumb items={breadcrumbItems} />
+
   if (loading) {
     return (
       <div className="page-content">
+        {goBack && evaluationBreadcrumb}
         <PageTitle eyebrow="Avaliação de banca" title="Carregando…" />
         <Card>
           <p aria-live="polite">Carregando dados da defesa…</p>
@@ -212,18 +219,12 @@ export default function DefenseEvaluation({
   if (loadError) {
     return (
       <div className="page-content">
+        {goBack && evaluationBreadcrumb}
         <PageTitle eyebrow="Avaliação de banca" title="Avaliação" />
         <Card>
           <div className="success-notice" role="alert">
             {loadError}
           </div>
-          {goBack && (
-            <div className="form-actions">
-              <Button variant="ghost" onClick={goBack}>
-                Voltar
-              </Button>
-            </div>
-          )}
         </Card>
       </div>
     )
@@ -234,16 +235,10 @@ export default function DefenseEvaluation({
   if (!myMember) {
     return (
       <div className="page-content">
+        {goBack && evaluationBreadcrumb}
         <PageTitle eyebrow="Avaliação de banca" title="Avaliação" />
         <Card>
           <p>Você não está registrado como membro desta banca.</p>
-          {goBack && (
-            <div className="form-actions">
-              <Button variant="ghost" onClick={goBack}>
-                Voltar
-              </Button>
-            </div>
-          )}
         </Card>
       </div>
     )
@@ -267,7 +262,10 @@ export default function DefenseEvaluation({
 
   return (
     <div className="page-content">
+      {goBack && evaluationBreadcrumb}
       <PageTitle eyebrow="Avaliação de banca" title="Minha avaliação" />
+
+      <DefenseThesisCard summary={defense.thesisSummary} />
 
       <Card className="thesis-summary defense-summary">
         <div className="file-icon">
@@ -339,13 +337,6 @@ export default function DefenseEvaluation({
               </span>
             </div>
           </div>
-          {goBack && (
-            <div className="form-actions">
-              <Button variant="ghost" onClick={goBack}>
-                Voltar
-              </Button>
-            </div>
-          )}
         </Card>
       )}
 

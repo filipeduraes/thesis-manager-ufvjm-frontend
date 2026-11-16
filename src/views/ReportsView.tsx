@@ -1,3 +1,19 @@
+// TODO(auditoria): relatórios inexistentes no backend; atribuído a outros desenvolvedores.
+// Contrato proposto na auditoria (2026-11-16):
+//   GET /api/v1/reports/overview?courseId=&advisorId=&year=
+//   -> summary: { total, approved, approvedOnly, withRemarks, rejected, pending,
+//                 published, approvalRate, averageSubmissionToDefenseDays,
+//                 defenseCount, completedDefenseCount }
+//      Aprovadas incluem APPROVED, APPROVED_WITH_REMARKS e PUBLISHED; pendentes =
+//      total - aprovadas - reprovadas; taxa = aprovadas / (aprovadas + reprovadas);
+//      média de dias do envio (submitted_at) até a primeira banca COMPLETED;
+//      ano do filtro corresponde à primeira banca encerrada.
+//   -> byCourse, byAdvisor, byYear (mesmos contadores por grupo)
+//   -> options: { courses, advisors, years }; filters (echo dos filtros aplicados)
+//   Escopo: admin vê tudo; coordenador vê apenas os cursos que coordena;
+//   orientador e aluno recebem 403 (tratar explicitamente).
+// Remover `reportBars` e `advisorStats` (mockData.ts) ao conectar; KPIs e tabela
+// podem ser exportados em CSV gerado a partir da resposta.
 import {
   Button,
   Card,

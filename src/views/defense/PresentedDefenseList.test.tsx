@@ -60,6 +60,7 @@ function lastListParams() {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear()
   listDefenses.mockReset()
   listDefenses.mockResolvedValue(page([]))
 })

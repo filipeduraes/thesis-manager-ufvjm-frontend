@@ -6,20 +6,13 @@ import {
   type PaginatedResponse,
   type UserLookupResult,
 } from "../api/client"
-import { Button, Card, Icon, Modal, PageTitle } from "../components/common"
+import { Button, Card, Icon, Modal, PageTitle, UserFoundCard, UserSuggestInput } from "../components/common"
+import { normalizeInstitutionalEmail, useUserLookup } from "../hooks/useUserLookup"
 
 type CourseAction = "edit" | "delete" | null
 
 const PAGE_SIZE = 10
 const NEW_DEPARTMENT = "__new__"
-const INSTITUTIONAL_DOMAIN = "ufvjm.edu.br"
-
-function normalizeCoordinatorEmail(value: string): string {
-  const local = value.trim().toLowerCase()
-  if (!local) return ""
-  if (local.includes("@")) return local
-  return `${local}@${INSTITUTIONAL_DOMAIN}`
-}
 
 function pageNumbers(current: number, total: number): number[] {
   const pages: number[] = []
@@ -35,8 +28,9 @@ function coordinatorLabel(course: AdminCourse): string {
   return "Sem coordenação"
 }
 
-function coordinatorHint(lookup: UserLookupResult | null, loading: boolean): string {
+function coordinatorHint(lookup: UserLookupResult | null, loading: boolean, error: string): string {
   if (loading) return "Verificando usuário…"
+  if (error) return error
   if (!lookup) return ""
   return lookup.message
 }
@@ -61,8 +55,7 @@ export default function AdminCourses() {
   const [departmentId, setDepartmentId] = useState("")
   const [departmentName, setDepartmentName] = useState("")
   const [coordinatorEmail, setCoordinatorEmail] = useState("")
-  const [lookup, setLookup] = useState<UserLookupResult | null>(null)
-  const [lookupLoading, setLookupLoading] = useState(false)
+  const { lookup, loading: lookupLoading, error: lookupError } = useUserLookup(coordinatorEmail)
   const [saving, setSaving] = useState(false)
 
   const loadDepartments = useCallback(async () => {
@@ -104,26 +97,6 @@ export default function AdminCourses() {
   useEffect(() => { void loadDepartments() }, [loadDepartments])
   useEffect(() => { void loadCourses(page) }, [loadCourses, page])
 
-  useEffect(() => {
-    const email = normalizeCoordinatorEmail(coordinatorEmail)
-    if (!email) {
-      setLookup(null)
-      return
-    }
-    const timer = window.setTimeout(async () => {
-      setLookupLoading(true)
-      try {
-        const result = await adminApi.lookupUser(email)
-        setLookup(result)
-      } catch {
-        setLookup(null)
-      } finally {
-        setLookupLoading(false)
-      }
-    }, 400)
-    return () => window.clearTimeout(timer)
-  }, [coordinatorEmail])
-
   const courseList = coursePage?.results ?? []
 
   const resetForm = (course?: AdminCourse | null) => {
@@ -132,7 +105,6 @@ export default function AdminCourses() {
     setDepartmentId(course?.departmentId ?? "")
     setDepartmentName("")
     setCoordinatorEmail(course?.coordinatorEmail ?? course?.coordinator?.email ?? "")
-    setLookup(null)
   }
 
   const closeModals = () => {
@@ -170,7 +142,7 @@ export default function AdminCourses() {
       await adminApi.createCourse({
         name: courseName.trim(),
         code: courseCode.trim().toUpperCase(),
-        coordinatorEmail: normalizeCoordinatorEmail(coordinatorEmail),
+        coordinatorEmail: normalizeInstitutionalEmail(coordinatorEmail),
         ...departmentPayload(),
       })
       setNotice("Curso criado com sucesso.")
@@ -191,7 +163,7 @@ export default function AdminCourses() {
       await adminApi.updateCourse(selectedCourse.id, {
         name: courseName.trim(),
         code: courseCode.trim().toUpperCase(),
-        coordinatorEmail: normalizeCoordinatorEmail(coordinatorEmail),
+        coordinatorEmail: normalizeInstitutionalEmail(coordinatorEmail),
         ...departmentPayload(),
       })
       setNotice("Curso atualizado com sucesso.")
@@ -377,21 +349,28 @@ export default function AdminCourses() {
               <input value={departmentName} onChange={(event) => setDepartmentName(event.target.value)} placeholder="Nome do departamento" />
             </label>
           )}
-          <label className="field">
-            <span>E-mail do coordenador responsável</span>
-            <input
-              type="text"
+          <div className="field">
+            <label htmlFor="coordinatorEmail">
+              <span>E-mail do coordenador responsável</span>
+            </label>
+            <UserSuggestInput
+              id="coordinatorEmail"
               value={coordinatorEmail}
-              onChange={(event) => setCoordinatorEmail(event.target.value)}
+              onChange={setCoordinatorEmail}
               onBlur={() => {
-                if (coordinatorEmail.trim()) setCoordinatorEmail(normalizeCoordinatorEmail(coordinatorEmail))
+                if (coordinatorEmail.trim()) setCoordinatorEmail(normalizeInstitutionalEmail(coordinatorEmail))
               }}
+              onSelect={(user) => setCoordinatorEmail(user.email)}
               placeholder="nome.sobrenome ou nome.sobrenome@ufvjm.edu.br"
+              autoComplete="email"
             />
             {coordinatorEmail.trim() && (
-              <span className="field-hint" aria-live="polite">{coordinatorHint(lookup, lookupLoading)}</span>
+              <span className="field-hint" aria-live="polite">{coordinatorHint(lookup, lookupLoading, lookupError)}</span>
             )}
-          </label>
+            {lookup?.found && lookup.user && (
+              <UserFoundCard name={lookup.user.name} email={lookup.user.email} avatarUrl={lookup.user.avatarUrl} />
+            )}
+          </div>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeModals}>Cancelar</Button>
             <Button disabled={!canSaveCourse || saving} onClick={() => void (courseAction === "edit" ? saveCourse() : createCourse())}>

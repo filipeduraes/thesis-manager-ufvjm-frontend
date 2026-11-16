@@ -115,12 +115,7 @@ export function SelectField({
           defaultValue={controlled ? undefined : ""}
           onChange={controlled ? (event) => onChange(event.target.value) : undefined}
         >
-          <option value="" disabled>
-            {children}
-          </option>
-          <option>Engenharia de Sistemas</option>
-          <option>Administração</option>
-          <option>Ciências Biológicas</option>
+          <option value="">{children}</option>
         </select>
       )}
       {hint && <small>{hint}</small>}

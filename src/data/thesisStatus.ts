@@ -115,6 +115,7 @@ export function formatDateTime(value: string | null | undefined): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
   }).format(parsed)
 }
 
@@ -126,6 +127,7 @@ export function formatDate(value: string | null | undefined): string {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: "America/Sao_Paulo",
   }).format(parsed)
 }
 

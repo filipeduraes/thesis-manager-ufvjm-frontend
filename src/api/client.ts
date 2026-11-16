@@ -314,6 +314,22 @@ export interface ExternalInvitationRecord {
   usedAt: string | null
 }
 
+// ─── Directory API ────────────────────────────────────────────────────────────
+
+/** Usuário institucional mínimo devolvido pela busca de autocomplete. */
+export interface UserSuggestion {
+  id: string
+  name: string
+  email: string
+  avatarUrl: string | null
+}
+
+/** Busca de usuários institucionais para autocomplete (admin, coordenador e orientador). */
+export const usersApi = {
+  suggest: (query: string) =>
+    apiRequest<{ results: UserSuggestion[] }>(`/users/suggest${queryString({ q: query })}`),
+}
+
 // ─── Defense API ──────────────────────────────────────────────────────────────
 
 export const DEFENSE_RESULT_LABELS: Record<string, string> = {
@@ -396,10 +412,49 @@ export interface DefenseStatusHistoryEntry {
   createdAt: string
 }
 
+/** Arquivo atual da monografia, conforme thesis_summary_payload. */
+export interface DefenseThesisSummaryFile {
+  id: string
+  versionNumber: number
+  originalFilename: string
+  sizeBytes: number
+  sha256: string
+  uploadedAt: string
+  /** null em sessões externas, que não podem acessar as rotas institucionais. */
+  previewUrl: string | null
+  downloadUrl: string | null
+}
+
+/**
+ * Resumo da monografia anexado às bancas para navegação e leitura do PDF.
+ * Evita uma segunda requisição em `/defenses` e `/defenses/{id}`.
+ */
+export interface DefenseThesisSummary {
+  id: string
+  referenceCode: string
+  title: string
+  type: string
+  typeLabel: string
+  status: ThesisStatus
+  statusLabel: string
+  isPublic: boolean
+  course: ThesisCourseBrief
+  advisor: ThesisUserBrief | null
+  student: ThesisUserBrief | null
+  keywords: string[]
+  submittedAt: string | null
+  publishedAt: string | null
+  currentFile: DefenseThesisSummaryFile | null
+}
+
 /** Payload de uma defesa, tal como retornado por defense_payload. */
 export interface DefenseData {
   id: string
   thesis: string
+  /** Id da monografia; equivalente a `thesis`, exposto para telas que usam o resumo. */
+  thesisId?: string
+  /** Resumo da monografia embutido no detalhe e na listagem (thesis_summary_payload). */
+  thesisSummary?: DefenseThesisSummary
   scheduledDatetime: string
   durationMinutes: number
   modality: string

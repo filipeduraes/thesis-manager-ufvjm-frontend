@@ -45,10 +45,10 @@ Mantenha credenciais e outros dados sensíveis privados. Não versione arquivos 
 Para iniciar o servidor de desenvolvimento, execute:
 
 ```bash
-npm run dev
+npm start
 ```
 
-Após a inicialização, o terminal exibirá o endereço local da aplicação. Acesse esse endereço pelo navegador.
+Após a inicialização, a aplicação estará disponível em `http://localhost:3000`.
 
 Para interromper o servidor, pressione `Ctrl + C` no terminal.
 
@@ -60,10 +60,10 @@ Para compilar o projeto para produção, execute:
 npm run build
 ```
 
-Para testar localmente a versão compilada, caso o projeto ofereça esse script, execute:
+Para testar localmente a versão compilada, use qualquer servidor estático apontando a raiz para a pasta `build`, por exemplo:
 
 ```bash
-npm run preview
+npx serve -s build
 ```
 
 ## 7. Desenvolvimento
@@ -78,7 +78,14 @@ npm install
 Em seguida, inicie o servidor de desenvolvimento:
 
 ```bash
-npm run dev
+npm start
+```
+
+Antes de enviar alterações, rode os testes e a verificação de tipos:
+
+```bash
+npx tsc --noEmit
+CI=true npm test -- --watchAll=false
 ```
 
 Consulte a seção `scripts` do arquivo `package.json` para verificar os comandos disponíveis no projeto.
