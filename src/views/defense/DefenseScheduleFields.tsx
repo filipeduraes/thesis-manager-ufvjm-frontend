@@ -1,23 +1,38 @@
 import type { DefenseScheduleDraft } from "../../types"
-import { DURATION_PRESETS, expectedEnd, MAX_DURATION_MINUTES } from "./defenseSchedule"
+import { DURATION_PRESETS, expectedEnd, locationError, MAX_DURATION_MINUTES } from "./defenseSchedule"
 
 interface DefenseScheduleFieldsProps {
   value: DefenseScheduleDraft
   onChange: (next: DefenseScheduleDraft) => void
   /** Prefix for element ids, so two instances never share ids. */
   idPrefix: string
+  /**
+   * Whether to flag an invalid remote link. The edit modal turns it off while modality
+   * and location are unchanged, as the backend does for older defenses.
+   */
+  validateLocation?: boolean
 }
 
 /**
  * Controlled scheduling fields shared by the scheduling form and the edit modal:
  * date, start time, duration (with shortcuts), expected end, modality, location, and notes.
  */
-export default function DefenseScheduleFields({ value, onChange, idPrefix }: DefenseScheduleFieldsProps) {
+export default function DefenseScheduleFields({
+  value,
+  onChange,
+  idPrefix,
+  validateLocation = true,
+}: DefenseScheduleFieldsProps) {
   const update = (patch: Partial<DefenseScheduleDraft>) => onChange({ ...value, ...patch })
   const end = expectedEnd(value.startTime, value.duration)
   const durationHintId = `${idPrefix}-duration-hint`
   const endId = `${idPrefix}-expected-end`
   const modalityLabelId = `${idPrefix}-modality-label`
+  const isRemote = value.modality === "REMOTE"
+  const locationHintId = `${idPrefix}-location-hint`
+  const locationErrorId = `${idPrefix}-location-error`
+  // Só aponta o erro depois que algo foi digitado; o campo vazio mostra a dica.
+  const showLocationError = validateLocation && value.location.trim() !== "" && locationError(value) !== null
 
   return (
     <>
@@ -95,16 +110,30 @@ export default function DefenseScheduleFields({ value, onChange, idPrefix }: Def
           </button>
         </div>
       </div>
-      <label className="field">
-        <span>
-          {value.modality === "REMOTE" ? "Link da videoconferência" : "Local da defesa"} <small>(opcional)</small>
-        </span>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-location`}>
+          {isRemote ? "Link da defesa" : "Local da defesa"}
+          {!isRemote && <small> (opcional)</small>}
+        </label>
         <input
+          id={`${idPrefix}-location`}
+          type={isRemote ? "url" : "text"}
+          inputMode={isRemote ? "url" : undefined}
           value={value.location}
           onChange={(event) => update({ location: event.target.value })}
-          placeholder={value.modality === "REMOTE" ? "https://meet.google.com/..." : "Sala / prédio"}
+          placeholder={isRemote ? "https://..." : "Sala / prédio"}
+          aria-invalid={showLocationError || undefined}
+          aria-describedby={isRemote ? (showLocationError ? locationErrorId : locationHintId) : undefined}
         />
-      </label>
+        {isRemote && !showLocationError && (
+          <small id={locationHintId}>Obrigatório para defesa remota: endereço http ou https da reunião.</small>
+        )}
+        {showLocationError && (
+          <small id={locationErrorId} className="field-error" role="alert">
+            {locationError(value)}
+          </small>
+        )}
+      </div>
       <label className="field">
         <span>
           Observações <small>(opcional)</small>

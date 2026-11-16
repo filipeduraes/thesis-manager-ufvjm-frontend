@@ -118,3 +118,34 @@ test("opens the committee right away when no external member was sent", async ()
   await waitFor(() => expect(onOpenCommittee).toHaveBeenCalledWith("defense-9"))
   expect(screen.queryByRole("dialog")).toBeNull()
 })
+
+test("asks for a valid meeting link when the defense is remote", async () => {
+  scheduleDefense.mockResolvedValue({ defense: scheduledDefense() })
+  render(<DefenseScheduleForm onOpenCommittee={() => undefined} />)
+  await fillSchedule()
+
+  expect(screen.getByLabelText(/Local da defesa/)).toHaveProperty("placeholder", "Sala / prédio")
+  userEvent.click(screen.getByRole("radio", { name: "Remota" }))
+  const link = screen.getByLabelText("Link da defesa")
+  expect(link).toHaveProperty("placeholder", "https://...")
+  expect(screen.queryByLabelText(/Local da defesa/)).toBeNull()
+  const confirm = screen.getByRole("button", { name: "Confirmar agendamento" })
+  expect(confirm).toHaveProperty("disabled", true)
+
+  userEvent.type(link, "meet.google.com/abc")
+  expect(screen.getByRole("alert").textContent).toBe("Para defesa remota, informe o link da reunião (URL http ou https).")
+  expect(link.getAttribute("aria-invalid")).toBe("true")
+  expect(confirm).toHaveProperty("disabled", true)
+
+  userEvent.clear(link)
+  userEvent.type(link, "https://meet.google.com/abc")
+  expect(screen.queryByRole("alert")).toBeNull()
+  expect(confirm).toHaveProperty("disabled", false)
+  userEvent.click(confirm)
+  await waitFor(() =>
+    expect(scheduleDefense).toHaveBeenCalledWith(
+      "thesis-1",
+      expect.objectContaining({ modality: "REMOTE", location: "https://meet.google.com/abc" }),
+    ),
+  )
+})

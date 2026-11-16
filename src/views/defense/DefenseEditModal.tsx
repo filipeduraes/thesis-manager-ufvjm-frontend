@@ -3,7 +3,7 @@ import { ApiError, defenseApi, type DefenseData } from "../../api/client"
 import { Button, Icon, Modal } from "../../components/common"
 import type { DefenseScheduleDraft } from "../../types"
 import DefenseScheduleFields from "./DefenseScheduleFields"
-import { changedScheduleFields, defenseToDraft, isFutureStart } from "./defenseSchedule"
+import { changedScheduleFields, defenseToDraft, isFutureStart, locationError } from "./defenseSchedule"
 
 function saveErrorMessage(reason: unknown): string {
   if (reason instanceof ApiError && reason.status === 403) {
@@ -34,7 +34,11 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
   const changes = changedScheduleFields(original, draft)
   const hasChanges = changes !== null && Object.keys(changes).length > 0
   const startInPast = changes?.scheduledDatetime !== undefined && !isFutureStart(changes.scheduledDatetime)
-  const canSave = hasChanges && !startInPast && !saving
+  // Como o backend, só valida o link quando modalidade ou local mudam: bancas antigas
+  // com local fora do padrão continuam editáveis nos demais campos.
+  const locationChanged = draft.modality !== original.modality || draft.location.trim() !== original.location.trim()
+  const invalidLocation = locationChanged && locationError(draft) !== null
+  const canSave = hasChanges && !startInPast && !invalidLocation && !saving
 
   const saveSchedule = async () => {
     if (!changes || !canSave) return
@@ -67,7 +71,12 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
       )}
 
       <fieldset className="plain-fieldset" disabled={saving}>
-        <DefenseScheduleFields idPrefix="edit-defense" value={draft} onChange={setDraft} />
+        <DefenseScheduleFields
+          idPrefix="edit-defense"
+          value={draft}
+          onChange={setDraft}
+          validateLocation={locationChanged}
+        />
       </fieldset>
 
       {startInPast && (

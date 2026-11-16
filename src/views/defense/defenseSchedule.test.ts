@@ -6,9 +6,12 @@ import {
   expectedEnd,
   formatDuration,
   isFutureStart,
+  isValidMeetingUrl,
   isoToSaoPauloInputs,
+  locationError,
   parseDurationMinutes,
   saoPauloInputsToIso,
+  REMOTE_LOCATION_ERROR,
   scheduleSummary,
 } from "./defenseSchedule"
 
@@ -108,4 +111,23 @@ test("sends only the fields that changed when editing", () => {
     scheduledDatetime: "2026-11-16T21:00:00.000Z",
   })
   expect(changedScheduleFields(BASE_DRAFT, { ...BASE_DRAFT, duration: "" })).toBeNull()
+})
+
+test("accepts only http(s) meeting links", () => {
+  expect(isValidMeetingUrl("https://meet.google.com/abc-defg-hij")).toBe(true)
+  expect(isValidMeetingUrl("  http://conferenciaweb.rnp.br/sala/ufvjm ")).toBe(true)
+  expect(isValidMeetingUrl("http://localhost:8080/sala")).toBe(true)
+  expect(isValidMeetingUrl("meet.google.com/abc")).toBe(false)
+  expect(isValidMeetingUrl("ftp://arquivos.ufvjm.edu.br")).toBe(false)
+  expect(isValidMeetingUrl("https://meet")).toBe(false)
+  expect(isValidMeetingUrl("https://meet.google.com/abc def")).toBe(false)
+  expect(isValidMeetingUrl("")).toBe(false)
+})
+
+test("requires the link only for remote defenses", () => {
+  expect(locationError({ modality: "REMOTE", location: "" })).toBe(REMOTE_LOCATION_ERROR)
+  expect(locationError({ modality: "REMOTE", location: "Sala 10" })).toBe(REMOTE_LOCATION_ERROR)
+  expect(locationError({ modality: "REMOTE", location: "https://meet.google.com/x" })).toBeNull()
+  expect(locationError({ modality: "IN_PERSON", location: "" })).toBeNull()
+  expect(locationError({ modality: null, location: "qualquer" })).toBeNull()
 })

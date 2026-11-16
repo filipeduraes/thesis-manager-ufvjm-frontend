@@ -23,7 +23,13 @@ import type {
 } from "../../types"
 import { thesisStatusTone } from "../../data/thesisStatus"
 import DefenseScheduleFields from "./DefenseScheduleFields"
-import { draftToScheduleInput, EMPTY_SCHEDULE_DRAFT, isFutureStart, scheduleSummary } from "./defenseSchedule"
+import {
+  draftToScheduleInput,
+  EMPTY_SCHEDULE_DRAFT,
+  isFutureStart,
+  locationError,
+  scheduleSummary,
+} from "./defenseSchedule"
 
 const SCHEDULABLE_PAGE_SIZE = 100
 
@@ -57,7 +63,9 @@ function errorMessage(reason: unknown, fallback: string): string {
 }
 
 function modalityText(draft: DefenseScheduleDraft): string {
-  if (draft.modality === "REMOTE") return "Remota"
+  if (draft.modality === "REMOTE") {
+    return locationError(draft) ? "Remota · informe o link da defesa (https://...)" : "Remota"
+  }
   if (draft.modality === "IN_PERSON") return "Presencial"
   return "Escolha a modalidade"
 }
@@ -120,7 +128,9 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
   // O backend inicia automaticamente bancas com horário vencido; agendar no passado
   // deixaria a banca "Em andamento" antes de poder ser editada ou cancelada.
   const startInPast = scheduleInput !== null && !isFutureStart(scheduleInput.scheduledDatetime)
-  const canConfirm = Boolean(selectedThesis && scheduleInput) && !startInPast && !formLocked
+  const invalidLocation = locationError(scheduleDraft) !== null
+  const modalityReady = Boolean(scheduleDraft.modality) && !invalidLocation
+  const canConfirm = Boolean(selectedThesis && scheduleInput) && !startInPast && !invalidLocation && !formLocked
 
   const addPendingMember = (member: PendingMember) => {
     if (members.some((current) => current.key === member.key)) {
@@ -336,8 +346,8 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
                   </small>
                 </span>
               </div>
-              <div className={scheduleDraft.modality ? "ok" : ""}>
-                <Icon name={scheduleDraft.modality ? "check" : "clock"} />
+              <div className={modalityReady ? "ok" : ""}>
+                <Icon name={modalityReady ? "check" : "clock"} />
                 <span>
                   <strong>Modalidade</strong>
                   <small>{modalityText(scheduleDraft)}</small>

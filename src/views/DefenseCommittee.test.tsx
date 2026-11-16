@@ -476,3 +476,24 @@ test("hides Gerar novo token on a completed defense", async () => {
   await screen.findByText("Paula Externa")
   expect(screen.queryByRole("button", { name: "Gerar novo token" })).toBeNull()
 })
+
+test("edit modal keeps an older remote location editable and validates a changed link", async () => {
+  renderCommittee({ ...buildDefense("SCHEDULED"), modality: "REMOTE", modalityLabel: "Remota", location: "Sala virtual" }, { canStartClose: true })
+  userEvent.click(await screen.findByRole("button", { name: "Editar agendamento" }))
+  const dialog = screen.getByRole("dialog")
+  const save = within(dialog).getByRole("button", { name: "Salvar alterações" })
+
+  userEvent.type(within(dialog).getByLabelText(/Observações/), "Levar projetor")
+  expect(within(dialog).queryByRole("alert")).toBeNull()
+  expect(save).toHaveProperty("disabled", false)
+
+  const link = within(dialog).getByLabelText("Link da defesa")
+  userEvent.clear(link)
+  userEvent.type(link, "sala2")
+  expect(within(dialog).getByRole("alert").textContent).toContain("informe o link da reunião")
+  expect(save).toHaveProperty("disabled", true)
+
+  userEvent.clear(link)
+  userEvent.type(link, "https://meet.google.com/nova")
+  expect(save).toHaveProperty("disabled", false)
+})

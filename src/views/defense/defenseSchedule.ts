@@ -217,3 +217,31 @@ export function formatDefenseTimeRange(iso: string, durationMinutes: number): st
   if (!end) return startTime
   return `${startTime} às ${end.time}${end.nextDay ? " (dia seguinte)" : ""}`
 }
+
+/** Same message the backend returns in `errors.location` (validate_defense_location). */
+export const REMOTE_LOCATION_ERROR = "Para defesa remota, informe o link da reunião (URL http ou https)."
+
+/**
+ * Returns whether the value looks like an http(s) meeting link.
+ *
+ * Mirrors Django's URLValidator closely enough for fast feedback (scheme, a dotted host
+ * or localhost, no spaces); the backend still decides.
+ */
+export function isValidMeetingUrl(value: string): boolean {
+  const trimmed = value.trim()
+  if (!trimmed || /\s/.test(trimmed)) return false
+  try {
+    const url = new URL(trimmed)
+    const validScheme = url.protocol === "http:" || url.protocol === "https:"
+    const validHost = url.hostname === "localhost" || url.hostname.includes(".")
+    return validScheme && validHost
+  } catch {
+    return false
+  }
+}
+
+/** Returns the location error for the draft's modality, or `null` when it is valid. */
+export function locationError(draft: Pick<DefenseScheduleDraft, "modality" | "location">): string | null {
+  if (draft.modality !== "REMOTE") return null
+  return isValidMeetingUrl(draft.location) ? null : REMOTE_LOCATION_ERROR
+}

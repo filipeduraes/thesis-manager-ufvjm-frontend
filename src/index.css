@@ -3357,6 +3357,14 @@ footer .logo {
   }
 }
 
+.field small.field-error {
+  color: var(--danger)
+}
+
+.field input[aria-invalid="true"] {
+  border-color: var(--danger)
+}
+
 .duration-presets {
   display: flex;
   flex-wrap: wrap;
