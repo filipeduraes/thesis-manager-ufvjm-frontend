@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react"
-import { reportsApi, type ReportsOverview, type ReportsOverviewParams } from "../api/client"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { ApiError, reportsApi, type ReportsOverview, type ReportsOverviewParams } from "../api/client"
 import ChartCanvas from "../components/charts/ChartCanvas"
 import { Button, Card, Icon, Kpi, PageTitle, SelectField } from "../components/common"
 import {
@@ -43,6 +43,16 @@ interface ReportFilterOptions {
   years: FilterOption[]
 }
 
+/** Maps a failed PDF export to a message in Portuguese (403, 429, expired session or generic). */
+function exportErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return "Sua sessão expirou. Entre novamente para exportar o relatório."
+    if (error.status === 403) return "Você não tem permissão para exportar estes relatórios."
+    if (error.status === 429) return "Muitas exportações em pouco tempo. Aguarde um minuto e tente novamente."
+  }
+  return "Não foi possível gerar o PDF. Tente novamente."
+}
+
 function filterOptions(overview: ReportsOverview | undefined): ReportFilterOptions {
   const courses = overview?.options.courses ?? []
   const advisors = overview?.options.advisors ?? []
@@ -74,6 +84,26 @@ export default function ReportsView() {
     }
   }, [overview])
 
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState("")
+  // O ref bloqueia um segundo clique que chegue antes de o botão ser re-renderizado como desabilitado.
+  const exportInFlight = useRef(false)
+
+  const exportReportPdf = async () => {
+    if (exportInFlight.current) return
+    exportInFlight.current = true
+    setIsExporting(true)
+    setExportError("")
+    try {
+      await reportsApi.exportPdf(toOverviewParams(filters))
+    } catch (error) {
+      setExportError(exportErrorMessage(error))
+    } finally {
+      exportInFlight.current = false
+      setIsExporting(false)
+    }
+  }
+
   const updateFilter = (field: keyof ReportFilterValues) => (value: string) => {
     setFilters((current) => ({ ...current, [field]: value }))
   }
@@ -98,6 +128,9 @@ export default function ReportsView() {
   const { summary } = overview
   const hasFilters = filters.courseId !== "" || filters.advisorId !== "" || filters.year !== ""
   const isEmpty = summary.thesisCount === 0 && summary.completedDefenseCount === 0
+  const statusMessages: string[] = []
+  if (report.status === "loading") statusMessages.push("Atualizando indicadores…")
+  if (isExporting) statusMessages.push("Gerando o PDF com os filtros atuais…")
   const scopeDescription =
     overview.scope === "ALL" ? "Dados de todos os cursos." : "Dados dos cursos que você coordena."
 
@@ -112,10 +145,18 @@ export default function ReportsView() {
         <Button variant="outline" onClick={() => setFilters(EMPTY_FILTERS)} disabled={!hasFilters}>
           Limpar filtros
         </Button>
+        <Button variant="primary" icon="download" onClick={() => void exportReportPdf()} disabled={isExporting}>
+          {isExporting ? "Gerando PDF…" : "Exportar PDF"}
+        </Button>
       </Card>
       <p className="scope-note" role="status" aria-live="polite">
-        {report.status === "loading" ? "Atualizando indicadores…" : ""}
+        {statusMessages.join(" ")}
       </p>
+      {exportError ? (
+        <div className="form-error" role="alert">
+          {exportError}
+        </div>
+      ) : null}
 
       <div className="kpi-grid four">
         <Kpi label="Total de monografias" value={formatCount(summary.thesisCount)} meta={`${formatCount(summary.inProgressCount)} em andamento · ${formatCount(summary.publishedCount)} publicadas`} icon="file" />
