@@ -1,205 +1,216 @@
-// TODO(auditoria): relatórios inexistentes no backend; atribuído a outros desenvolvedores.
-// Contrato proposto na auditoria (2026-11-16):
-//   GET /api/v1/reports/overview?courseId=&advisorId=&year=
-//   -> summary: { total, approved, approvedOnly, withRemarks, rejected, pending,
-//                 published, approvalRate, averageSubmissionToDefenseDays,
-//                 defenseCount, completedDefenseCount }
-//      Aprovadas incluem APPROVED, APPROVED_WITH_REMARKS e PUBLISHED; pendentes =
-//      total - aprovadas - reprovadas; taxa = aprovadas / (aprovadas + reprovadas);
-//      média de dias do envio (submitted_at) até a primeira banca COMPLETED;
-//      ano do filtro corresponde à primeira banca encerrada.
-//   -> byCourse, byAdvisor, byYear (mesmos contadores por grupo)
-//   -> options: { courses, advisors, years }; filters (echo dos filtros aplicados)
-//   Escopo: admin vê tudo; coordenador vê apenas os cursos que coordena;
-//   orientador e aluno recebem 403 (tratar explicitamente).
-// Remover `reportBars` e `advisorStats` (mockData.ts) ao conectar; KPIs e tabela
-// podem ser exportados em CSV gerado a partir da resposta.
+import { useCallback, useMemo, useState } from "react"
+import { reportsApi, type ReportsOverview, type ReportsOverviewParams } from "../api/client"
+import ChartCanvas from "../components/charts/ChartCanvas"
+import { Button, Card, Icon, Kpi, PageTitle, SelectField } from "../components/common"
 import {
-  Button,
-  Card,
-  Kpi,
-  PageTitle,
-  SelectField,
-} from "../components/common"
-import { advisorStats, reportBars } from "../data/mockData"
+  completedDefensesByYear,
+  defenseResultBreakdown,
+  RESULT_COLOR_TOKENS,
+  thesesByAdvisor,
+  thesesByCourse,
+} from "../data/reportCharts"
+import { APPROVAL_RATE_LABEL, formatCount, formatDays, formatRate } from "../data/reportFormat"
+import { loadErrorMessage, useAsyncData } from "../hooks/useAsyncData"
+import DashboardError from "./dashboard/DashboardError"
+import DashboardLoading from "./dashboard/DashboardLoading"
 
+const ADVISOR_CHART_LIMIT = 10
+
+interface ReportFilterValues {
+  courseId: string
+  advisorId: string
+  year: string
+}
+
+const EMPTY_FILTERS: ReportFilterValues = { courseId: "", advisorId: "", year: "" }
+
+function toOverviewParams(filters: ReportFilterValues): ReportsOverviewParams {
+  return {
+    courseId: filters.courseId || undefined,
+    advisorId: filters.advisorId || undefined,
+    year: filters.year ? Number(filters.year) : undefined,
+  }
+}
+
+interface FilterOption {
+  value: string
+  label: string
+}
+
+interface ReportFilterOptions {
+  courses: FilterOption[]
+  advisors: FilterOption[]
+  years: FilterOption[]
+}
+
+function filterOptions(overview: ReportsOverview | undefined): ReportFilterOptions {
+  const courses = overview?.options.courses ?? []
+  const advisors = overview?.options.advisors ?? []
+  const years = overview?.options.years ?? []
+  return {
+    courses: [{ value: "", label: "Todos os cursos" }, ...courses.map((course) => ({ value: course.id, label: `${course.code} · ${course.name}` }))],
+    advisors: [{ value: "", label: "Todos os orientadores" }, ...advisors.map((advisor) => ({ value: advisor.id, label: advisor.name }))],
+    years: [{ value: "", label: "Todos os anos" }, ...years.map((year) => ({ value: String(year), label: String(year) }))],
+  }
+}
+
+/**
+ * Coordinator and administrator reports (`GET /api/v1/reports/overview`).
+ * Loaded with `React.lazy` from `App.tsx`, so Chart.js only ships with this screen and the dashboards.
+ */
 export default function ReportsView() {
+  const [filters, setFilters] = useState<ReportFilterValues>(EMPTY_FILTERS)
+  const loadOverview = useCallback(() => reportsApi.overview(toOverviewParams(filters)), [filters])
+  const report = useAsyncData(loadOverview)
+  const overview = report.value
+  const options = useMemo(() => filterOptions(overview), [overview])
+  const charts = useMemo(() => {
+    if (!overview) return null
+    return {
+      byCourse: thesesByCourse(overview.byCourse),
+      results: defenseResultBreakdown(overview.summary),
+      byYear: completedDefensesByYear(overview.byDefenseYear),
+      byAdvisor: thesesByAdvisor(overview.byAdvisor, ADVISOR_CHART_LIMIT),
+    }
+  }, [overview])
+
+  const updateFilter = (field: keyof ReportFilterValues) => (value: string) => {
+    setFilters((current) => ({ ...current, [field]: value }))
+  }
+
+  if (report.status === "error") {
+    const message = loadErrorMessage(report.error, "Não foi possível carregar os relatórios.")
+    return (
+      <div className="page-content">
+        <DashboardError title="Não foi possível carregar os relatórios" message={message} onRetry={report.reload} />
+      </div>
+    )
+  }
+
+  if (!overview || !charts) {
+    return (
+      <div className="page-content">
+        <DashboardLoading icon="chart" title="Carregando relatórios…" description="Calculando indicadores no servidor." />
+      </div>
+    )
+  }
+
+  const { summary } = overview
+  const hasFilters = filters.courseId !== "" || filters.advisorId !== "" || filters.year !== ""
+  const isEmpty = summary.thesisCount === 0 && summary.completedDefenseCount === 0
+  const scopeDescription =
+    overview.scope === "ALL" ? "Dados de todos os cursos." : "Dados dos cursos que você coordena."
+
   return (
     <div className="page-content">
-      <PageTitle
-        eyebrow="Inteligência acadêmica"
-        title="Relatórios e indicadores"
-        action={
-          <Button variant="secondary" icon="download">
-            Exportar relatório
-          </Button>
-        }
-      />
+      <PageTitle eyebrow="Inteligência acadêmica" title="Relatórios e indicadores" subtitle={scopeDescription} />
+
       <Card className="report-filters">
-        <SelectField label="Período">2025.1</SelectField>
-        <SelectField label="Curso">Todos os cursos</SelectField>
-        <SelectField label="Orientador">Todos os orientadores</SelectField>
-        <Button>Aplicar filtros</Button>
+        <SelectField label="Curso" options={options.courses} value={filters.courseId} onChange={updateFilter("courseId")} />
+        <SelectField label="Orientador" options={options.advisors} value={filters.advisorId} onChange={updateFilter("advisorId")} />
+        <SelectField label="Ano de defesa" options={options.years} value={filters.year} onChange={updateFilter("year")} />
+        <Button variant="outline" onClick={() => setFilters(EMPTY_FILTERS)} disabled={!hasFilters}>
+          Limpar filtros
+        </Button>
       </Card>
+      <p className="scope-note" role="status" aria-live="polite">
+        {report.status === "loading" ? "Atualizando indicadores…" : ""}
+      </p>
+
       <div className="kpi-grid four">
-        <Kpi
-          label="Total de monografias"
-          value="248"
-          meta="+12% vs. período anterior"
-          icon="file"
-        />
-        <Kpi
-          label="Taxa de aprovação"
-          value="87,4%"
-          meta="+2,1 pontos percentuais"
-          icon="check"
-        />
-        <Kpi
-          label="Submissão até defesa"
-          value="68 dias"
-          meta="-6 dias vs. média anterior"
-          icon="clock"
-        />
-        <Kpi
-          label="Bancas realizadas"
-          value="126"
-          meta="98% dentro do prazo"
-          icon="calendar"
-        />
+        <Kpi label="Total de monografias" value={formatCount(summary.thesisCount)} meta={`${formatCount(summary.inProgressCount)} em andamento · ${formatCount(summary.publishedCount)} publicadas`} icon="file" />
+        <Kpi label={APPROVAL_RATE_LABEL} value={formatRate(summary.approvalRate)} meta={`${formatCount(summary.rejectedCount)} reprovação(ões)`} icon="check" />
+        <Kpi label="Submissão até a defesa" value={formatDays(summary.averageSubmissionToDefenseDays)} meta="Média por banca concluída" icon="clock" />
+        <Kpi label="Bancas concluídas" value={formatCount(summary.completedDefenseCount)} meta={`${formatCount(summary.scheduledDefenseCount)} agendada(s)`} icon="calendar" />
       </div>
-      <div className="charts-grid">
+
+      {isEmpty ? (
         <Card>
-          <div className="section-head">
+          <div className="empty-state">
             <div>
-              <p className="eyebrow">Distribuição</p>
-              <h3>Monografias por curso</h3>
+              <Icon name="chart" />
             </div>
-            <Button variant="ghost" icon="more">
-              Opções
-            </Button>
+            <h2>Nenhum dado para os filtros selecionados</h2>
+            <p>Altere os filtros ou aguarde as primeiras submissões e bancas.</p>
           </div>
-          <div className="bar-chart">
-            {reportBars.map((b, i) => (
-              <div key={i}>
-                <span>{b}</span>
-                <i style={{ height: `${b}%` }} />
-                <small>{["ADM", "BIO", "ENG", "HIS", "PED", "SIS"][i]}</small>
+        </Card>
+      ) : (
+        <>
+          <div className="charts-grid">
+            <Card>
+              <div className="section-head">
+                <div>
+                  <p className="eyebrow">Distribuição</p>
+                  <h3>Monografias por curso</h3>
+                </div>
               </div>
-            ))}
-          </div>
-        </Card>
-        <Card>
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Resultados</p>
-              <h3>Taxa de aprovação</h3>
-            </div>
-          </div>
-          <div className="donut-wrap">
-            <div className="donut">
-              <strong>87,4%</strong>
-              <span>aprovação</span>
-            </div>
-            <div className="legend">
-              <span>
-                <i className="c1" />
-                Aprovadas <strong>78%</strong>
-              </span>
-              <span>
-                <i className="c2" />
-                Com ressalvas <strong>9,4%</strong>
-              </span>
-              <span>
-                <i className="c3" />
-                Reprovadas <strong>12,6%</strong>
-              </span>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Série histórica</p>
-              <h3>Monografias por ano de defesa</h3>
-            </div>
-          </div>
-          <div className="line-chart">
-            <svg viewBox="0 0 500 180">
-              <path d="M20 150 L110 128 L200 92 L290 108 L380 52 L480 34" />
-              <path
-                className="area"
-                d="M20 150 L110 128 L200 92 L290 108 L380 52 L480 34 L480 170 L20 170Z"
-              />
-              {[
-                [20, 150],
-                [110, 128],
-                [200, 92],
-                [290, 108],
-                [380, 52],
-                [480, 34],
-              ].map((p, i) => (
-                <circle key={i} cx={p[0]} cy={p[1]} r="5" />
-              ))}
-            </svg>
-            <div>
-              {["2020", "2021", "2022", "2023", "2024", "2025"].map((x) => (
-                <span key={x}>{x}</span>
-              ))}
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="section-head">
-            <div>
-              <p className="eyebrow">Orientação</p>
-              <h3>Monografias por orientador</h3>
-            </div>
-          </div>
-          <div className="horizontal-bars">
-            {advisorStats.map((item) => (
-              <div key={item.name}>
-                <span>{item.name}</span>
-                <i>
-                  <b style={{ width: `${item.percentage}%` }} />
-                </i>
-                <strong>{Math.round(item.percentage / 5)}</strong>
+              <ChartCanvas kind="bar" title="Monografias por curso" labels={charts.byCourse.labels} series={charts.byCourse.series} />
+            </Card>
+            <Card>
+              <div className="section-head">
+                <div>
+                  <p className="eyebrow">Resultados</p>
+                  <h3>{APPROVAL_RATE_LABEL}</h3>
+                </div>
               </div>
-            ))}
+              {summary.approvalRate === null ? (
+                <p className="scope-note">Ainda não há bancas concluídas com resultado.</p>
+              ) : (
+                <ChartCanvas kind="doughnut" title="Resultados das bancas concluídas" labels={charts.results.labels} series={charts.results.series} colorTokens={RESULT_COLOR_TOKENS} />
+              )}
+            </Card>
+            <Card>
+              <div className="section-head">
+                <div>
+                  <p className="eyebrow">Série histórica</p>
+                  <h3>Bancas por ano de defesa</h3>
+                </div>
+              </div>
+              {charts.byYear.labels.length === 0 ? (
+                <p className="scope-note">Ainda não há bancas concluídas.</p>
+              ) : (
+                <ChartCanvas kind="line" title="Bancas concluídas por ano de defesa" labels={charts.byYear.labels} series={charts.byYear.series} />
+              )}
+            </Card>
+            <Card>
+              <div className="section-head">
+                <div>
+                  <p className="eyebrow">Orientação</p>
+                  <h3>Monografias por orientador</h3>
+                </div>
+              </div>
+              <ChartCanvas kind="horizontalBar" title={`Monografias por orientador (até ${ADVISOR_CHART_LIMIT})`} labels={charts.byAdvisor.labels} series={charts.byAdvisor.series} tall />
+            </Card>
           </div>
-        </Card>
-      </div>
-      <Card>
-        <div className="section-head">
-          <div>
-            <p className="eyebrow">Resumo</p>
-            <h3>Indicadores por curso</h3>
-          </div>
-          <div>
-            <Button variant="outline">CSV</Button>{" "}
-            <Button variant="outline">PDF</Button>
-          </div>
-        </div>
-        <div className="full-table compact">
-          <div className="row head">
-            <span>Curso</span>
-            <span>Monografias</span>
-            <span>Aprovação</span>
-            <span>Tempo médio</span>
-            <span>Bancas</span>
-          </div>
-          {[
-            ["Engenharia de Sistemas", "46", "91%", "62 dias", "42"],
-            ["Administração", "38", "86%", "71 dias", "36"],
-            ["Ciências Biológicas", "35", "89%", "67 dias", "33"],
-          ].map((r) => (
-            <div className="row" key={r[0]}>
-              {r.map((x) => (
-                <span key={x}>{x}</span>
+
+          <Card>
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">Resumo</p>
+                <h3>Indicadores por curso</h3>
+              </div>
+            </div>
+            <div className="full-table compact" role="table" aria-label="Indicadores por curso">
+              <div className="row head" role="row">
+                <span role="columnheader">Curso</span>
+                <span role="columnheader">Monografias</span>
+                <span role="columnheader">{APPROVAL_RATE_LABEL}</span>
+                <span role="columnheader">Tempo médio</span>
+                <span role="columnheader">Bancas concluídas</span>
+              </div>
+              {overview.byCourse.map((course) => (
+                <div className="row" role="row" key={course.courseId}>
+                  <span role="cell">{course.courseName}</span>
+                  <span role="cell">{formatCount(course.thesisCount)}</span>
+                  <span role="cell">{formatRate(course.approvalRate)}</span>
+                  <span role="cell">{formatDays(course.averageSubmissionToDefenseDays)}</span>
+                  <span role="cell">{formatCount(course.completedDefenseCount)}</span>
+                </div>
               ))}
             </div>
-          ))}
-        </div>
-      </Card>
+          </Card>
+        </>
+      )}
     </div>
   )
 }

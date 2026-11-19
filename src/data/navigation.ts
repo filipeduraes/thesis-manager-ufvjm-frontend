@@ -7,7 +7,8 @@ export const profiles: Profile[] = [
   "Administrador",
 ]
 
-const PROFILE_PRIORITY: Profile[] = ["Administrador", "Coordenador", "Orientador", "Aluno"]
+/** Ordem dos cargos (mesma prioridade do backend): menu somado e seções da tela inicial. */
+export const PROFILE_PRIORITY: Profile[] = ["Administrador", "Coordenador", "Orientador", "Aluno"]
 
 export function profilesFromCodes(codes: Array<string | null | undefined>): Profile[] {
   const mapped = codes

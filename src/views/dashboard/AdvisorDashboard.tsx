@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { thesesApi, type ThesisListItem } from "../../api/client"
+import { defenseApi, thesesApi, type DefenseListItem, type ThesisListItem } from "../../api/client"
 import { Badge, Button, Card, Icon } from "../../components/common"
 import { formatDateTime, thesisStatusTone } from "../../data/thesisStatus"
 import type { Page } from "../../types"
@@ -7,11 +7,13 @@ import type { Page } from "../../types"
 interface Props {
   go: (page: Page) => void
   review: (thesisId: string) => void
+  evaluate: (defenseId: string) => void
 }
 
-export default function AdvisorDashboard({ go, review }: Props) {
+export default function AdvisorDashboard({ go, review, evaluate }: Props) {
   const [pending, setPending] = useState<ThesisListItem[]>([])
   const [advisees, setAdvisees] = useState<ThesisListItem[]>([])
+  const [pendingEvaluations, setPendingEvaluations] = useState<DefenseListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -19,12 +21,14 @@ export default function AdvisorDashboard({ go, review }: Props) {
     setLoading(true)
     setError("")
     try {
-      const [pendingData, adviseeData] = await Promise.all([
+      const [pendingData, adviseeData, evaluationData] = await Promise.all([
         thesesApi.list({ scope: "advised", pendingReview: true, pageSize: 5 }),
         thesesApi.list({ scope: "advised", pageSize: 6 }),
+        defenseApi.list({ pendingEvaluation: true, pageSize: 5 }),
       ])
       setPending(pendingData.results)
       setAdvisees(adviseeData.results)
+      setPendingEvaluations(evaluationData.results)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar seus orientandos.")
     } finally {
@@ -109,6 +113,34 @@ export default function AdvisorDashboard({ go, review }: Props) {
           </div>
         )}
       </Card>
+
+      {pendingEvaluations.length > 0 && (
+        <Card>
+          <div className="section-head">
+            <div>
+              <p className="eyebrow">Bancas</p>
+              <h2>Bancas a avaliar</h2>
+            </div>
+            <Badge tone="active">{`${pendingEvaluations.length} pendente(s)`}</Badge>
+          </div>
+          <div className="action-list">
+            {pendingEvaluations.map((defense) => (
+              <div key={defense.id}>
+                <div>
+                  <strong>{defense.thesisTitle}</strong>
+                  <span>{defense.student?.name ?? defense.statusLabel}</span>
+                  <small>
+                    {formatDateTime(defense.scheduledDatetime)} · {defense.statusLabel}
+                  </small>
+                </div>
+                <Button variant="outline" onClick={() => evaluate(defense.id)}>
+                  Avaliar
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="section-head">

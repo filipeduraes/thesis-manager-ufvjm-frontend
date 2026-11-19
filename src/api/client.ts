@@ -330,6 +330,88 @@ export const usersApi = {
     apiRequest<{ results: UserSuggestion[] }>(`/users/suggest${queryString({ q: query })}`),
 }
 
+// ─── Reports API ──────────────────────────────────────────────────────────────
+
+/** Contadores de monografias (não excluídas e fora de rascunho). */
+export interface ReportThesisCounters {
+  thesisCount: number
+  inProgressCount: number
+  publishedCount: number
+}
+
+/**
+ * Defense-level counters. `approvalRate` is a 0–1 ratio per completed defense,
+ * (approved + approved with remarks) / defenses with a recorded result, and is
+ * `null` when no defense has a result; `averageSubmissionToDefenseDays` is `null`
+ * when no completed defense could be measured.
+ */
+export interface ReportDefenseCounters {
+  completedDefenseCount: number
+  approvedCount: number
+  approvedWithRemarksCount: number
+  rejectedCount: number
+  approvalRate: number | null
+  averageSubmissionToDefenseDays: number | null
+}
+
+export interface ReportSummary extends ReportThesisCounters, ReportDefenseCounters {
+  scheduledDefenseCount: number
+}
+
+export interface ReportCourseRow extends ReportThesisCounters, ReportDefenseCounters {
+  courseId: string
+  courseCode: string
+  courseName: string
+}
+
+export interface ReportAdvisorRow extends ReportThesisCounters, ReportDefenseCounters {
+  advisorId: string
+  advisorName: string
+}
+
+export interface ReportYearRow extends ReportDefenseCounters {
+  year: number
+}
+
+export interface ReportsOverview {
+  /** `ALL` para administradores; `COORDINATED_COURSES` para coordenadores (ou admin com `scope=coordinated`). */
+  scope: "ALL" | "COORDINATED_COURSES"
+  filters: { courseId: string | null; advisorId: string | null; year: number | null }
+  summary: ReportSummary
+  byCourse: ReportCourseRow[]
+  byAdvisor: ReportAdvisorRow[]
+  byDefenseYear: ReportYearRow[]
+  /** Valores de filtro disponíveis no escopo do usuário (não dependem dos filtros aplicados). */
+  options: {
+    courses: Array<{ id: string; code: string; name: string }>
+    advisors: Array<{ id: string; name: string }>
+    years: number[]
+  }
+}
+
+export interface ReportsOverviewParams {
+  courseId?: string
+  advisorId?: string
+  /** Ano da banca concluída (fuso America/Sao_Paulo). */
+  year?: number
+  /** Restringe o administrador aos cursos que ele também coordena. */
+  scope?: "coordinated"
+}
+
+/**
+ * Reporting endpoints (backend app `reports`).
+ *
+ * `GET /reports/overview` — ADMIN sees every course, COORDINATOR only the
+ * courses linked to them; advisors, students and external sessions get 403,
+ * invalid filters 400 (field-keyed messages), throttle scope `reports` (60/min,
+ * 429). Responses are cached by the backend for 60 s, so figures may lag by up
+ * to a minute. All aggregates are computed by the backend; render them as-is.
+ */
+export const reportsApi = {
+  overview: (params: ReportsOverviewParams = {}) =>
+    apiRequest<ReportsOverview>(`/reports/overview${queryString({ ...params })}`),
+}
+
 // ─── Defense API ──────────────────────────────────────────────────────────────
 
 export const DEFENSE_RESULT_LABELS: Record<string, string> = {

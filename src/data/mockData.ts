@@ -242,40 +242,6 @@ export const activeAdvisees = [
   { student: "Paulo Mendes", status: "Rascunho", defense: "Sem banca" },
 ]
 
-export const coordinatorQueue = [
-  {
-    student: "Marina Alves",
-    course: "Engenharia de Sistemas",
-    approvedAt: "Aprovada em 18 jun",
-  },
-  {
-    student: "Carlos Nunes",
-    course: "Administração",
-    approvedAt: "Aprovada em 17 jun",
-  },
-  {
-    student: "Beatriz Rocha",
-    course: "Ciências Biológicas",
-    approvedAt: "Aprovada em 16 jun",
-  },
-]
-
-export const systemServices = [
-  { name: "API principal", metric: "24 ms" },
-  { name: "Extração de PDF", metric: "4 na fila" },
-  { name: "Cache Redis", metric: "38% memória" },
-  { name: "Fila de mensagens", metric: "12 eventos" },
-  { name: "Serviço de e-mail", metric: "99,9%" },
-  { name: "Autenticação", metric: "18 ms" },
-]
-
-export const auditSnippet = [
-  { time: "10:42", event: "Ricardo Souza aprovou TCC-2025-0148" },
-  { time: "10:38", event: "Sistema validou SHA-256 do arquivo #0148" },
-  { time: "10:31", event: "Ana Martins atualizou metadados" },
-  { time: "10:18", event: "Coordenação reagendou banca #0092" },
-]
-
 export const advisorSubmissions: AdvisorSubmission[] = [
   {
     student: "Marina Alves",
@@ -309,13 +275,4 @@ export const advisorSubmissions: AdvisorSubmission[] = [
     status: "Reprovada",
     version: "v2",
   },
-]
-
-export const reportBars = [72, 58, 84, 46, 64, 38]
-
-export const advisorStats = [
-  { name: "Ricardo Souza", percentage: 86 },
-  { name: "Carla Freitas", percentage: 72 },
-  { name: "Helena Prado", percentage: 60 },
-  { name: "Mauro Lima", percentage: 48 },
 ]

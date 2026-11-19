@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { AppShell } from "./components/layout"
 import { authApi, codeToProfile, type SessionPayload } from "./api/client"
 import { menuByProfile, menuForProfiles, profilesFromCodes } from "./data/navigation"
@@ -12,11 +12,13 @@ import DefenseScheduling from "./views/DefenseScheduling"
 import ExternalEvaluation from "./views/ExternalEvaluation"
 import LoginView from "./views/LoginView"
 import PublicRepository from "./views/PublicRepository"
-import ReportsView from "./views/ReportsView"
 import StudentSubmission from "./views/StudentSubmission"
 import StyleGuideView from "./views/StyleGuideView"
 import SystemAudit from "./views/SystemAudit"
 import DashboardView from "./views/dashboard"
+
+// Relatórios carregam Chart.js; o chunk só é baixado por quem abre a tela.
+const ReportsView = lazy(() => import("./views/ReportsView"))
 
 const routeTitles: Partial<Record<Page, string>> = {
   dashboard: "Início",
@@ -244,9 +246,10 @@ export default function App() {
       {error && <div className="success-notice" role="alert">{error}</div>}
       {page === "dashboard" && (
         <DashboardView
-          profile={profile}
+          profiles={activeProfiles}
           go={navigate}
           review={openReview}
+          evaluate={openEvaluation}
         />
       )}
       {page === "submission" && <StudentSubmission />}
@@ -267,7 +270,11 @@ export default function App() {
           goBack={() => navigate("schedule")}
         />
       )}
-      {page === "reports" && <ReportsView />}
+      {page === "reports" && (
+        <Suspense fallback={<main className="page-content" aria-live="polite">Carregando relatórios…</main>}>
+          <ReportsView />
+        </Suspense>
+      )}
       {page === "users" && <AdminUsers />}
       {page === "courses" && <AdminCourses />}
       {page === "audit" && <SystemAudit />}

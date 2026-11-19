@@ -5,11 +5,13 @@ import App from "./App"
 import {
   authApi,
   defenseApi,
+  reportsApi,
   type DefenseData,
   type DefenseListItem,
   type SessionPayload,
   type ThesisListItem,
 } from "./api/client"
+import { buildReportsOverview } from "./views/dashboard/reportsOverviewFixture"
 import { defensePermissions } from "./views/defense/defensePermissionsFixture"
 
 const getSession = jest.spyOn(authApi, "getSession")
@@ -19,6 +21,8 @@ const getDefense = jest.spyOn(defenseApi, "get")
 const scheduleDefense = jest.spyOn(defenseApi, "schedule")
 const updateDefense = jest.spyOn(defenseApi, "update")
 const cancelDefense = jest.spyOn(defenseApi, "cancel")
+// O coordenador abre na tela inicial, que consulta os relatórios.
+const reportsOverview = jest.spyOn(reportsApi, "overview")
 
 const COORDINATOR_SESSION: SessionPayload = {
   authenticated: true,
@@ -86,6 +90,7 @@ beforeEach(() => {
   listDefenses.mockResolvedValue(page([LIST_ITEM]))
   listSchedulable.mockResolvedValue(page([]))
   getDefense.mockResolvedValue({ defense: DEFENSE })
+  reportsOverview.mockResolvedValue(buildReportsOverview({ scope: "COORDINATED_COURSES" }))
 })
 
 afterAll(() => {
