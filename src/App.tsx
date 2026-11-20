@@ -259,8 +259,8 @@ export default function App() {
       )}
       {page === "evaluation" && evaluationDefense && session.user && (
         <DefenseEvaluation
+          key={evaluationDefense}
           defenseId={evaluationDefense}
-          userEmail={session.user.email}
           goBack={() => navigate("schedule")}
         />
       )}

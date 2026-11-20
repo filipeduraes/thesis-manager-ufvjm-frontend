@@ -20,11 +20,8 @@ type DecisionCode = "APPROVED" | "APPROVED_WITH_REMARKS" | "REJECTED"
 interface DefenseEvaluationProps {
   /** UUID da defesa a ser avaliada. */
   defenseId: string
-  /** E-mail do usuário autenticado; usado para localizar o membro correspondente na banca. */
-  userEmail: string
   /**
-   * Id do membro, quando a sessão o informa (externalInvitation.assignments); tem
-   * prioridade sobre a busca pelo e-mail.
+   * Id do membro na atribuição externa; deve coincidir com o vínculo do detalhe.
    */
   memberId?: string
   /** Sem `goBack`, os botões Voltar/Cancelar não aparecem (tela externa com uma só banca). */
@@ -75,13 +72,12 @@ function evaluationErrorMessage(reason: unknown): string {
 /**
  * Formulário de avaliação individual de um membro da banca.
  *
- * Carrega a defesa, localiza o membro pelo e-mail do usuário autenticado e
+ * Carrega a defesa, identifica o membro pelo vínculo informado pela API e
  * exibe o formulário de decisão + nota + observações. O formulário fica desabilitado
  * quando a banca não está em andamento (status !== IN_PROGRESS).
  */
 export default function DefenseEvaluation({
   defenseId,
-  userEmail,
   memberId,
   goBack,
   onSubmitted,
@@ -116,19 +112,16 @@ export default function DefenseEvaluation({
       .then(({ defense: data }) => {
         if (!mountedRef.current) return
         setDefense(data)
-        const member = memberId
-          ? data.members.find((m) => m.id === memberId)
-          : data.members.find((m) => m.email.toLowerCase() === userEmail.toLowerCase())
-        if (member) {
-          setMyMember(member)
-          if (member.evaluation) {
-            const ev = member.evaluation
-            setEvaluation(ev)
-            setDecision((ev.decision as DecisionCode) ?? "APPROVED")
-            setScore(ev.score ?? "")
-            setNotes(ev.notes ?? "")
-          }
-        }
+        const membership = data.viewerMembership
+        const member = membership?.isMember && (!memberId || memberId === membership.memberId)
+          ? data.members.find((candidate) => candidate.id === membership.memberId)
+          : undefined
+        const savedEvaluation = member?.evaluation ?? null
+        setMyMember(member ?? null)
+        setEvaluation(savedEvaluation)
+        setDecision((savedEvaluation?.decision as DecisionCode | undefined) ?? "APPROVED")
+        setScore(savedEvaluation?.score ?? "")
+        setNotes(savedEvaluation?.notes ?? "")
       })
       .catch((reason: unknown) => {
         if (!mountedRef.current) return
@@ -146,7 +139,7 @@ export default function DefenseEvaluation({
           setRefreshing(false)
         }
       })
-  }, [defenseId, userEmail, memberId])
+  }, [defenseId, memberId])
 
   useEffect(() => {
     mountedRef.current = true
@@ -157,11 +150,12 @@ export default function DefenseEvaluation({
   }, [loadDefense])
 
   const isCompleted = defense?.status === "COMPLETED"
+  const canEvaluate = defense?.status === "IN_PROGRESS" && defense.viewerMembership?.canEvaluate === true
   // result/resultLabel vêm do próprio detalhe para qualquer usuário que vê a banca.
   const resultLabel = defense?.resultLabel ?? null
 
   const submitEvaluation = async () => {
-    if (!myMember) return
+    if (!myMember || !canEvaluate || refreshing || submitting) return
     setSubmitting(true)
     setSubmitError("")
     try {
@@ -184,6 +178,11 @@ export default function DefenseEvaluation({
         body,
       )
       const ev = response.evaluation
+      setDefense((current) => current && {
+        ...current,
+        status: response.defenseStatus,
+        statusLabel: response.defenseStatusLabel,
+      })
       setEvaluation(ev)
       setDecision((ev.decision as DecisionCode) ?? "APPROVED")
       setScore(ev.score ?? "")
@@ -280,7 +279,7 @@ export default function DefenseEvaluation({
         <div className="defense-actions">
           <Badge tone={statusTone}>{defense.statusLabel}</Badge>
           <span>{COMMITTEE_ROLE_LABELS[myMember.role] ?? myMember.roleLabel}</span>
-          <Button variant="outline" disabled={refreshing} onClick={loadDefense}>
+          <Button variant="outline" disabled={refreshing || submitting} onClick={loadDefense}>
             {refreshing ? "Atualizando…" : "Atualizar"}
           </Button>
         </div>
@@ -387,7 +386,7 @@ export default function DefenseEvaluation({
       )}
 
       {!isAlternate && (
-        <Card className={`evaluation-form ${!isInProgress ? "readonly" : ""}`}>
+        <Card className={`evaluation-form ${!canEvaluate ? "readonly" : ""}`}>
           <div className="section-head">
             <div>
               <p className="eyebrow">Seu parecer</p>
@@ -420,7 +419,7 @@ export default function DefenseEvaluation({
             </div>
           )}
 
-          <fieldset disabled={!isInProgress}>
+          <fieldset disabled={!canEvaluate || refreshing || submitting}>
             <div className="field">
               <span>Decisão</span>
               <div className="radio-list decision-radios">
@@ -486,10 +485,10 @@ export default function DefenseEvaluation({
                 {hasSubmitted ? "Fechar" : "Cancelar"}
               </Button>
             )}
-            {isInProgress && (
+            {canEvaluate && (
               <Button
                 variant="success"
-                disabled={submitting}
+                disabled={submitting || refreshing}
                 onClick={() => void submitEvaluation()}
               >
                 {submitting
@@ -501,7 +500,7 @@ export default function DefenseEvaluation({
             )}
           </div>
 
-          {isInProgress && (
+          {canEvaluate && (
             <p className="immutable-note">
               <Icon name="lock" size={13} /> A avaliação pode ser atualizada
               enquanto a banca estiver em andamento.

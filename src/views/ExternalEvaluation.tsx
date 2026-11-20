@@ -142,7 +142,6 @@ export default function ExternalEvaluation({ goLogin, externalSession }: Externa
                 key={current.memberId}
                 defenseId={current.defenseId}
                 memberId={current.memberId}
-                userEmail={externalSession.email}
                 goBack={singleAssignment ? undefined : () => setSelected(null)}
                 variant="external"
               />

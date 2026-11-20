@@ -15,7 +15,7 @@ function externalMember(): DefenseCommitteeMember {
     role: "MEMBER",
     roleLabel: "Membro",
     name: "Paula Externa",
-    // E-mail diferente do convite: o membro deve ser localizado pelo memberId da sessão.
+    // O e-mail mudou desde a criação da sessão; o vínculo continua sendo pelo ID.
     email: "paula.antigo@externo.org",
     institution: "UFMG",
     hasConflict: false,
@@ -32,6 +32,7 @@ function externalMember(): DefenseCommitteeMember {
 }
 
 function buildDefense(id: string, status: string, scheduledDatetime = "2026-11-20T17:00:00Z"): DefenseData {
+  const member = { ...externalMember(), id: id === "defense-2" ? "member-ext-2" : "member-ext" }
   return {
     id,
     thesis: "thesis-1",
@@ -45,7 +46,11 @@ function buildDefense(id: string, status: string, scheduledDatetime = "2026-11-2
     statusLabel: STATUS_LABELS[status] ?? status,
     createdAt: "2026-11-01T12:00:00Z",
     updatedAt: "2026-11-01T12:00:00Z",
-    members: [externalMember()],
+    members: [member],
+    viewerMembership: {
+      isMember: true, memberId: member.id, role: "MEMBER", roleLabel: "Membro",
+      canEvaluate: true, hasEvaluated: false,
+    },
   }
 }
 

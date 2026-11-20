@@ -266,9 +266,10 @@ export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: Pr
                   <span>{membership.isMember ? membership.roleLabel ?? "—" : "—"}</span>
                   <span className="row-actions">
                     {membership.hasEvaluated && <Badge tone="success">Parecer enviado</Badge>}
-                    {membership.canEvaluate && !membership.hasEvaluated && (
+                    {membership.canEvaluate && defense.status !== "COMPLETED" &&
+                      defense.status !== "CANCELLED" && (!membership.hasEvaluated || defense.status === "IN_PROGRESS") && (
                       <Button variant="outline" onClick={() => onEvaluate(defense.id)}>
-                        Avaliar
+                        {membership.hasEvaluated ? "Editar minha avaliação" : "Minha avaliação"}
                       </Button>
                     )}
                     <button
