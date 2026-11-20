@@ -25,7 +25,7 @@ export default function Pagination({ page, totalPages, onPageChange, disabled }:
   if (typeof page === "number" && typeof totalPages === "number" && onPageChange) {
     if (totalPages <= 1) return null
     return (
-      <div className="pagination">
+      <nav className="pagination" aria-label="Paginação">
         <button
           type="button"
           aria-label="Página anterior"
@@ -36,12 +36,14 @@ export default function Pagination({ page, totalPages, onPageChange, disabled }:
         </button>
         {pageItems(page, totalPages).map((item, index) =>
           item === "ellipsis" ? (
-            <span key={`ellipsis-${index}`}>…</span>
+            <span key={`ellipsis-${index}`} aria-hidden="true">…</span>
           ) : (
             <button
               type="button"
               key={item}
               className={item === page ? "active" : ""}
+              aria-label={`Página ${item}`}
+              aria-current={item === page ? "page" : undefined}
               disabled={disabled}
               onClick={() => onPageChange(item)}
             >
@@ -57,7 +59,7 @@ export default function Pagination({ page, totalPages, onPageChange, disabled }:
         >
           <Icon name="arrow" size={15} />
         </button>
-      </div>
+      </nav>
     )
   }
 

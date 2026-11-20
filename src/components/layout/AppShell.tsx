@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import type { ReactNode } from "react"
 import type { NavigationItem, Page } from "../../types"
 import type { SearchDestination } from "../../data/globalSearch"
@@ -41,8 +42,21 @@ export default function AppShell({
   logout,
   setMenuOpen,
 }: AppShellProps) {
+  // Escape fecha o menu lateral aberto no celular, como esperado de uma navegação em gaveta.
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false)
+    }
+    window.addEventListener("keydown", closeOnEscape)
+    return () => window.removeEventListener("keydown", closeOnEscape)
+  }, [menuOpen, setMenuOpen])
+
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#conteudo-principal">
+        Pular para o conteúdo
+      </a>
       <Sidebar
         profileLabel={profileLabel}
         menuItems={menuItems}
@@ -72,7 +86,9 @@ export default function AppShell({
           openMenu={() => setMenuOpen(true)}
         />
         <div className="mobile-title">{title}</div>
-        {children}
+        <main id="conteudo-principal" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   )

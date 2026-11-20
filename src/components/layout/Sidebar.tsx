@@ -72,11 +72,12 @@ export default function Sidebar({
           <span>{profileLabel}</span>
         </div>
       </div>
-      <nav>
+      <nav aria-label="Menu principal">
         {menuItems.map((item, index) => (
           <button
             key={`${item.label}-${index}`}
             className={page === item.page ? "active" : ""}
+            aria-current={page === item.page ? "page" : undefined}
             onClick={() => {
               go(item.page)
               close()

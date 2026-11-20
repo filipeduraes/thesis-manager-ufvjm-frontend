@@ -12,8 +12,11 @@ interface Props {
 
 export default function AdvisorDashboard({ go, review, evaluate }: Props) {
   const [pending, setPending] = useState<ThesisListItem[]>([])
+  // A lista traz só as primeiras linhas (pageSize); o total real vem do `count` da API.
+  const [pendingTotal, setPendingTotal] = useState(0)
   const [advisees, setAdvisees] = useState<ThesisListItem[]>([])
   const [pendingEvaluations, setPendingEvaluations] = useState<DefenseListItem[]>([])
+  const [pendingEvaluationsTotal, setPendingEvaluationsTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -27,8 +30,10 @@ export default function AdvisorDashboard({ go, review, evaluate }: Props) {
         defenseApi.list({ pendingEvaluation: true, pageSize: 5 }),
       ])
       setPending(pendingData.results)
+      setPendingTotal(pendingData.count)
       setAdvisees(adviseeData.results)
       setPendingEvaluations(evaluationData.results)
+      setPendingEvaluationsTotal(evaluationData.count)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar seus orientandos.")
     } finally {
@@ -76,16 +81,18 @@ export default function AdvisorDashboard({ go, review, evaluate }: Props) {
           <div>
             <p className="eyebrow">Ação necessária</p>
             <h2>
-              {pending.length > 0
-                ? `${pending.length} submissão(ões) aguardam revisão`
+              {pendingTotal > 0
+                ? pendingTotal === 1
+                  ? "1 submissão aguarda revisão"
+                  : `${pendingTotal} submissões aguardam revisão`
                 : "Nenhuma submissão aguardando revisão"}
             </h2>
           </div>
-          <Badge tone={pending.length > 0 ? "active" : "neutral"}>
-            {pending.length > 0 ? "Prioridade" : "Em dia"}
+          <Badge tone={pendingTotal > 0 ? "active" : "neutral"}>
+            {pendingTotal > 0 ? "Prioridade" : "Em dia"}
           </Badge>
         </div>
-        {pending.length === 0 ? (
+        {pendingTotal === 0 ? (
           <div className="empty-state compact">
             <div>
               <Icon name="check" />
@@ -110,18 +117,25 @@ export default function AdvisorDashboard({ go, review, evaluate }: Props) {
                 </Button>
               </div>
             ))}
+            {pendingTotal > pending.length && (
+              <button type="button" className="text-link" onClick={() => go("approval")}>
+                {`Ver todas as ${pendingTotal} pendências`}
+              </button>
+            )}
           </div>
         )}
       </Card>
 
-      {pendingEvaluations.length > 0 && (
+      {pendingEvaluationsTotal > 0 && (
         <Card>
           <div className="section-head">
             <div>
               <p className="eyebrow">Bancas</p>
               <h2>Bancas a avaliar</h2>
             </div>
-            <Badge tone="active">{`${pendingEvaluations.length} pendente(s)`}</Badge>
+            <Badge tone="active">
+              {pendingEvaluationsTotal === 1 ? "1 pendente" : `${pendingEvaluationsTotal} pendentes`}
+            </Badge>
           </div>
           <div className="action-list">
             {pendingEvaluations.map((defense) => (

@@ -5188,3 +5188,102 @@ footer .logo {
     display: none;
   }
 }
+
+/* Acessibilidade e usabilidade: foco visível, link de salto, movimento reduzido */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--navy);
+  outline-offset: 2px
+}
+
+/* Sobre fundos escuros (menu lateral) o contorno navy some; usa o branco do menu. */
+.sidebar :focus-visible,
+.login-brand :focus-visible {
+  outline-color: var(--white)
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(var(--sage-rgb), .35)
+}
+
+#conteudo-principal:focus {
+  outline: none
+}
+
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -64px;
+  z-index: 100;
+  padding: 11px 16px;
+  border-radius: var(--radius);
+  background: var(--navy);
+  color: var(--white);
+  font-weight: 700;
+  text-decoration: none
+}
+
+.skip-link:focus {
+  top: 12px
+}
+
+.token-input {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white)
+}
+
+.token-input:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(var(--sage-rgb), .35)
+}
+
+.token-input .token-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 13px;
+  color: var(--slate);
+  font-weight: 700;
+  letter-spacing: .04em
+}
+
+.token-input input {
+  flex: 1;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding-left: 4px;
+  letter-spacing: .06em;
+  text-transform: uppercase
+}
+
+.token-input input:focus-visible {
+  outline: none;
+  box-shadow: none
+}
+
+.token-box .form-error {
+  margin: 12px 0 0
+}
+
+.upload-zone.dragging {
+  border-style: solid;
+  border-color: var(--navy);
+  background: var(--soft)
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important
+  }
+}

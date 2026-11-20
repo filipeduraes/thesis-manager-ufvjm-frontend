@@ -1,3 +1,4 @@
+import { useId } from "react"
 import type { ReactNode } from "react"
 import Icon from "./Icon"
 
@@ -29,12 +30,15 @@ export function Field({
   autoComplete,
 }: FieldProps) {
   const controlled = typeof onChange === "function"
+  const hintId = useId()
   return (
     <label className="field">
       <span>{label}</span>
       <div className="input-wrap">
         <input
           type={type}
+          aria-describedby={hint ? hintId : undefined}
+          aria-required={required || undefined}
           placeholder={placeholder}
           name={name}
           required={required}
@@ -47,7 +51,7 @@ export function Field({
         />
         {type === "password" && <Icon name="search" size={15} />}
       </div>
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </label>
   )
 }
@@ -83,11 +87,15 @@ export function SelectField({
   disabled,
 }: SelectFieldProps) {
   const controlled = typeof onChange === "function"
+  const hintId = useId()
+  const describedBy = hint ? hintId : undefined
   return (
     <label className="field">
       <span>{label}</span>
       {options ? (
         <select
+          aria-describedby={describedBy}
+          aria-required={required || undefined}
           name={name}
           required={required}
           disabled={disabled}
@@ -108,6 +116,8 @@ export function SelectField({
         </select>
       ) : (
         <select
+          aria-describedby={describedBy}
+          aria-required={required || undefined}
           name={name}
           required={required}
           disabled={disabled}
@@ -118,7 +128,7 @@ export function SelectField({
           <option value="">{children}</option>
         </select>
       )}
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </label>
   )
 }

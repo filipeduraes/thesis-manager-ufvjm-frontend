@@ -190,3 +190,29 @@ test("advisor dashboard lists defenses awaiting the advisor's evaluation", async
   userEvent.click(screen.getByRole("button", { name: "Avaliar" }))
   expect(evaluate).toHaveBeenCalledWith("defense-7")
 })
+
+test("advisor dashboard counts every pending review from the API total, not only the listed rows", async () => {
+  const thesis = schedulableThesis()
+  listTheses.mockImplementation(async (params) => {
+    if (params?.pendingReview) return page([thesis], 12)
+    return page([])
+  })
+  listDefenses.mockResolvedValue(page([pendingDefense()], 7))
+  const { go } = renderDashboard(["Orientador"])
+
+  expect(await screen.findByRole("heading", { name: "12 submissões aguardam revisão" })).toBeTruthy()
+  expect(screen.getByText("7 pendentes")).toBeTruthy()
+  userEvent.click(screen.getByRole("button", { name: "Ver todas as 12 pendências" }))
+  expect(go).toHaveBeenCalledWith("approval")
+})
+
+test("advisor dashboard uses the singular for one pending review and hides the 'ver todas' link", async () => {
+  listTheses.mockImplementation(async (params) => {
+    if (params?.pendingReview) return page([schedulableThesis()], 1)
+    return page([])
+  })
+  renderDashboard(["Orientador"])
+
+  expect(await screen.findByRole("heading", { name: "1 submissão aguarda revisão" })).toBeTruthy()
+  expect(screen.queryByRole("button", { name: /Ver todas as/ })).toBeNull()
+})

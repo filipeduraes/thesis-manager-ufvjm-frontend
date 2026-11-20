@@ -320,7 +320,7 @@ export default function App() {
         />
       )}
       {page === "reports" && (
-        <Suspense fallback={<main className="page-content" aria-live="polite">Carregando relatórios…</main>}>
+        <Suspense fallback={<div className="page-content" role="status">Carregando relatórios…</div>}>
           <ReportsView />
         </Suspense>
       )}

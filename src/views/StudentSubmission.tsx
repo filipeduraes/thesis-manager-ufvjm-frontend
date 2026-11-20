@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { DragEvent } from "react"
 import {
   thesesApi,
   type StudentThesisContext,
@@ -17,6 +18,7 @@ import {
   PdfViewer,
   SelectField,
 } from "../components/common"
+import { validatePdfFile } from "../data/pdfFile"
 import {
   documentStatusLabels,
   documentStatusTones,
@@ -67,6 +69,7 @@ export default function StudentSubmission() {
   const [documentFile, setDocumentFile] = useState<File | null>(null)
   const [documentUploading, setDocumentUploading] = useState(false)
   const [documentError, setDocumentError] = useState("")
+  const [dragging, setDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
 
@@ -207,22 +210,32 @@ export default function StudentSubmission() {
     setStep(nextStep)
   }
 
-  const handleFileSelection = (file: File | null) => {
+  const handleFileSelection = async (file: File | null) => {
     setUploadError("")
     if (!file) return
-    if (file.type && file.type !== "application/pdf") {
-      setUploadError("Selecione um arquivo PDF.")
-      return
-    }
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setUploadError("Selecione um arquivo PDF.")
-      return
-    }
-    if (file.size > maxPdfSizeMb * 1024 * 1024) {
-      setUploadError(`O arquivo excede o limite de ${maxPdfSizeMb} MB.`)
+    const problem = await validatePdfFile(file, maxPdfSizeMb)
+    if (problem) {
+      setSelectedFile(null)
+      setUploadError(problem)
       return
     }
     setSelectedFile(file)
+  }
+
+  const chooseFile = () => {
+    if (canEdit && !uploading) fileInputRef.current?.click()
+  }
+
+  const dropFile = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setDragging(false)
+    if (!canEdit || uploading) return
+    const droppedFiles = event.dataTransfer.files
+    if (droppedFiles.length > 1) {
+      setUploadError("Envie um único arquivo PDF por vez.")
+      return
+    }
+    void handleFileSelection(droppedFiles[0] ?? null)
   }
 
   const uploadSelectedFile = async () => {
@@ -317,14 +330,22 @@ export default function StudentSubmission() {
     applyThesis(response.thesis)
   }
 
+  const chooseDocument = async (file: File | null) => {
+    setDocumentError("")
+    if (!file) return
+    const problem = await validatePdfFile(file, maxDocumentSizeMb)
+    if (problem) {
+      setDocumentFile(null)
+      setDocumentError(problem)
+      return
+    }
+    setDocumentFile(file)
+  }
+
   const uploadDocument = async () => {
     if (!thesis) return
     if (!documentFile) {
       setDocumentError("Selecione um arquivo PDF.")
-      return
-    }
-    if (documentFile.size > maxDocumentSizeMb * 1024 * 1024) {
-      setDocumentError(`O arquivo excede o limite de ${maxDocumentSizeMb} MB.`)
       return
     }
     setDocumentUploading(true)
@@ -568,7 +589,12 @@ export default function StudentSubmission() {
                 type="file"
                 accept="application/pdf,.pdf"
                 hidden
-                onChange={(event) => handleFileSelection(event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  const chosen = event.target.files?.[0] ?? null
+                  // Zera o campo para permitir escolher de novo o mesmo arquivo depois de um erro.
+                  event.target.value = ""
+                  void handleFileSelection(chosen)
+                }}
               />
               {currentFile ? (
                 <div className="upload-zone done">
@@ -602,7 +628,7 @@ export default function StudentSubmission() {
                   </div>
                   <div className="form-actions">
                     {canEdit && (
-                      <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                      <Button variant="outline" disabled={uploading} onClick={chooseFile}>
                         Substituir arquivo
                       </Button>
                     )}
@@ -613,22 +639,27 @@ export default function StudentSubmission() {
                 </div>
               ) : (
                 <div
-                  className="upload-zone"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => canEdit && fileInputRef.current?.click()}
-                  onKeyDown={(event) => {
-                    if (canEdit && (event.key === "Enter" || event.key === " ")) fileInputRef.current?.click()
+                  className={`upload-zone${dragging ? " dragging" : ""}`}
+                  onClick={chooseFile}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    if (canEdit && !uploading) setDragging(true)
                   }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={dropFile}
                 >
                   <div className="upload-icon">
                     <Icon name="upload" />
                   </div>
-                  <strong>Selecione o PDF da monografia</strong>
-                  <span>Somente PDF · máximo {maxPdfSizeMb} MB</span>
-                  <Button variant="outline" disabled={!canEdit}>
+                  <strong>{dragging ? "Solte o PDF aqui" : "Arraste o PDF da monografia até aqui"}</strong>
+                  <span>ou use o botão abaixo · somente PDF · máximo {maxPdfSizeMb} MB</span>
+                  {/* O clique no botão sobe até a área, que abre o seletor uma única vez. */}
+                  <Button variant="outline" disabled={!canEdit || uploading} describedBy="upload-limits">
                     Selecionar arquivo
                   </Button>
+                  <span id="upload-limits" className="sr-only">
+                    Somente arquivos PDF, com no máximo {maxPdfSizeMb} megabytes.
+                  </span>
                 </div>
               )}
               {selectedFile && (
@@ -661,6 +692,9 @@ export default function StudentSubmission() {
                   hint="Ajuda o orientador a identificar o que mudou nesta versão."
                 />
               )}
+              <p className="sr-only" role="status" aria-live="polite">
+                {uploading ? "Enviando o arquivo e verificando a integridade. Aguarde." : ""}
+              </p>
               {uploadError && (
                 <div className="form-error" role="alert">
                   <Icon name="alert" size={16} />
@@ -966,8 +1000,9 @@ export default function StudentSubmission() {
                         accept="application/pdf,.pdf"
                         hidden
                         onChange={(event) => {
-                          setDocumentError("")
-                          setDocumentFile(event.target.files?.[0] ?? null)
+                          const chosen = event.target.files?.[0] ?? null
+                          event.target.value = ""
+                          void chooseDocument(chosen)
                         }}
                       />
                       <SelectField

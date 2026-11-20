@@ -1,7 +1,14 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { ClipboardEvent, FormEvent } from "react"
 import type { Page } from "../types"
-import { authApi, type DevUser } from "../api/client"
+import { ApiError, authApi, type DevUser } from "../api/client"
 import { Button, Icon, Logo, RoleMultiSelect } from "../components/common"
+import {
+  EXTERNAL_TOKEN_PREFIX,
+  buildExternalToken,
+  formatExternalTokenCode,
+  isExternalTokenComplete,
+} from "../data/externalToken"
 
 interface LoginViewProps {
   go: (page: Page) => void
@@ -10,6 +17,20 @@ interface LoginViewProps {
   loginDev?: (payload: { name: string; email: string; roles: string[] }) => Promise<void>
   loading: boolean
   error: string
+}
+
+/** Pausa após 429 para o formulário não reenviar o token em sequência (limite de 10/min no backend). */
+const TOKEN_COOLDOWN_SECONDS = 15
+
+function tokenErrorMessage(reason: unknown): string {
+  if (reason instanceof ApiError && reason.status === 429) {
+    return "Muitas tentativas em pouco tempo. Aguarde alguns segundos e tente novamente."
+  }
+  if (reason instanceof ApiError && reason.status >= 500) {
+    return "O serviço está indisponível no momento. Tente novamente em instantes."
+  }
+  if (reason instanceof Error && reason.message) return reason.message
+  return "Não foi possível validar o token. Confira o código e tente novamente."
 }
 
 const DEV_ROLE_OPTIONS = [
@@ -27,9 +48,12 @@ export default function LoginView({
   loading,
   error,
 }: LoginViewProps) {
-  const [token, setToken] = useState("")
+  const [tokenCode, setTokenCode] = useState("")
   const [working, setWorking] = useState(false)
+  const [cooldown, setCooldown] = useState(0)
+  const [tokenError, setTokenError] = useState("")
   const [localError, setLocalError] = useState("")
+  const tokenInputRef = useRef<HTMLInputElement>(null)
   const [devOpen, setDevOpen] = useState(false)
   const [devUsers, setDevUsers] = useState<DevUser[]>([])
   const [devName, setDevName] = useState("")
@@ -54,13 +78,43 @@ export default function LoginView({
     }
   }, [devOpen, isDevBuild])
 
-  const submitToken = async () => {
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = window.setTimeout(() => setCooldown((seconds) => seconds - 1), 1000)
+    return () => window.clearTimeout(timer)
+  }, [cooldown])
+
+  const tokenComplete = isExternalTokenComplete(tokenCode)
+  const tokenBlocked = working || cooldown > 0
+
+  const changeToken = (rawValue: string) => {
+    setTokenCode(formatExternalTokenCode(rawValue))
+    setTokenError("")
+  }
+
+  // Colar o token completo (com prefixo) não pode ser truncado pelo campo.
+  const pasteToken = (event: ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault()
+    changeToken(event.clipboardData.getData("text"))
+  }
+
+  const submitToken = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (tokenBlocked) return
+    if (!tokenComplete) {
+      setTokenError("Informe o token completo: são 16 letras e números, em quatro blocos de quatro.")
+      tokenInputRef.current?.focus()
+      return
+    }
     setWorking(true)
-    setLocalError("")
+    setTokenError("")
     try {
-      await exchangeToken(token)
+      await exchangeToken(buildExternalToken(tokenCode))
+      setTokenCode("")
     } catch (reason) {
-      setLocalError(reason instanceof Error ? reason.message : "Token inválido.")
+      setTokenError(tokenErrorMessage(reason))
+      if (reason instanceof ApiError && reason.status === 429) setCooldown(TOKEN_COOLDOWN_SECONDS)
+      tokenInputRef.current?.focus()
     } finally {
       setWorking(false)
     }
@@ -219,27 +273,53 @@ export default function LoginView({
           <div className="divider">
             <span>ou</span>
           </div>
-          <div className="token-box">
+          <form className="token-box" onSubmit={(event) => void submitToken(event)} noValidate>
             <div>
-              <strong>Sou membro de banca externo</strong>
-              <p>Use o token temporário enviado por e-mail.</p>
+              <strong id="external-token-title">Sou membro de banca externo</strong>
+              <p id="external-token-help">
+                Digite ou cole o token temporário enviado por e-mail. O prefixo {EXTERNAL_TOKEN_PREFIX} já está
+                preenchido.
+              </p>
             </div>
             <div className="token-row">
-              <input
-                value={token}
-                onChange={(event) => setToken(event.target.value.toUpperCase())}
-                placeholder="Ex.: UFVJM-ABCD-EFGH-IJKL-MNPQ"
-                autoComplete="one-time-code"
-              />
-              <Button
-                variant="secondary"
-                disabled={!token.trim() || working}
-                onClick={submitToken}
-              >
-                {working ? "Validando…" : "Acessar com token"}
+              <label className="sr-only" htmlFor="external-token-input">
+                Token de acesso da banca
+              </label>
+              <div className="token-input">
+                <span className="token-prefix" aria-hidden="true">
+                  {EXTERNAL_TOKEN_PREFIX}-
+                </span>
+                <input
+                  id="external-token-input"
+                  ref={tokenInputRef}
+                  value={tokenCode}
+                  onChange={(event) => changeToken(event.target.value)}
+                  onPaste={pasteToken}
+                  placeholder="ABCD-EFGH-JKLM-NPQR"
+                  autoComplete="one-time-code"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="text"
+                  aria-describedby={tokenError ? "external-token-help external-token-error" : "external-token-help"}
+                  aria-invalid={tokenError ? true : undefined}
+                />
+              </div>
+              <Button type="submit" variant="secondary" disabled={tokenBlocked}>
+                {working
+                  ? "Validando…"
+                  : cooldown > 0
+                    ? `Aguarde ${cooldown}s`
+                    : "Acessar com token"}
               </Button>
             </div>
-          </div>
+            {tokenError && (
+              <div className="form-error" id="external-token-error" role="alert">
+                <Icon name="alert" size={16} />
+                <span>{tokenError}</span>
+              </div>
+            )}
+          </form>
           <button
             className="text-link repo-link"
             onClick={() => go("repository")}
