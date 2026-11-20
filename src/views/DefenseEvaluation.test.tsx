@@ -63,6 +63,10 @@ function buildDefense(status: string, evaluation: DefenseMemberEvaluationData | 
     createdAt: "2026-11-01T12:00:00Z",
     updatedAt: "2026-11-01T12:00:00Z",
     members: [member(evaluation)],
+    viewerMembership: {
+      isMember: true, memberId: "member-1", role: "MEMBER", roleLabel: "Membro",
+      canEvaluate: true, hasEvaluated: Boolean(evaluation),
+    },
   }
 }
 
@@ -71,7 +75,7 @@ function completedWithResult(): DefenseData {
 }
 
 function renderEvaluation() {
-  render(<DefenseEvaluation defenseId="defense-1" userEmail="Avaliador@ufvjm.edu.br" goBack={() => undefined} />)
+  render(<DefenseEvaluation defenseId="defense-1" goBack={() => undefined} />)
 }
 
 beforeEach(() => {
@@ -85,7 +89,8 @@ afterAll(() => {
 })
 
 test("institutional member still submits the evaluation with decision and score", async () => {
-  getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS") })
+  getDefense.mockResolvedValueOnce({ defense: buildDefense("IN_PROGRESS") })
+  getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS", SAVED_EVALUATION) })
   submitEvaluation.mockResolvedValue({
     evaluation: SAVED_EVALUATION,
     autoCloseError: null,
@@ -101,6 +106,51 @@ test("institutional member still submits the evaluation with decision and score"
   )
   expect(await screen.findByText("Avaliação enviada")).toBeTruthy()
   expect(screen.queryByText(/Banca encerrada/)).toBeNull()
+})
+
+test.each(["institutional", "external"] as const)("loads and updates only the signed-in %s member's saved evaluation", async (variant) => {
+  const saved = { ...SAVED_EVALUATION, notes: "Parecer original" }
+  const ownDefense = buildDefense("IN_PROGRESS", saved)
+  const updated = { ...saved, decision: "REJECTED", decisionLabel: "Reprovada", score: "8.50", notes: "Parecer revisado" }
+  getDefense.mockResolvedValueOnce({
+    defense: {
+      ...ownDefense,
+      members: [{ ...member(), id: "another-member", evaluation: updated }, ...ownDefense.members],
+    },
+  })
+  getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS", updated) })
+  submitEvaluation.mockResolvedValue({
+    evaluation: updated, autoCloseError: null, defenseStatus: "IN_PROGRESS", defenseStatusLabel: "Em andamento",
+  })
+  render(<DefenseEvaluation defenseId="defense-1" memberId={variant === "external" ? "member-1" : undefined} variant={variant} />)
+
+  const save = await screen.findByRole("button", { name: "Atualizar avaliação" })
+  const score = screen.getByRole<HTMLInputElement>("spinbutton")
+  expect(score.value).toBe("9.00")
+  expect(screen.getByDisplayValue("Parecer original")).toBeTruthy()
+  expect(screen.getByRole<HTMLInputElement>("radio", { name: /Aprovada Apta/ }).checked).toBe(true)
+  userEvent.clear(score)
+  userEvent.type(score, "8.50")
+  userEvent.clear(screen.getByDisplayValue("Parecer original"))
+  userEvent.type(screen.getByRole("textbox"), "Parecer revisado")
+  userEvent.click(screen.getByRole("radio", { name: /Reprovada/ }))
+  userEvent.click(save)
+
+  await waitFor(() => expect(submitEvaluation).toHaveBeenCalledWith("defense-1", "member-1", {
+    decision: "REJECTED", score: "8.50", notes: "Parecer revisado",
+  }))
+  expect(await screen.findByDisplayValue("Parecer revisado")).toBeTruthy()
+})
+
+test("blocks an external assignment that conflicts with the authenticated membership", async () => {
+  const defense = buildDefense("IN_PROGRESS", SAVED_EVALUATION)
+  defense.members.push({ ...member(), id: "another-member" })
+  getDefense.mockResolvedValue({ defense })
+  render(<DefenseEvaluation defenseId="defense-1" memberId="another-member" variant="external" />)
+
+  expect(await screen.findByText("Você não está registrado como membro desta banca.")).toBeTruthy()
+  expect(screen.queryByRole("button", { name: /avaliação$/ })).toBeNull()
+  expect(submitEvaluation).not.toHaveBeenCalled()
 })
 
 test("keeps the refresh button inside the summary actions instead of the icon column", async () => {
@@ -191,7 +241,7 @@ test("locks a completed defense and omits the result while the backend has none"
 
 test("external evaluator does not query the thesis for the result", async () => {
   getDefense.mockResolvedValue({ defense: buildDefense("COMPLETED", SAVED_EVALUATION) })
-  render(<DefenseEvaluation defenseId="defense-1" userEmail="x@externo.org" memberId="member-1" variant="external" />)
+  render(<DefenseEvaluation defenseId="defense-1" memberId="member-1" variant="external" />)
 
   expect(await screen.findByText("Banca encerrada.")).toBeTruthy()
   expect(getThesis).not.toHaveBeenCalled()
@@ -207,7 +257,7 @@ test("committee examiner sees the result recorded in the defense detail", async 
 
 test("external evaluator sees the result recorded in the defense detail", async () => {
   getDefense.mockResolvedValue({ defense: { ...completedWithResult(), result: "APPROVED_WITH_REMARKS", resultLabel: "Aprovada com ressalvas" } })
-  render(<DefenseEvaluation defenseId="defense-1" userEmail="x@externo.org" memberId="member-1" variant="external" />)
+  render(<DefenseEvaluation defenseId="defense-1" memberId="member-1" variant="external" />)
 
   expect(await screen.findByText("Banca encerrada. Resultado: Aprovada com ressalvas")).toBeTruthy()
   expect(getThesis).not.toHaveBeenCalled()

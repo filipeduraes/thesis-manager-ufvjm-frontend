@@ -76,7 +76,10 @@ test("renders the table and shows evaluation actions according to viewerMembersh
     roleLabel: "Membro",
     canEvaluate: true,
   })
-  const evaluated = buildDefense("b", "Banca avaliada", { isMember: true, canEvaluate: true, hasEvaluated: true })
+  const evaluated = {
+    ...buildDefense("b", "Banca avaliada", { isMember: true, canEvaluate: true, hasEvaluated: true }),
+    status: "IN_PROGRESS",
+  }
   const notMember = buildDefense("c", "Banca sem participação", {})
   listDefenses.mockResolvedValue(page([pending, evaluated, notMember]))
   renderList()
@@ -88,9 +91,27 @@ test("renders the table and shows evaluation actions according to viewerMembersh
   expect(screen.getAllByText("Sala 10")).toHaveLength(3)
   expect(screen.getByText("Membro")).toBeTruthy()
 
-  expect(screen.getAllByRole("button", { name: "Avaliar" })).toHaveLength(1)
+  expect(screen.getAllByRole("button", { name: "Minha avaliação" })).toHaveLength(1)
+  expect(screen.getAllByRole("button", { name: "Editar minha avaliação" })).toHaveLength(1)
   expect(screen.getAllByText("Parecer enviado")).toHaveLength(1)
   expect(screen.getAllByRole("button", { name: "Gerenciar banca" })).toHaveLength(3)
+})
+
+test("does not offer editing for closed defenses or members without permission", async () => {
+  const completed = {
+    ...buildDefense("completed", "Banca encerrada", { isMember: true, canEvaluate: true, hasEvaluated: true }),
+    status: "COMPLETED",
+  }
+  const denied = {
+    ...buildDefense("denied", "Banca sem permissão", { isMember: true, canEvaluate: false, hasEvaluated: true }),
+    status: "IN_PROGRESS",
+  }
+  listDefenses.mockResolvedValue(page([completed, denied]))
+  renderList()
+
+  expect(await screen.findByText("Banca encerrada")).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Editar minha avaliação" })).toBeNull()
+  expect(screen.getAllByText("Parecer enviado")).toHaveLength(2)
 })
 
 test("labels the defense link by viewerPermissions.canManage", async () => {
