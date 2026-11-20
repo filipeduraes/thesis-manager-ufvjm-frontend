@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { AppShell } from "./components/layout"
 import { authApi, codeToProfile, type SessionPayload } from "./api/client"
 import { menuByProfile, menuForProfiles, profilesFromCodes } from "./data/navigation"
+import type { SearchDestination } from "./data/globalSearch"
 import type { Page } from "./types"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
@@ -44,6 +45,12 @@ export default function App() {
   const [reviewThesisId, setReviewThesisId] = useState<string>()
   const [evaluationDefense, setEvaluationDefense] = useState<string>()
   const [committeeDefenseId, setCommitteeDefenseId] = useState<string>()
+  const [searchFilter, setSearchFilter] = useState<{
+    sessionKey: string
+    query?: string
+    departmentId?: string
+    revision: number
+  }>()
 
   const roleCodeKey = session?.user?.roles?.map((role) => role.code).join("|") ?? ""
   const userRoleCode = session?.user?.roleCode
@@ -53,9 +60,10 @@ export default function App() {
     return [codeToProfile(userRoleCode)]
   }, [roleCodeKey, userRoleCode])
   const profile = activeProfiles[0] ?? "Aluno"
+  const searchSessionKey = `${session?.user?.id ?? ""}:${activeProfiles.join(",")}:${session?.authType ?? ""}`
+  const activeSearchFilter = searchFilter?.sessionKey === searchSessionKey ? searchFilter : undefined
   const profileLabel = activeProfiles.join(", ") || session?.user?.roleLabel || "Aluno"
   const menuItems = useMemo(() => menuForProfiles(activeProfiles), [activeProfiles])
-  const showSearch = activeProfiles.some((item) => item !== "Aluno")
   const canEvaluate = activeProfiles.includes("Orientador") || activeProfiles.includes("Coordenador")
 
   const allowedPages = useMemo(() => {
@@ -154,12 +162,14 @@ export default function App() {
       setError(reason instanceof Error ? reason.message : "Não foi possível encerrar a sessão no servidor.")
     } finally {
       setSession(null)
+      setSearchFilter(undefined)
       setPage("login")
     }
   }
 
   const navigate = (nextPage: Page) => {
     setReviewThesisId(undefined)
+    setSearchFilter(undefined)
     setPage(allowedPages.has(nextPage) ? nextPage : "dashboard")
   }
 
@@ -177,6 +187,42 @@ export default function App() {
     setReviewThesisId(thesisId)
     setPage(allowedPages.has("approval") ? "approval" : "dashboard")
   }
+
+  const openSearchDestination = (destination: SearchDestination) => {
+    switch (destination.kind) {
+      case "page":
+        if (!allowedPages.has(destination.page)) return
+        if (!destination.query && !destination.departmentId) {
+          navigate(destination.page)
+          break
+        }
+        setSearchFilter((previous) => ({
+          sessionKey: searchSessionKey,
+          query: destination.query,
+          departmentId: destination.departmentId,
+          revision: (previous?.revision ?? 0) + 1,
+        }))
+        setReviewThesisId(undefined)
+        setPage(destination.page)
+        break
+      case "thesis":
+        if (allowedPages.has("approval")) openReview(destination.id)
+        break
+      case "committee":
+        if (allowedPages.has("committee")) openCommittee(destination.id)
+        break
+      case "evaluation":
+        if (allowedPages.has("evaluation")) openEvaluation(destination.id)
+        break
+    }
+  }
+
+  const expireSearchSession = useCallback(() => {
+    setSession(null)
+    setSearchFilter(undefined)
+    setPage("login")
+    setError("Sua sessão expirou. Entre novamente para continuar.")
+  }, [])
 
   if (page === "repository") {
     return <PublicRepository go={setPage} />
@@ -233,7 +279,10 @@ export default function App() {
       page={page}
       profileLabel={profileLabel}
       menuItems={menuItems}
-      showSearch={showSearch}
+      searchSessionKey={searchSessionKey}
+      canReadDirectory={activeProfiles.includes("Coordenador") || activeProfiles.includes("Administrador")}
+      onSearchNavigate={openSearchDestination}
+      onSessionExpired={expireSearchSession}
       title={title}
       menuOpen={mobileMenu}
       navigate={navigate}
@@ -275,8 +324,11 @@ export default function App() {
           <ReportsView />
         </Suspense>
       )}
-      {page === "users" && <AdminUsers />}
-      {page === "courses" && <AdminCourses />}
+      {page === "users" && <AdminUsers key={activeSearchFilter?.revision} initialSearch={activeSearchFilter?.query} />}
+      {page === "courses" && (
+        <AdminCourses key={activeSearchFilter?.revision} initialSearch={activeSearchFilter?.query}
+          initialDepartmentId={activeSearchFilter?.departmentId} />
+      )}
       {page === "audit" && <SystemAudit />}
       {page === "style" && <StyleGuideView />}
     </AppShell>

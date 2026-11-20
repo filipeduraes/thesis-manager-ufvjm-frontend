@@ -64,14 +64,18 @@ function UserListAvatar({ url, initials }: { url?: string | null; initials: stri
   )
 }
 
-export default function AdminUsers() {
+interface AdminUsersProps {
+  initialSearch?: string
+}
+
+export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
   const [userPage, setUserPage] = useState<PaginatedResponse<AdminUser> | null>(null)
   const [courses, setCourses] = useState<AdminCourse[]>([])
   const [invitations, setInvitations] = useState<ExternalInvitationRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [search, setSearch] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [search, setSearch] = useState(initialSearch)
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
   const [roleFilter, setRoleFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
   const [page, setPage] = useState(1)

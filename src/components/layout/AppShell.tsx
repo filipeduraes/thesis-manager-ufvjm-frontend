@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import type { NavigationItem, Page } from "../../types"
+import type { SearchDestination } from "../../data/globalSearch"
 import Sidebar from "./Sidebar"
 import Topbar from "./Topbar"
 
@@ -8,7 +9,10 @@ interface AppShellProps {
   page: Page
   profileLabel: string
   menuItems: NavigationItem[]
-  showSearch: boolean
+  searchSessionKey: string
+  canReadDirectory: boolean
+  onSearchNavigate: (destination: SearchDestination) => void
+  onSessionExpired: () => void
   userName: string
   userInitials: string
   userAvatarUrl: string | null
@@ -24,7 +28,10 @@ export default function AppShell({
   page,
   profileLabel,
   menuItems,
-  showSearch,
+  searchSessionKey,
+  canReadDirectory,
+  onSearchNavigate,
+  onSessionExpired,
   userName,
   userInitials,
   userAvatarUrl,
@@ -57,7 +64,11 @@ export default function AppShell({
       )}
       <div className="app-main">
         <Topbar
-          showSearch={showSearch}
+          key={searchSessionKey}
+          menuItems={menuItems}
+          canReadDirectory={canReadDirectory}
+          onSearchNavigate={onSearchNavigate}
+          onSessionExpired={onSessionExpired}
           openMenu={() => setMenuOpen(true)}
         />
         <div className="mobile-title">{title}</div>
