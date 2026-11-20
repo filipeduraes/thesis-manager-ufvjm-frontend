@@ -186,8 +186,8 @@ export interface UserLookupResult {
 }
 
 export const adminApi = {
-  users: (query = "") =>
-    apiRequest<PaginatedResponse<AdminUser>>(`/admin/users${query}`),
+  users: (query = "", signal?: AbortSignal) =>
+    apiRequest<PaginatedResponse<AdminUser>>(`/admin/users${query}`, { signal }),
   updateUser: (id: string, body: Record<string, unknown>) =>
     apiRequest<AdminUser>(`/admin/users/${id}`, {
       method: "PATCH",
@@ -204,17 +204,17 @@ export const adminApi = {
     apiRequest<UserLookupResult>(
       `/admin/users/lookup?email=${encodeURIComponent(email)}`,
     ),
-  departments: (query = "") =>
+  departments: (query = "", signal?: AbortSignal) =>
     apiRequest<{ results: AdminDepartment[]; count: number }>(
-      `/admin/departments${query}`,
+      `/admin/departments${query}`, { signal },
     ),
   createDepartment: (body: { name: string }) =>
     apiRequest<AdminDepartment>("/admin/departments", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  courses: (query = "") =>
-    apiRequest<PaginatedResponse<AdminCourse>>(`/admin/courses${query}`),
+  courses: (query = "", signal?: AbortSignal) =>
+    apiRequest<PaginatedResponse<AdminCourse>>(`/admin/courses${query}`, { signal }),
   createCourse: (body: Record<string, unknown>) =>
     apiRequest<AdminCourse>("/admin/courses", {
       method: "POST",
@@ -706,9 +706,9 @@ export interface DefenseListParams {
  *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
  */
 export const defenseApi = {
-  list: (params: DefenseListParams = {}) =>
+  list: (params: DefenseListParams = {}, signal?: AbortSignal) =>
     apiRequest<PaginatedResponse<DefenseListItem>>(
-      `/defenses${queryString({ ...params })}`,
+      `/defenses${queryString({ ...params })}`, { signal },
     ),
 
   schedulableTheses: (params: { page?: number; pageSize?: number } = {}) =>
@@ -1049,8 +1049,56 @@ function resolveApiUrl(path: string): string {
   return `${API_ROOT}${path}`
 }
 
-export async function fetchApiBlob(path: string): Promise<Blob> {
+export interface PublicAdvisor {
+  id: string
+  name: string
+}
+
+export interface DirectoryUser extends PublicAdvisor {
+  email: string
+  roles: string[]
+}
+
+export interface PublicThesisSummary {
+  id: string
+  title: string
+  course: ThesisCourseBrief
+}
+
+export interface PublicThesisDetail extends PublicThesisSummary {
+  abstract: string
+  student: { name: string } | null
+  advisor: { name: string }
+  keywords: string[]
+  currentFile: {
+    downloadUrl: string
+    storedFile: { originalFilename: string }
+  } | null
+}
+
+export const publicSearchApi = {
+  theses: (q: string, pageSize: number, signal?: AbortSignal) =>
+    apiRequest<PaginatedResponse<PublicThesisSummary>>(
+      `/public/theses${queryString({ q, pageSize })}`, { signal },
+    ),
+  thesis: (id: string, signal?: AbortSignal) =>
+    apiRequest<{ thesis: PublicThesisDetail }>(`/public/theses/${encodeURIComponent(id)}`, { signal }),
+  advisors: (q: string, pageSize: number, signal?: AbortSignal) =>
+    apiRequest<PaginatedResponse<PublicAdvisor>>(
+      `/public/advisors${queryString({ q, pageSize })}`, { signal },
+    ),
+}
+
+export const directoryApi = {
+  users: (q: string, pageSize: number, signal?: AbortSignal) =>
+    apiRequest<PaginatedResponse<DirectoryUser>>(
+      `/users${queryString({ q, pageSize })}`, { signal },
+    ),
+}
+
+export async function fetchApiBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const response = await fetch(resolveApiUrl(path), {
+    signal,
     credentials: "include",
     cache: "no-store",
     headers: { Accept: "application/pdf,application/octet-stream" },
@@ -1085,9 +1133,9 @@ function saveBlob(blob: Blob, filename: string, fallbackName: string): void {
   window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
 }
 
-export async function downloadApiFile(path: string, filename: string): Promise<void> {
-  const blob = await fetchApiBlob(path)
-  saveBlob(blob, filename, "monografia.pdf")
+export async function downloadApiFile(path: string, filename: string, signal?: AbortSignal): Promise<void> {
+  const blob = await fetchApiBlob(path, signal)
+  if (!signal?.aborted) saveBlob(blob, filename, "monografia.pdf")
 }
 
 export const thesesApi = {
@@ -1110,11 +1158,12 @@ export const thesesApi = {
     apiRequest<{ thesis: Thesis }>("/theses/me/submit", { method: "POST" }),
   withdrawSubmission: () =>
     apiRequest<{ thesis: Thesis }>("/theses/me/withdraw", { method: "POST" }),
-  list: (params: ThesisListParams = {}) =>
+  list: (params: ThesisListParams = {}, signal?: AbortSignal) =>
     apiRequest<PaginatedResponse<ThesisListItem>>(
-      `/theses${queryString({ ...params })}`,
+      `/theses${queryString({ ...params })}`, { signal },
     ),
-  detail: (id: string) => apiRequest<{ thesis: Thesis }>(`/theses/${id}`),
+  detail: (id: string, signal?: AbortSignal) =>
+    apiRequest<{ thesis: Thesis }>(`/theses/${encodeURIComponent(id)}`, { signal }),
   review: (
     id: string,
     body: { decision: ThesisReviewDecision; comments?: string; recommendations?: string },

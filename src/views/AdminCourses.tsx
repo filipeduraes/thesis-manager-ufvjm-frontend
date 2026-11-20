@@ -35,15 +35,20 @@ function coordinatorHint(lookup: UserLookupResult | null, loading: boolean, erro
   return lookup.message
 }
 
-export default function AdminCourses() {
+interface AdminCoursesProps {
+  initialSearch?: string
+  initialDepartmentId?: string
+}
+
+export default function AdminCourses({ initialSearch = "", initialDepartmentId = "" }: AdminCoursesProps) {
   const [coursePage, setCoursePage] = useState<PaginatedResponse<AdminCourse> | null>(null)
   const [departments, setDepartments] = useState<AdminDepartment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
-  const [search, setSearch] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [departmentFilter, setDepartmentFilter] = useState("")
+  const [search, setSearch] = useState(initialSearch)
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
+  const [departmentFilter, setDepartmentFilter] = useState(initialDepartmentId)
   const [page, setPage] = useState(1)
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [addModal, setAddModal] = useState(false)
