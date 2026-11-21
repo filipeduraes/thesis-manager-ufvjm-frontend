@@ -76,7 +76,7 @@ beforeEach(() => {
   myThesis.mockResolvedValue(NO_THESIS)
   adminUsers.mockResolvedValue(page([], 42))
   adminCourses.mockResolvedValue(page([], 6))
-  auditLogs.mockResolvedValue({ results: [] })
+  auditLogs.mockResolvedValue({ count: 0, next: null, previous: null, results: [] })
 })
 
 afterAll(() => {
@@ -165,6 +165,9 @@ test("admin dashboard keeps report indicators when admin areas answer 404", asyn
 
 test("admin dashboard shows user and course counts, the course chart and recent audit events", async () => {
   auditLogs.mockResolvedValue({
+    count: 1,
+    next: null,
+    previous: null,
     results: [
       { id: "log-1", timestamp: "2026-11-18T13:00:00Z", actor: "Admin Teste", role: "ADMIN", action: "LOGIN", summary: "Login institucional", entityType: "User", entityId: "u-1", origin: "Rede institucional", hash: "abc" },
     ],

@@ -227,8 +227,8 @@ export const adminApi = {
     }),
   deleteCourse: (id: string) =>
     apiRequest<void>(`/admin/courses/${id}`, { method: "DELETE" }),
-  auditLogs: (query = "") =>
-    apiRequest<{ results: AuditRecord[]; count?: number }>(`/admin/audit-logs${query}`),
+  auditLogs: (query = "", signal?: AbortSignal) =>
+    apiRequest<AuditLogsPage>(`/admin/audit-logs${query}`, { signal }),
   exportAuditLogs: async (query = ""): Promise<void> => {
     const path = `/admin/audit-logs${query}${query.includes("?") ? "&" : "?"}export=csv`
     const response = await fetch(`${API_ROOT}${path}`, {
@@ -281,6 +281,14 @@ export interface AdminUser {
   courseId: string | null
   lastAccess: string | null
   roles: Array<{ code: string; label: string }>
+}
+
+/** Page-number pagination metadata returned by the audit log endpoint. */
+export interface AuditLogsPage {
+  count: number
+  next: string | null
+  previous: string | null
+  results: AuditRecord[]
 }
 
 export interface AuditRecord {

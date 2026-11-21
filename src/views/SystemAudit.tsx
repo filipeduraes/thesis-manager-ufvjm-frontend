@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
-import { adminApi, type AuditRecord } from "../api/client"
+import { useEffect, useState } from "react"
+import { adminApi, ApiError, type AuditLogsPage, type AuditRecord } from "../api/client"
 import {
   Badge,
   Button,
@@ -7,7 +7,10 @@ import {
   Icon,
   Modal,
   PageTitle,
+  Pagination,
 } from "../components/common"
+
+const AUDIT_PAGE_SIZE = 50
 
 const ENTITY_LABELS: Record<string, string> = {
   User: "Usuário",
@@ -64,47 +67,77 @@ function formatTransition(value: { from?: unknown; to?: unknown }): { before: st
 }
 
 export default function SystemAudit() {
-  const [events, setEvents] = useState<AuditRecord[]>([])
+  const [auditPage, setAuditPage] = useState<AuditLogsPage | null>(null)
+  const [search, setSearch] = useState({ filters: "", page: 1 })
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [role, setRole] = useState("")
   const [query, setQuery] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState("")
+  const [exportError, setExportError] = useState("")
   const [selected, setSelected] = useState<AuditRecord | null>(null)
 
-  const buildQuery = useCallback(() => {
+  const applyFilters = () => {
     const params = new URLSearchParams()
     if (from) params.set("from", from)
     if (to) params.set("to", to)
     if (role) params.set("role", role)
-    if (query) params.set("q", query)
-    return params.size ? `?${params.toString()}` : ""
-  }, [from, query, role, to])
+    const keyword = query.trim()
+    if (keyword) params.set("q", keyword)
+    changeSearch(params.toString(), 1)
+  }
 
-  const loadEvents = useCallback(async () => {
+  const changeSearch = (filters: string, page: number) => {
+    if (search.filters === filters && search.page === page && !error) return
     setLoading(true)
     setError("")
-    try {
-      const response = await adminApi.auditLogs(buildQuery())
-      setEvents(response.results)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível carregar a auditoria.")
-    } finally {
-      setLoading(false)
-    }
-  }, [buildQuery])
+    setAuditPage(null)
+    setSearch({ filters, page })
+  }
 
-  useEffect(() => { void loadEvents() }, [loadEvents])
+  const clearFilters = () => {
+    setFrom("")
+    setTo("")
+    setRole("")
+    setQuery("")
+    changeSearch("", 1)
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const params = new URLSearchParams(search.filters)
+    params.set("page", String(search.page))
+    params.set("page_size", String(AUDIT_PAGE_SIZE))
+
+    async function loadEvents() {
+      try {
+        const response = await adminApi.auditLogs(`?${params.toString()}`, controller.signal)
+        if (!controller.signal.aborted) setAuditPage(response)
+      } catch (reason) {
+        if (controller.signal.aborted) return
+        if (reason instanceof ApiError && reason.status === 404) {
+          setError("A auditoria não está disponível neste acesso.")
+        } else {
+          setError(reason instanceof Error ? reason.message : "Não foi possível carregar a auditoria.")
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }
+
+    void loadEvents()
+    return () => controller.abort()
+  }, [search])
 
   const exportLogs = async () => {
     setExporting(true)
-    setError("")
+    setExportError("")
     try {
-      await adminApi.exportAuditLogs(buildQuery())
+      await adminApi.exportAuditLogs(search.filters ? `?${search.filters}` : "")
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível exportar o log.")
+      setExportError(reason instanceof Error ? reason.message : "Não foi possível exportar o log.")
     } finally {
       setExporting(false)
     }
@@ -151,15 +184,19 @@ export default function SystemAudit() {
           </select>
         </label>
         <div className="field audit-search">
-          <span>Palavra-chave</span>
+          <label htmlFor="audit-keyword">Palavra-chave</label>
           <div className="input-wrap">
             <Icon name="search" />
-            <input placeholder="Usuário, entidade ou ação" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <input id="audit-keyword" placeholder="Usuário, entidade ou ação" value={query} onChange={(event) => setQuery(event.target.value)} />
           </div>
         </div>
-        <Button onClick={() => void loadEvents()}>Aplicar filtros</Button>
+        <div className="audit-filter-actions">
+          <Button onClick={applyFilters}>Aplicar filtros</Button>
+          <Button variant="secondary" onClick={clearFilters}>Limpar filtros</Button>
+        </div>
       </Card>
       {error && <div className="success-notice" role="alert">{error}</div>}
+      {exportError && <div className="success-notice" role="alert">{exportError}</div>}
       <Card className="audit-card">
         <div className="section-head">
           <div>
@@ -176,7 +213,7 @@ export default function SystemAudit() {
             <span>Origem da rede</span>
             <span>Hash</span>
           </div>
-          {loading ? <p>Carregando eventos…</p> : events.map((event) => (
+          {loading ? <p role="status">Carregando eventos…</p> : auditPage?.results.map((event) => (
             <div
               className="admin-row"
               key={event.id}
@@ -216,7 +253,17 @@ export default function SystemAudit() {
             </div>
           ))}
         </div>
-        {events.length === 0 && !loading && <p>Nenhum evento encontrado.</p>}
+        {auditPage && (
+          <>
+            <p role="status">Total de registros: {auditPage.count.toLocaleString("pt-BR")}</p>
+            {auditPage.results.length === 0 && <p>Nenhum evento encontrado.</p>}
+            <Pagination
+              page={search.page}
+              totalPages={Math.ceil(auditPage.count / AUDIT_PAGE_SIZE)}
+              onPageChange={(page) => changeSearch(search.filters, page)}
+            />
+          </>
+        )}
       </Card>
 
       {selected && (
