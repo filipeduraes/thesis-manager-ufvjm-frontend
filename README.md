@@ -22,8 +22,6 @@ git clone https://github.com/filipeduraes/thesis-manager-ufvjm-frontend.git
 cd thesis-manager-ufvjm-frontend
 ```
 
-Substitua `<URL_DO_REPOSITORIO>` pelo endereço do repositório Git.
-
 ## 3. Instalar as dependências
 
 Na raiz do projeto, execute:
