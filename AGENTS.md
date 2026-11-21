@@ -22,6 +22,8 @@ Check this section against the code before relying on it, and update it when the
 
 ## System requirements
 
+- **Auditoria:** `SystemAudit` usa `GET /api/v1/admin/audit-logs` com `page` e `page_size`, exibe o total retornado em `count` e reutiliza `Pagination`. Aplicar ou limpar os filtros retorna à primeira página. A exportação usa os filtros aplicados e independe da página exibida.
+
 - Use React with TypeScript (`strict` mode) on Create React App (`react-scripts`), and Tailwind CSS plus the project's CSS tokens for styling. Do not introduce a different build tool, framework, router, or state library without a concrete need that the task justifies.
 - The frontend must consume the backend REST API (JSON, versioned under `/api/v1`). Never read from or write to the database, Redis, or the message broker from the browser.
 - Authentication is handled by the backend (Google Workspace institutional login through django-allauth headless/social mode, plus temporary tokens for external committee members). There is no local signup, login form with password, or password recovery. Never implement or mock a password field.
