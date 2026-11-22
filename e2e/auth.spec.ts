@@ -23,9 +23,8 @@ test.describe("Autenticação e navegação", () => {
     await expect(menu.getByRole("button", { name: "Auditoria" })).toHaveCount(0)
   })
 
-  // Este teste cobre apenas a tela estática/mock: o repositório público real
-  // ainda não está implementado (ver public-repository.spec.ts).
-  test("tela do repositório público (mock) é acessível sem autenticação", async ({ page }) => {
+  // Acesso anônimo à tela; a busca real é coberta em public-repository.spec.ts.
+  test("tela do repositório público é acessível sem autenticação", async ({ page }) => {
     await page.goto("/")
     await page.getByRole("button", { name: "Ir para o repositório público" }).click()
 

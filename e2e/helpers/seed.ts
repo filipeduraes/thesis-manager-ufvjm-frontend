@@ -163,8 +163,8 @@ async function readFixture(): Promise<Buffer> {
 
 /**
  * Leva uma monografia até o status PUBLICADA usando a API apenas como
- * pré-condição. Usado para demonstrar que o repositório público ainda não a
- * exibe (limitação conhecida do frontend).
+ * pré-condição, para validar a busca e o detalhe do repositório público pela
+ * interface.
  */
 export async function seedPublishedThesis(request: APIRequestContext, title: string): Promise<SeededThesis> {
   const thesis = await seedApprovedThesis(request, title)
