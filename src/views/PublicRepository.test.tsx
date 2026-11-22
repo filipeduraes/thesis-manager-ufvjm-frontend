@@ -214,3 +214,49 @@ test("baixa o PDF direto da listagem pela URL pública devolvida pela API", asyn
   userEvent.click(await screen.findByRole("button", { name: "Baixar PDF" }))
   await waitFor(() => expect(download).toHaveBeenCalledWith("/api/v1/public/theses/t1/download", "TCC-t1.pdf"))
 })
+
+test("cabeçalho do visitante oferece Entrar e não exibe o botão Sobre sem página", async () => {
+  const go = jest.fn()
+  render(<PublicRepository go={go} />)
+  await screen.findByText("Gestão hídrica no Vale")
+  const header = screen.getByRole("navigation", { name: "Navegação do repositório" })
+  expect(within(header).queryByRole("button", { name: "Sobre" })).toBeNull()
+  expect(within(header).queryByRole("button", { name: "Voltar ao sistema" })).toBeNull()
+  userEvent.click(within(header).getByRole("button", { name: "Entrar" }))
+  expect(go).toHaveBeenCalledWith("login")
+})
+
+test("com sessão ativa o cabeçalho troca Entrar por Voltar ao sistema, que leva ao Início", async () => {
+  const go = jest.fn()
+  render(<PublicRepository go={go} hasSession />)
+  await screen.findByText("Gestão hídrica no Vale")
+  const header = screen.getByRole("navigation", { name: "Navegação do repositório" })
+  expect(within(header).queryByRole("button", { name: "Entrar" })).toBeNull()
+  userEvent.click(within(header).getByRole("button", { name: "Voltar ao sistema" }))
+  expect(go).toHaveBeenCalledWith("dashboard")
+})
+
+test("botão Repositório do cabeçalho volta ao topo e limpa a busca", async () => {
+  const scrollTo = jest.spyOn(window, "scrollTo").mockImplementation(() => undefined)
+  render(<PublicRepository go={jest.fn()} />)
+  await screen.findByText("Gestão hídrica no Vale")
+  userEvent.type(screen.getByRole("textbox", { name: "Buscar no repositório" }), "água")
+  userEvent.selectOptions(screen.getByLabelText("Curso"), "course-1")
+  userEvent.click(screen.getByRole("button", { name: "Pesquisar" }))
+  await waitFor(() => expect(lastSearch()).toEqual(expect.objectContaining({ q: "água", courseId: "course-1" })))
+
+  const header = screen.getByRole("navigation", { name: "Navegação do repositório" })
+  userEvent.click(within(header).getByRole("button", { name: "Repositório" }))
+  expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" })
+  await waitFor(() => expect(lastSearch()).toEqual(expect.objectContaining({ q: "", courseId: undefined, keywords: [] })))
+  expect(screen.getByRole("textbox", { name: "Buscar no repositório" })).toHaveProperty("value", "")
+  expect(screen.getByLabelText("Curso")).toHaveProperty("value", "")
+  scrollTo.mockRestore()
+})
+
+test("embutido no layout do sistema, não repete o cabeçalho nem o rodapé públicos", async () => {
+  render(<PublicRepository go={jest.fn()} embedded />)
+  expect(await screen.findByRole("heading", { name: "Repositório de Monografias" })).toBeTruthy()
+  expect(screen.queryByRole("navigation", { name: "Navegação do repositório" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Entrar" })).toBeNull()
+})

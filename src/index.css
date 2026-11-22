@@ -1641,6 +1641,12 @@ textarea:focus {
   background: var(--bg)
 }
 
+/* Dentro do layout autenticado o conteúdo acompanha a área principal, sem altura de tela cheia. */
+.public-page.embedded {
+  min-height: auto;
+  background: transparent
+}
+
 .public-header {
   height: 76px;
   background: var(--white);

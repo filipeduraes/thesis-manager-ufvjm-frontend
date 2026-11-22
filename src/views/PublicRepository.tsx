@@ -69,7 +69,13 @@ function resultsHeading(count: number): string {
 
 interface PublicRepositoryProps {
   go: (page: Page) => void
+  /** Rendered inside the authenticated layout (sidebar and topbar): no public header or footer. */
   embedded?: boolean
+  /**
+   * Whether a session is active. The public header then offers "Voltar ao sistema"
+   * (to the home screen) instead of "Entrar".
+   */
+  hasSession?: boolean
 }
 
 /**
@@ -78,7 +84,7 @@ interface PublicRepositoryProps {
  * Every figure, filter option and result comes from the anonymous endpoints
  * (`/public/theses`, `/public/theses/filters`, `/public/theses/<id>`); no session is needed.
  */
-export default function PublicRepository({ go, embedded = false }: PublicRepositoryProps) {
+export default function PublicRepository({ go, embedded = false, hasSession = false }: PublicRepositoryProps) {
   const [draft, setDraft] = useState<RepositorySearch>(EMPTY_SEARCH)
   const [applied, setApplied] = useState<RepositorySearch>(EMPTY_SEARCH)
   const [ordering, setOrdering] = useState<RepositoryOrdering | "">("")
@@ -165,6 +171,13 @@ export default function PublicRepository({ go, embedded = false }: PublicReposit
     applySearch(EMPTY_SEARCH)
   }
 
+  const restartRepository = () => {
+    clearEverything()
+    setSelectedId(null)
+    setDownloadError("")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const toggleKeyword = (value: string) => {
     setKeywordLimitHint("")
     if (draft.keywords.includes(value)) {
@@ -205,19 +218,26 @@ export default function PublicRepository({ go, embedded = false }: PublicReposit
   const works = results?.results ?? []
 
   return (
-    <div className="public-page">
+    <div className={embedded ? "public-page embedded" : "public-page"}>
       {!embedded && (
         <header className="public-header">
           <Logo />
-          <nav>
-            <button type="button">Repositório</button>
-            <button type="button">Sobre</button>
+          <nav aria-label="Navegação do repositório">
+            <button type="button" onClick={restartRepository}>
+              Repositório
+            </button>
             <a href="https://portal.ufvjm.edu.br/" target="_blank" rel="noopener noreferrer">
               Portal da UFVJM
             </a>
-            <button type="button" onClick={() => go("login")}>
-              Entrar
-            </button>
+            {hasSession ? (
+              <button type="button" onClick={() => go("dashboard")}>
+                Voltar ao sistema
+              </button>
+            ) : (
+              <button type="button" onClick={() => go("login")}>
+                Entrar
+              </button>
+            )}
           </nav>
         </header>
       )}
