@@ -295,14 +295,26 @@ export interface AuditRecord {
   id: string
   timestamp: string
   actor: string
+  actorEmail?: string | null
   role: string
+  roles?: Array<{ code: string; label: string }>
+  roleCodes?: string[]
   action: string
   actionCode?: string
   actionLabel?: string
   summary?: string
+  category?: string
+  categoryLabel?: string
+  verbosity?: "TRACE" | "RELEVANT"
+  verbosityLabel?: string
   entityType: string
+  entityTypeLabel?: string
   entityAppLabel?: string
   entityId: string
+  entityName?: string
+  entityNameShort?: string
+  entityReference?: string
+  details?: Array<{ label: string; value: string; before?: string; after?: string }>
   origin: string
   originCode?: string
   ipAddress?: string | null

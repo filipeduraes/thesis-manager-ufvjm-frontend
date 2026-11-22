@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import { adminApi, ApiError, type AuditLogsPage, type AuditRecord } from "../api/client"
 import {
-  Badge,
   Button,
   Card,
   Icon,
@@ -9,8 +8,27 @@ import {
   PageTitle,
   Pagination,
 } from "../components/common"
+import RoleMultiSelect from "../components/common/RoleMultiSelect"
 
 const AUDIT_PAGE_SIZE = 50
+
+const CATEGORY_OPTIONS: { value: string; label: string }[] = [
+  { value: "access", label: "Acesso" },
+  { value: "management", label: "Gestão" },
+  { value: "thesis", label: "Monografia e defesa" },
+  { value: "publication", label: "Publicação" },
+  { value: "error", label: "Erro" },
+]
+
+const CATEGORY_COLORS: Record<string, string> = {
+  access: "var(--slate)",
+  management: "var(--navy)",
+  thesis: "var(--sage)",
+  publication: "var(--green)",
+  error: "var(--danger)",
+}
+
+const ALL_CATEGORIES = CATEGORY_OPTIONS.map((o) => o.value)
 
 const ENTITY_LABELS: Record<string, string> = {
   User: "Usuário",
@@ -21,49 +39,40 @@ const ENTITY_LABELS: Record<string, string> = {
   SessionAudit: "Sessão",
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN: "Administrador",
-  COORDINATOR: "Coordenador",
-  ADVISOR: "Orientador",
-  STUDENT: "Aluno",
-}
 
-const FIELD_LABELS: Record<string, string> = {
-  roles: "Perfis",
-  role: "Perfil",
-  course: "Curso",
-  courseId: "Curso",
-  is_active: "Status",
-  status: "Status",
-  name: "Nome",
-  email: "E-mail",
-  userName: "Usuário",
-  userEmail: "E-mail do usuário",
-  code: "Código",
-  department: "Departamento",
-  departmentName: "Departamento",
-  coordinatorEmail: "Coordenador",
-  coordinator_email: "Coordenador",
-  institution: "Instituição",
+const FIELD_TOOLTIPS: Record<string, string> = {
+  "Usuário": "Nome do usuário afetado pela operação.",
+  "E-mail": "Endereço de e-mail do usuário.",
+  "Curso": "Curso vinculado ao registro.",
+  "Código": "Código identificador do curso.",
+  "Departamento": "Departamento ao qual o curso pertence.",
+  "Coordenador": "Coordenador responsável pelo curso.",
+  "TCC": "Título da monografia/TCC.",
+  "Código do TCC": "Código de referência da monografia.",
+  "Autor(es)": "Autores da monografia.",
+  "Orientador": "Professor orientador da monografia.",
+  "Versão": "Número da versão do arquivo PDF.",
+  "Formato": "Visualização no site ou download do arquivo.",
+  "Arquivo": "Nome original do arquivo enviado.",
+  "Tipo de documento": "Tipo do documento complementar.",
+  "Membro da banca": "Membro da comissão examinadora.",
+  "Nota": "Nota atribuída pelo avaliador.",
+  "Decisão": "Decisão do avaliador (aprovado, ajustes, reprovado).",
+  "Data da defesa": "Data e hora agendada para a defesa.",
+  "Status da defesa": "Situação atual da defesa.",
+  "Perfis": "Perfis de acesso do usuário.",
+  "Status": "Status ativo/inativo do registro.",
+  "Instituição": "Instituição do convidado externo.",
+  "Expira em": "Data de expiração do convite.",
+  "Situação do convite": "Estado atual do convite externo.",
+  "Escopo": "Escopo do relatório (todos os cursos ou coordenados).",
+  "Ano de defesa": "Ano da defesa filtrado no relatório.",
+  "Tamanho": "Tamanho do arquivo em bytes.",
+  "SHA-256": "Hash de integridade do arquivo.",
 }
 
 function entityLabel(type: string): string {
   return ENTITY_LABELS[type] ?? type
-}
-
-function formatScalar(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—"
-  if (typeof value === "boolean") return value ? "Ativo/Sim" : "Inativo/Não"
-  if (Array.isArray(value)) return value.map((item) => ROLE_LABELS[String(item)] ?? formatScalar(item)).join(", ")
-  if (typeof value === "object") return JSON.stringify(value, null, 2)
-  return String(value)
-}
-
-function formatTransition(value: { from?: unknown; to?: unknown }): { before: string; after: string } {
-  return {
-    before: formatScalar(value.from),
-    after: formatScalar(value.to),
-  }
 }
 
 export default function SystemAudit() {
@@ -72,6 +81,7 @@ export default function SystemAudit() {
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [role, setRole] = useState("")
+  const [categories, setCategories] = useState<string[]>(ALL_CATEGORIES)
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
@@ -84,6 +94,9 @@ export default function SystemAudit() {
     if (from) params.set("from", from)
     if (to) params.set("to", to)
     if (role) params.set("role", role)
+    if (categories.length === 0) params.set("category", "none")
+    else if (categories.length === ALL_CATEGORIES.length) params.set("category", "all")
+    else params.set("category", categories.join(","))
     const keyword = query.trim()
     if (keyword) params.set("q", keyword)
     changeSearch(params.toString(), 1)
@@ -101,6 +114,7 @@ export default function SystemAudit() {
     setFrom("")
     setTo("")
     setRole("")
+    setCategories(ALL_CATEGORIES)
     setQuery("")
     changeSearch("", 1)
   }
@@ -143,15 +157,6 @@ export default function SystemAudit() {
     }
   }
 
-  const changeEntries = (record: AuditRecord | null) => {
-    if (!record) return []
-    return Object.entries(record.changes ?? {}).map(([key, value]) => ({
-      key,
-      label: FIELD_LABELS[key] ?? key,
-      value,
-    }))
-  }
-
   return (
     <div className="page-content">
       <PageTitle
@@ -183,6 +188,18 @@ export default function SystemAudit() {
             <option value="Sistema">Sistema</option>
           </select>
         </label>
+        <label className="field">
+          <span>Categoria</span>
+          <RoleMultiSelect
+            options={CATEGORY_OPTIONS}
+            value={categories}
+            onChange={setCategories}
+            placeholder="Todas as categorias"
+            ariaLabel="Categorias de auditoria"
+            allSelectedLabel="Todas as categorias"
+            optionColors={CATEGORY_COLORS}
+          />
+        </label>
         <div className="field audit-search">
           <label htmlFor="audit-keyword">Palavra-chave</label>
           <div className="input-wrap">
@@ -210,7 +227,7 @@ export default function SystemAudit() {
             <span>Ator</span>
             <span>Ação</span>
             <span>Entidade</span>
-            <span>Origem da rede</span>
+            <span>Categoria</span>
             <span>Hash</span>
           </div>
           {loading ? <p role="status">Carregando eventos…</p> : auditPage?.results.map((event) => (
@@ -234,18 +251,26 @@ export default function SystemAudit() {
               </span>
               <span data-label="Ator">
                 <strong>{event.actor}</strong>
-                <small>{event.role}</small>
+                <small>{event.roles?.map((r) => r.label).join(", ") ?? event.role}</small>
               </span>
               <span data-label="Ação">{event.summary ?? event.action}</span>
               <span data-label="Entidade">
-                <strong>{entityLabel(event.entityType)}</strong>
-                <small><code>{event.entityId}</code></small>
+                <strong>{event.entityNameShort ?? event.entityName ?? entityLabel(event.entityType)}</strong>
+                <small>{event.entityReference ?? event.entityId}</small>
               </span>
-              <span data-label="Origem da rede">
-                <Badge tone="light">
-                  <Icon name="lock" size={11} />
-                  {event.origin}
-                </Badge>
+              <span data-label="Categoria">
+                <span
+                  style={{
+                    background: CATEGORY_COLORS[(event.category ?? "").toLowerCase()] ?? "var(--line)",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}
+                >
+                  {event.categoryLabel ?? event.category ?? "—"}
+                </span>
               </span>
               <span data-label="Hash">
                 <code>{event.hash}</code>
@@ -272,6 +297,20 @@ export default function SystemAudit() {
             <div>
               <p className="eyebrow">Detalhes da auditoria</p>
               <h2>{selected.summary ?? selected.action}</h2>
+              <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    background: CATEGORY_COLORS[(selected.category ?? "").toLowerCase()] ?? "var(--line)",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}
+                >
+                  {selected.categoryLabel ?? selected.category ?? "—"}
+                </span>
+              </div>
             </div>
             <button className="icon-btn" onClick={() => setSelected(null)} aria-label="Fechar">
               <Icon name="close" />
@@ -282,43 +321,48 @@ export default function SystemAudit() {
             <div><strong>Ator:</strong> {selected.actor} ({selected.role})</div>
             <div><strong>Canal:</strong> {selected.channel ?? "—"}</div>
             <div><strong>Ação:</strong> {selected.actionLabel ?? selected.actionCode ?? selected.action}</div>
-            <div><strong>Entidade:</strong> {entityLabel(selected.entityType)} <code>{selected.entityId}</code></div>
+            <div><strong>Entidade</strong>
+              <div style={{ marginLeft: 12, display: "grid", gap: 2, fontSize: 13 }}>
+                <div><span style={{ opacity: 0.7 }}>Tipo:</span> {selected.entityTypeLabel ?? entityLabel(selected.entityType)}</div>
+                <div><span style={{ opacity: 0.7 }}>ID:</span> <code>{selected.entityId}</code></div>
+                {selected.entityName && <div><span style={{ opacity: 0.7 }}>Nome:</span> {selected.entityName}</div>}
+                {selected.entityReference && <div><span style={{ opacity: 0.7 }}>Referência:</span> {selected.entityReference}</div>}
+              </div>
+            </div>
             <div><strong>Origem da rede:</strong> {selected.origin}{selected.ipAddress ? ` · IP ${selected.ipAddress}` : ""}</div>
             <div><strong>Hash:</strong> <code>{selected.hash}</code></div>
-            <div>
-              <strong>Antes e depois / alterações</strong>
-              {changeEntries(selected).length > 0 || Object.keys(selected.metadata ?? {}).length > 0 ? (
-                <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                  {changeEntries(selected).map((entry) => {
-                    const value = entry.value
-                    if (value && typeof value === "object" && !Array.isArray(value) && "from" in (value as Record<string, unknown>) && "to" in (value as Record<string, unknown>)) {
-                      const transition = formatTransition(value as { from?: unknown; to?: unknown })
-                      return (
-                        <div key={entry.key} style={{ display: "grid", gap: 4, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-                          <span style={{ fontSize: 12, opacity: 0.8 }}>{entry.label}</span>
-                          <div><strong>Antes:</strong> {transition.before}</div>
-                          <div><strong>Depois:</strong> {transition.after}</div>
-                        </div>
-                      )
-                    }
+            {selected.details && selected.details.length > 0 && (
+              <div>
+                <strong>Detalhes da operação</strong>
+                <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                  {selected.details.map((entry, index) => {
+                    const before = entry.before
+                    const after = entry.after
+                    const isTransition = before !== undefined && after !== undefined
                     return (
-                      <div key={entry.key} style={{ display: "grid", gap: 2, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-                        <span style={{ fontSize: 12, opacity: 0.8 }}>{entry.label}</span>
-                        <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{formatScalar(value)}</code>
+                      <div
+                        key={`${entry.label}-${index}`}
+                        style={{ display: "grid", gap: 2, padding: "6px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}
+                      >
+                        <span className="audit-tooltip" data-tooltip={FIELD_TOOLTIPS[entry.label] ?? entry.label} style={{ fontSize: 12, opacity: 0.75, cursor: "help", borderBottom: "1px dotted var(--slate)" }}>{entry.label}</span>
+                        {isTransition ? (
+                          <div style={{ display: "grid", gap: 2 }}>
+                            <div style={{ color: before === "—" ? "var(--slate)" : "#9B1C31", textDecoration: before === "—" ? "none" : "line-through", opacity: 0.85 }}>
+                              Antes: {before}
+                            </div>
+                            <div style={{ color: after === "—" ? "var(--slate)" : "#1f7a3d", fontWeight: 600 }}>
+                              Depois: {after}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{entry.value}</div>
+                        )}
                       </div>
                     )
                   })}
-                  {Object.entries(selected.metadata ?? {}).map(([key, value]) => (
-                    <div key={`meta-${key}`} style={{ display: "grid", gap: 2, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-                      <span style={{ fontSize: 12, opacity: 0.8 }}>{FIELD_LABELS[key] ?? `Metadado: ${key}`}</span>
-                      <code style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{formatScalar(value)}</code>
-                    </div>
-                  ))}
                 </div>
-              ) : (
-                <p style={{ marginTop: 8 }}>Nenhum detalhe adicional registrado para este evento.</p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
           <div className="modal-actions">
             <Button variant="secondary" onClick={() => setSelected(null)}>Fechar</Button>

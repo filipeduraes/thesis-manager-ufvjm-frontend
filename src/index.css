@@ -403,6 +403,11 @@ textarea:focus {
   color: var(--navy)
 }
 
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger)
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;
@@ -5294,4 +5299,30 @@ textarea:focus-visible {
     transition-duration: .01ms !important;
     scroll-behavior: auto !important
   }
+}
+
+/* Audit detail tooltips */
+.audit-tooltip {
+  position: relative;
+  cursor: help;
+}
+.audit-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--navy);
+  color: var(--white);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 100;
+}
+.audit-tooltip:hover::after {
+  opacity: 1;
 }

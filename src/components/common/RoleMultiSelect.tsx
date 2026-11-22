@@ -13,6 +13,8 @@ interface RoleMultiSelectProps {
   placeholder?: string
   disabled?: boolean
   ariaLabel?: string
+  allSelectedLabel?: string
+  optionColors?: Record<string, string>
 }
 
 const EXCLUSIVE_ROLE_VALUES = new Set(["STUDENT", "Aluno"])
@@ -43,6 +45,8 @@ export default function RoleMultiSelect({
   placeholder = "Selecionar papéis…",
   disabled = false,
   ariaLabel,
+  allSelectedLabel,
+  optionColors,
 }: RoleMultiSelectProps) {
   const [open, setOpen] = useState(false)
   const [panelStyle, setPanelStyle] = useState<{
@@ -104,7 +108,13 @@ export default function RoleMultiSelect({
   const selectedLabels = options
     .filter((option) => value.includes(option.value))
     .map((option) => option.label)
-  const triggerLabel = selectedLabels.length > 0 ? selectedLabels.join(", ") : placeholder
+  const allSelected = options.length > 0 && selectedLabels.length === options.length
+  const triggerLabel =
+    allSelected && allSelectedLabel
+      ? allSelectedLabel
+      : selectedLabels.length > 0
+        ? selectedLabels.join(", ")
+        : placeholder
 
   return (
     <div
@@ -143,6 +153,7 @@ export default function RoleMultiSelect({
         >
           {options.map((option) => {
             const checked = value.includes(option.value)
+            const color = optionColors?.[option.value]
             return (
               <label key={option.value} className="role-multiselect-option">
                 <input
@@ -150,7 +161,15 @@ export default function RoleMultiSelect({
                   checked={checked}
                   onChange={() => onChange(toggleRoleValue(value, option.value))}
                 />
-                <span>{option.label}</span>
+                <span
+                  style={
+                    color
+                      ? { background: color, color: "#fff", padding: "2px 8px", borderRadius: 999, fontWeight: 700 }
+                      : undefined
+                  }
+                >
+                  {option.label}
+                </span>
               </label>
             )
           })}
