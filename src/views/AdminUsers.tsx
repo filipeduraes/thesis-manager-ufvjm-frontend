@@ -9,6 +9,7 @@ import {
   type PaginatedResponse,
 } from "../api/client"
 import type { Profile, User } from "../types"
+import { pageNumbers } from "../components/common/pagination"
 import { Badge, Button, Card, Icon, Modal, PageTitle, RoleMultiSelect } from "../components/common"
 
 type UserAction = "edit" | "remove" | null
@@ -38,14 +39,6 @@ function rolesFromUser(user: User & { roles?: Array<{ code: string; label: strin
     .map((item) => codeToProfile(item.code))
     .filter((item, index, list) => list.indexOf(item) === index)
   return roles.length > 0 ? roles : [user.role]
-}
-
-function pageNumbers(current: number, total: number): number[] {
-  const pages: number[] = []
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, start + 4)
-  for (let page = Math.max(1, end - 4); page <= end; page += 1) pages.push(page)
-  return pages
 }
 
 function UserListAvatar({ url, initials }: { url?: string | null; initials: string }) {

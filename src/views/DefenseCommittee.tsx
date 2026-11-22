@@ -26,6 +26,7 @@ import { availabilityStatusBadge, defenseDecisionTone, defenseStatusTone } from 
 import type { BadgeTone } from "../data/thesisStatus"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
 import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
+import { LONG_DATE_FORMATTER } from "../data/dateFormat"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
 import DefenseStatusConfirmModal from "./defense/DefenseStatusConfirmModal"
@@ -33,14 +34,6 @@ import DefenseThesisCard from "./defense/DefenseThesisCard"
 import DefenseStatusTimeline from "./defense/DefenseStatusTimeline"
 import { statusActionErrorMessage } from "./defense/defenseErrors"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
-
-const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-  timeZone: "America/Sao_Paulo",
-})
 
 type AddModalKind = "institutional" | "external" | null
 type StatusModalKind = "start" | "close" | "revert" | null

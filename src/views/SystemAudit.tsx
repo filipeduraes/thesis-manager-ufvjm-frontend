@@ -8,27 +8,11 @@ import {
   PageTitle,
   Pagination,
 } from "../components/common"
+import CategoryChip from "../components/common/CategoryChip"
 import RoleMultiSelect from "../components/common/RoleMultiSelect"
+import { ALL_CATEGORIES, CATEGORY_COLORS, CATEGORY_OPTIONS } from "../data/auditCategories"
 
 const AUDIT_PAGE_SIZE = 50
-
-const CATEGORY_OPTIONS: { value: string; label: string }[] = [
-  { value: "access", label: "Acesso" },
-  { value: "management", label: "Gestão" },
-  { value: "thesis", label: "Monografia e defesa" },
-  { value: "publication", label: "Publicação" },
-  { value: "error", label: "Erro" },
-]
-
-const CATEGORY_COLORS: Record<string, string> = {
-  access: "var(--slate)",
-  management: "var(--navy)",
-  thesis: "var(--sage)",
-  publication: "var(--green)",
-  error: "var(--danger)",
-}
-
-const ALL_CATEGORIES = CATEGORY_OPTIONS.map((o) => o.value)
 
 const ENTITY_LABELS: Record<string, string> = {
   User: "Usuário",
@@ -38,7 +22,6 @@ const ENTITY_LABELS: Record<string, string> = {
   ExternalInvitation: "Convite externo",
   SessionAudit: "Sessão",
 }
-
 
 const FIELD_TOOLTIPS: Record<string, string> = {
   "Usuário": "Nome do usuário afetado pela operação.",
@@ -259,18 +242,7 @@ export default function SystemAudit() {
                 <small>{event.entityReference ?? event.entityId}</small>
               </span>
               <span data-label="Categoria">
-                <span
-                  style={{
-                    background: CATEGORY_COLORS[(event.category ?? "").toLowerCase()] ?? "var(--line)",
-                    color: "#fff",
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    fontWeight: 700,
-                    fontSize: 12,
-                  }}
-                >
-                  {event.categoryLabel ?? event.category ?? "—"}
-                </span>
+                <CategoryChip category={event.category} label={event.categoryLabel} />
               </span>
               <span data-label="Hash">
                 <code>{event.hash}</code>
@@ -298,18 +270,7 @@ export default function SystemAudit() {
               <p className="eyebrow">Detalhes da auditoria</p>
               <h2>{selected.summary ?? selected.action}</h2>
               <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span
-                  style={{
-                    background: CATEGORY_COLORS[(selected.category ?? "").toLowerCase()] ?? "var(--line)",
-                    color: "#fff",
-                    padding: "2px 8px",
-                    borderRadius: 999,
-                    fontWeight: 700,
-                    fontSize: 12,
-                  }}
-                >
-                  {selected.categoryLabel ?? selected.category ?? "—"}
-                </span>
+                <CategoryChip category={selected.category} label={selected.categoryLabel} />
               </div>
             </div>
             <button className="icon-btn" onClick={() => setSelected(null)} aria-label="Fechar">

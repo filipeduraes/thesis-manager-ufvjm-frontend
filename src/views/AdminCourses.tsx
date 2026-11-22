@@ -6,6 +6,7 @@ import {
   type PaginatedResponse,
   type UserLookupResult,
 } from "../api/client"
+import { pageNumbers } from "../components/common/pagination"
 import { Button, Card, Icon, Modal, PageTitle, UserFoundCard, UserSuggestInput } from "../components/common"
 import { normalizeInstitutionalEmail, useUserLookup } from "../hooks/useUserLookup"
 
@@ -13,14 +14,6 @@ type CourseAction = "edit" | "delete" | null
 
 const PAGE_SIZE = 10
 const NEW_DEPARTMENT = "__new__"
-
-function pageNumbers(current: number, total: number): number[] {
-  const pages: number[] = []
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, start + 4)
-  for (let page = Math.max(1, end - 4); page <= end; page += 1) pages.push(page)
-  return pages
-}
 
 function coordinatorLabel(course: AdminCourse): string {
   if (course.coordinator?.name) return course.coordinator.name

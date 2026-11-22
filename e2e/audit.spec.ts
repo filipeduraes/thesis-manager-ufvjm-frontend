@@ -29,14 +29,17 @@ test.describe("Auditoria do sistema (administrador)", () => {
     const listbox = page.getByRole("listbox")
     await listbox.getByText("Acesso").click()
     await page.keyboard.press("Escape")
+    const filteredResponse = page.waitForResponse(
+      (response) => response.url().includes("/api/v1/admin/audit-logs?") && response.url().includes("category="),
+    )
     await page.getByRole("button", { name: "Aplicar filtros" }).click()
+    await filteredResponse
 
     // "Acesso" estava selecionado por padrão; desmarcá-lo deve remover os logs
     // de login/download da listagem, mas manter os demais.
     await expect(page.getByRole("button", { name: "Categorias de auditoria" })).not.toHaveText(/Acesso/)
     await expect(page.getByRole("status").filter({ hasText: "Total de registros:" })).toBeVisible()
     const rows = page.locator(".audit-table .admin-row[role='button']")
-    await expect(rows.first()).toBeVisible()
     await expect(rows.filter({ hasText: "Acesso" })).toHaveCount(0)
   })
 

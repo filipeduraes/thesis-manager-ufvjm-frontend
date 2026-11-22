@@ -12,6 +12,7 @@ import {
 import { Badge, Breadcrumb, Button, Card, Icon, PageTitle, type BreadcrumbItem } from "../components/common"
 import { defenseStatusTone } from "../data/defenseStatus"
 import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
+import { LONG_DATE_FORMATTER } from "../data/dateFormat"
 import DefenseThesisCard from "./defense/DefenseThesisCard"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
 
@@ -33,14 +34,6 @@ interface DefenseEvaluationProps {
    */
   variant?: "institutional" | "external"
 }
-
-const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-  timeZone: "America/Sao_Paulo",
-})
 
 const DECISION_OPTIONS: Array<{
   value: DecisionCode

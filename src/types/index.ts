@@ -21,38 +21,8 @@ export interface User {
   lastAccess?: string
 }
 
-export interface Thesis {
-  id: string
-  title: string
-  student: string
-  course: string
-  advisor: string
-  status: string
-  version: string
-}
 
-export interface AuditLog {
-  timestamp: string
-  actor: string
-  role: string
-  action: string
-  entityId: string
-  origin: string
-  hash: string
-}
 
-export interface Course {
-  id?: string
-  name: string
-  code: string
-  department?: { id: string; name: string }
-  departmentId?: string
-  coordinator: string
-  coordinatorEmail?: string
-  coordinatorStatus?: "FOUND_ACTIVE" | "FOUND_INACTIVE" | "PENDING"
-  activeStudents: number
-  publishedTheses: number
-}
 
 export interface RepositoryWork {
   title: string
@@ -68,14 +38,6 @@ export interface RepositoryWork {
   doi: string
 }
 
-export interface AdvisorSubmission {
-  student: string
-  title: string
-  course: string
-  submittedAt: string
-  status: string
-  version: string
-}
 
 /** Committee role codes accepted by the defense member endpoints. */
 export type CommitteeRoleCode = "PRESIDENT" | "MEMBER" | "ALTERNATE"

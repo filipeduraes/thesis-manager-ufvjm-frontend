@@ -1,7 +1,7 @@
 import { expect, type APIRequestContext } from "@playwright/test"
 import { uniqueEmail } from "./auth"
 
-const API_ROOT = process.env.E2E_API_URL ?? "http://localhost:8000/api/v1"
+const API_ROOT = process.env.E2E_API_URL ?? "http://localhost:8001/api/v1"
 
 export interface SeededThesis {
   courseId: string

@@ -4,6 +4,7 @@ import { authApi, codeToProfile, type SessionPayload } from "./api/client"
 import { menuByProfile, menuForProfiles, profilesFromCodes } from "./data/navigation"
 import type { SearchDestination } from "./data/globalSearch"
 import type { Page } from "./types"
+import { STORAGE_KEYS } from "./data/storageKeys"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
 import AdvisorApproval from "./views/AdvisorApproval"
@@ -36,8 +37,8 @@ const routeTitles: Partial<Record<Page, string>> = {
 }
 
 function clearPersistedViewState(): void {
-  window.sessionStorage.removeItem("ufvjm:defense-view")
-  window.sessionStorage.removeItem("ufvjm:defense-list-filters")
+  window.sessionStorage.removeItem(STORAGE_KEYS.defenseView)
+  window.sessionStorage.removeItem(STORAGE_KEYS.defenseListFilters)
 }
 
 export default function App() {

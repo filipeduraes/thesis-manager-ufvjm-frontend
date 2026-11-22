@@ -9,6 +9,7 @@ import {
   type ThesisListItem,
   type ThesisReviewDecision,
 } from "../api/client"
+import { apiErrorMessage } from "../api/errors"
 import {
   Badge,
   Breadcrumb,
@@ -51,10 +52,6 @@ const defenseResultOptions = (Object.keys(defenseResultLabels) as ThesisDefenseR
   value,
   label: defenseResultLabels[value],
 }))
-
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : "Não foi possível concluir a solicitação."
-}
 
 export default function AdvisorApproval({ initialThesisId, profile = "Orientador" }: AdvisorApprovalProps) {
   const [items, setItems] = useState<ThesisListItem[]>([])
@@ -113,7 +110,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setCount(data.count)
     } catch (reason) {
       if (requestId !== listRequestRef.current) return
-      setListError(errorMessage(reason))
+      setListError(apiErrorMessage(reason))
     } finally {
       if (requestId === listRequestRef.current) setListLoading(false)
     }
@@ -146,7 +143,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
     } catch (reason) {
       if (requestId !== detailRequestRef.current) return
       setDetail(null)
-      setDetailError(errorMessage(reason))
+      setDetailError(apiErrorMessage(reason))
     } finally {
       if (requestId === detailRequestRef.current) setDetailLoading(false)
     }
@@ -223,7 +220,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       )
       await loadList()
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
       setConfirm(null)
     } finally {
       setActionLoading(null)
@@ -246,7 +243,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setNotice("Resultado da banca registrado.")
       await loadList()
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     } finally {
       setActionLoading(null)
     }
@@ -265,7 +262,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setNotice("Monografia publicada no repositório institucional.")
       await loadList()
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
       setConfirm(null)
     } finally {
       setActionLoading(null)
@@ -289,7 +286,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDetail(response.thesis)
       setNotice("Documento complementar enviado.")
     } catch (reason) {
-      setDocumentError(errorMessage(reason))
+      setDocumentError(apiErrorMessage(reason))
     } finally {
       setDocumentUploading(false)
     }
@@ -306,7 +303,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDetail(response.thesis)
       setNotice(`${document.typeLabel} validado.`)
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     } finally {
       setValidatingDocumentId(null)
     }
@@ -317,7 +314,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       const filename = file.storedFile.originalFilename || `monografia-v${file.versionNumber}.pdf`
       await thesesApi.downloadFile(file.downloadUrl, filename)
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     }
   }
 
@@ -325,7 +322,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
     try {
       await thesesApi.downloadFile(document.downloadUrl, document.storedFile.originalFilename)
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     }
   }
 

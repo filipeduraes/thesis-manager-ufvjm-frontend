@@ -1,5 +1,7 @@
 import type { CommitteeRoleCode, DefenseModalityCode, Profile } from "../types"
 
+import { normalizeErrorBody } from "./errors"
+
 const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
 const API_ROOT = `${API_ORIGIN}/api/v1`
 
@@ -49,8 +51,8 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const detail = body.detail ?? Object.values(body).flat().join(" ")
-    throw new ApiError(detail || "Não foi possível concluir a solicitação.", response.status)
+    const detail = normalizeErrorBody(body, "Não foi possível concluir a solicitação.")
+    throw new ApiError(detail, response.status)
   }
   return body as T
 }
@@ -246,7 +248,7 @@ export const adminApi = {
     })
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
-      const detail = (body as { detail?: string }).detail ?? "Não foi possível exportar o log."
+      const detail = normalizeErrorBody(body, "Não foi possível exportar o log.")
       if (response.status === 404) {
         throw new ApiError("Exportação indisponível. Reinicie o backend para carregar a rota de auditoria.", response.status)
       }

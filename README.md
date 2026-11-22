@@ -115,9 +115,10 @@ npm run test:e2e:report       # abre o relatório HTML da última execução
 ```
 
 Execute **na raiz do repositório frontend**, no host (o `webServer` usa o
-caminho relativo `../thesis-manager-ufvjm-backend`). Se já houver backend
-(`:8000`) e frontend (`:3000`) abertos, o Playwright os reutiliza e não os
-encerra.
+caminho relativo `../thesis-manager-ufvjm-backend`). A suíte usa portas
+**dedicadas**: backend `:8001` (SQLite isolado) e frontend `:3001`.
+`reuseExistingServer: false` impede que um backend da aplicação em `:8000` seja
+reaproveitado — isso gravaria dados de teste no banco real.
 
 ### Ambiente isolado (sem PostgreSQL/Redis/RabbitMQ)
 
@@ -128,7 +129,7 @@ para uploads. Se preferir iniciar manualmente:
 ```bash
 cd ../thesis-manager-ufvjm-backend
 DJANGO_SETTINGS_MODULE=thesismanagerbackend.settings_e2e .venv/bin/python manage.py migrate --noinput
-DJANGO_SETTINGS_MODULE=thesismanagerbackend.settings_e2e .venv/bin/python manage.py runserver 127.0.0.1:8000 --noreload
+DJANGO_SETTINGS_MODULE=thesismanagerbackend.settings_e2e .venv/bin/python manage.py runserver 127.0.0.1:8001 --noreload
 ```
 
 ### Usando o Docker Compose normal
@@ -140,18 +141,18 @@ cd ../thesis-manager-ufvjm-backend
 docker compose --profile frontend up --build -d
 ```
 
-O compose já sobe backend com `DEBUG=True` (libera o login de teste), aplica as
-migrações no `init` e expõe `:8000`/`:3000`. O Playwright detecta os servidores
-e os reutiliza. Falhas de credenciais do RabbitMQ não afetam os testes HTTP —
-os workers de eventos não são necessários. Execute a suíte no host, não dentro
-do container do frontend (o Chrome do sistema não está na imagem).
+O compose sobe a aplicação em `:8000`/`:3000`, mas **não é usado pelos testes**.
+A suíte sempre sobe seu próprio backend isolado em `:8001` e frontend em
+`:3001`, para que os dados de teste nunca entrem no banco da aplicação. Execute
+a suíte no host, não dentro do container do frontend (o Chrome do sistema não
+está na imagem).
 
 ### Evidências
 
 - Relatório HTML: `playwright-report/` (gerado automaticamente).
 - Em falhas: screenshot, trace e error context em `test-results/`.
-- Variáveis opcionais: `E2E_BASE_URL` (padrão `http://localhost:3000`) e
-  `E2E_API_URL` (padrão `http://localhost:8000/api/v1`).
+- Variáveis opcionais: `E2E_BASE_URL` (padrão `http://localhost:3001`) e
+  `E2E_API_URL` (padrão `http://localhost:8001/api/v1`).
 
 ### Limitações conhecidas
 
@@ -169,3 +170,21 @@ do container do frontend (o Chrome do sistema não está na imagem).
 ## Correções de concorrência (2026-11-22)
 
 Telas com carregamento assíncrono passaram a descartar respostas obsoletas por identificador de requisição (`DefenseCommittee`, `AdvisorApproval`, `AdminUsers`, `AdminCourses`), o campo de sugestão de usuários invalida requisições pendentes em cache hits, o token CSRF é renovado após logout, e formulários de submissão possuem guarda síncrona contra envio duplicado. Filtros de sessão são limpos no logout. Testes: `src/hooks/useUserLookup.test.ts` e suíte E2E existente.
+
+## Refatoração de qualidade (2026-11-22)
+
+Extraídos `api/errors.ts`, `data/{auditCategories,dateFormat,storageKeys}.ts`, `components/common/{CategoryChip,pagination}.ts` e removidos tipos legados sem uso em `types/index.ts`. Textos, cores e contratos de API permanecem idênticos.
+
+### Limpeza de dados de execuções antigas
+
+Se uma execução antiga (antes das portas dedicadas) gravou no banco da aplicação:
+
+```bash
+cd ../thesis-manager-ufvjm-backend
+DATABASE_URL=<url-do-banco-real> .venv/bin/python manage.py cleanup_e2e_data
+DATABASE_URL=<url-do-banco-real> .venv/bin/python manage.py cleanup_e2e_data --apply
+```
+
+O comando remove usuários `e2e-*`, cursos/departamentos `E2E`, TCCs e bancas
+relacionados, além das notificações correspondentes. A tabela `audit_log` **não**
+é alterada: ela é append-only com cadeia SHA-256.
