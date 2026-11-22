@@ -257,11 +257,6 @@ export const adminApi = {
     anchor.remove()
     window.URL.revokeObjectURL(url)
   },
-  createInvitation: (body: { name: string; email: string; institution: string }) =>
-    apiRequest<{ id: string; token: string; expiresAt: string }>(
-      "/admin/external-invitations",
-      { method: "POST", body: JSON.stringify(body) },
-    ),
   invitations: () =>
     apiRequest<{ results: ExternalInvitationRecord[] }>("/admin/external-invitations"),
   revokeInvitation: (id: string) =>
@@ -320,6 +315,8 @@ export interface ExternalInvitationRecord {
   status: string
   expiresAt: string
   usedAt: string | null
+  /** Quando o e-mail com o código atual foi enviado; o código em si nunca vem na API. */
+  sentAt: string | null
 }
 
 // ─── Directory API ────────────────────────────────────────────────────────────

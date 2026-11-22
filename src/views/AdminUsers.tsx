@@ -80,9 +80,6 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
   const [statusFilter, setStatusFilter] = useState("")
   const [page, setPage] = useState(1)
   const [modal, setModal] = useState(false)
-  const [inviteModal, setInviteModal] = useState(false)
-  const [inviteToken, setInviteToken] = useState("")
-  const [institution, setInstitution] = useState("")
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<(User & { avatarUrl?: string | null; roles?: Array<{ code: string; label: string }> }) | null>(null)
   const [userAction, setUserAction] = useState<UserAction>(null)
@@ -205,17 +202,6 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
     }
   }
 
-  const createExternalInvitation = async () => {
-    try {
-      setError("")
-      const result = await adminApi.createInvitation({ name, email, institution })
-      setInviteToken(result.token)
-      await loadData()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível criar o convite.")
-    }
-  }
-
   const revokeInvitation = async (id: string) => {
     try {
       setError("")
@@ -235,9 +221,6 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           <div>
             <Button icon="plus" onClick={() => { setName(""); setEmail(""); setSelectedRoles(["Aluno"]); setCourseId(""); setModal(true) }}>
               Adicionar usuário
-            </Button>
-            <Button variant="secondary" onClick={() => { setName(""); setEmail(""); setInstitution(""); setInviteToken(""); setInviteModal(true) }}>
-              Convidar membro externo
             </Button>
           </div>
         }
@@ -468,23 +451,23 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
         </Modal>
       )}
 
-      {inviteModal && (
-        <Modal className="admin-modal">
-          <div className="section-head"><h2>Convite para membro externo</h2><button className="icon-btn" onClick={() => setInviteModal(false)} aria-label="Fechar"><Icon name="close" /></button></div>
-          {!inviteToken ? <>
-            <label className="field"><span>Nome completo</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
-            <label className="field"><span>E-mail</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-            <label className="field"><span>Instituição</span><input value={institution} onChange={(event) => setInstitution(event.target.value)} /></label>
-            <div className="modal-actions"><Button variant="secondary" onClick={() => setInviteModal(false)}>Cancelar</Button><Button disabled={!name.trim() || !email.trim()} onClick={() => void createExternalInvitation()}>Gerar token</Button></div>
-          </> : <>
-            <p>Copie e entregue este token ao membro. Ele só será exibido nesta tela.</p>
-            <strong>{inviteToken}</strong>
-            <div className="modal-actions"><Button onClick={() => setInviteModal(false)}>Concluir</Button></div>
-          </>}
-        </Modal>
+      {invitations.length > 0 && (
+        <Card className="admin-table-card">
+          <h2>Convites externos</h2>
+          {/* Convites nascem na tela da banca; o código de acesso vai só por e-mail e nunca chega aqui. */}
+          <p>Os convites são criados ao incluir um membro externo na banca. O código de acesso é enviado somente por e-mail.</p>
+          {invitations.map((invitation) => (
+            <div className="admin-row" key={invitation.id}>
+              <strong>{invitation.name}</strong>
+              <span>{invitation.email}</span>
+              <span>{invitation.status}</span>
+              <span>{new Date(invitation.expiresAt).toLocaleDateString("pt-BR")}</span>
+              <span>{invitation.sentAt ? `E-mail enviado em ${new Date(invitation.sentAt).toLocaleDateString("pt-BR")}` : "Envio pendente"}</span>
+              {invitation.status !== "REVOKED" && <Button variant="danger" onClick={() => void revokeInvitation(invitation.id)}>Revogar</Button>}
+            </div>
+          ))}
+        </Card>
       )}
-
-      {invitations.length > 0 && <Card className="admin-table-card"><h2>Convites externos</h2>{invitations.map((invitation) => <div className="admin-row" key={invitation.id}><strong>{invitation.name}</strong><span>{invitation.email}</span><span>{invitation.status}</span><span>{new Date(invitation.expiresAt).toLocaleDateString("pt-BR")}</span>{invitation.status !== "REVOKED" && <Button variant="danger" onClick={() => void revokeInvitation(invitation.id)}>Revogar</Button>}</div>)}</Card>}
     </div>
   )
 }
