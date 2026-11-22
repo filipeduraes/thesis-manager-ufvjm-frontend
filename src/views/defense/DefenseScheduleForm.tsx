@@ -6,7 +6,6 @@ import {
   type ThesisListItem,
 } from "../../api/client"
 import {
-  AccessTokenModal,
   Avatar,
   Badge,
   Button,
@@ -15,7 +14,6 @@ import {
   Icon,
   InstitutionalMemberModal,
   Modal,
-  type IssuedAccessToken,
 } from "../../components/common"
 import type {
   DefenseScheduleDraft,
@@ -47,8 +45,8 @@ interface MemberFailure {
 interface ScheduledOutcome {
   defenseId: string
   failures: MemberFailure[]
-  /** Tokens dos membros externos enviados; somem do estado quando o modal fecha. */
-  tokens: IssuedAccessToken[]
+  /** E-mails dos membros externos adicionados; o código de acesso vai só por e-mail. */
+  invitedEmails: string[]
 }
 
 type ThesesState =
@@ -81,7 +79,9 @@ interface DefenseScheduleFormProps {
  *
  * Theses come from `GET /api/v1/defenses/schedulable-theses`. Committee members are kept
  * in local state until the defense exists; after `POST /api/v1/theses/{id}/defenses`
- * succeeds, each member is sent in sequence and individual failures are reported.
+ * succeeds, each member is sent in sequence and individual failures are reported. External
+ * members receive their access code by e-mail from the backend; this screen only lists
+ * where the invitations go and never sees the code.
  */
 export default function DefenseScheduleForm({ onOpenCommittee }: DefenseScheduleFormProps) {
   const [thesesState, setThesesState] = useState<ThesesState>({ status: "loading" })
@@ -154,8 +154,8 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     setOutcome(null)
   }
 
-  /** Sends one member; resolves with the one-time access token for external members. */
-  const sendMember = async (defenseId: string, member: PendingMember): Promise<IssuedAccessToken | null> => {
+  /** Sends one member; resolves with the invited e-mail for external members. */
+  const sendMember = async (defenseId: string, member: PendingMember): Promise<string | null> => {
     if (member.kind === "institutional") {
       await defenseApi.addInstitutionalMember(defenseId, { role: member.draft.role, userId: member.draft.userId })
       return null
@@ -166,12 +166,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
       email: member.draft.email,
       institution: member.draft.institution || undefined,
     })
-    return {
-      memberId: response.member.id,
-      memberName: response.member.name,
-      token: response.accessToken,
-      expiresAt: response.accessTokenExpiresAt,
-    }
+    return response.member.email
   }
 
   const confirmSchedule = async () => {
@@ -193,14 +188,14 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     // Envio sequencial: o backend verifica conflito de horário por membro, e a ordem
     // previsível facilita identificar qual inclusão falhou.
     const failures: MemberFailure[] = []
-    const tokens: IssuedAccessToken[] = []
+    const invitedEmails: string[] = []
     for (let index = 0; index < members.length; index += 1) {
       const member = members[index]
       if (!member) continue
       setSubmitStep(`Adicionando membros (${index + 1} de ${members.length})…`)
       try {
-        const issued = await sendMember(defenseId, member)
-        if (issued) tokens.push(issued)
+        const invitedEmail = await sendMember(defenseId, member)
+        if (invitedEmail) invitedEmails.push(invitedEmail)
       } catch (reason) {
         failures.push({
           key: member.key,
@@ -211,21 +206,12 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     }
     setSubmitting(false)
     setSubmitStep("")
-    if (failures.length === 0 && tokens.length === 0) {
+    if (failures.length === 0 && invitedEmails.length === 0) {
       onOpenCommittee(defenseId)
       return
     }
-    // Com tokens, a navegação espera o modal fechar: eles não são exibidos de novo.
-    setOutcome({ defenseId, failures, tokens })
-  }
-
-  const closeTokens = () => {
-    if (!outcome) return
-    if (outcome.failures.length === 0) {
-      onOpenCommittee(outcome.defenseId)
-      return
-    }
-    setOutcome({ ...outcome, tokens: [] })
+    // Com convites, a tela informa para onde foram antes de abrir a comissão.
+    setOutcome({ defenseId, failures, invitedEmails })
   }
 
   const thesesCount = thesesState.status === "ready" ? thesesState.count : 0
@@ -373,10 +359,21 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
               </div>
             )}
 
-            {outcome && outcome.failures.length === 0 ? (
+            {outcome && outcome.invitedEmails.length > 0 && (
               <div className="success-notice" role="status">
-                Banca agendada. Guarde os tokens dos membros externos antes de continuar.
+                Banca agendada. O código de acesso de cada membro externo é enviado por e-mail:
+                <ul>
+                  {outcome.invitedEmails.map((email) => (
+                    <li key={email}>Convite enviado para {email}</li>
+                  ))}
+                </ul>
               </div>
+            )}
+
+            {outcome && outcome.failures.length === 0 ? (
+              <Button variant="success" onClick={() => onOpenCommittee(outcome.defenseId)}>
+                Abrir membros da banca
+              </Button>
             ) : outcome ? (
               <div role="alert">
                 <div className="success-notice">
@@ -450,8 +447,6 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
           )}
         </Modal>
       )}
-
-      {outcome && outcome.tokens.length > 0 && <AccessTokenModal tokens={outcome.tokens} onClose={closeTokens} />}
 
       {memberModal === "institutional" && (
         <InstitutionalMemberModal onClose={() => setMemberModal(null)} onSubmit={addInstitutionalDraft} />

@@ -82,13 +82,9 @@ async function fillSchedule() {
   userEvent.click(screen.getByRole("radio", { name: "Presencial" }))
 }
 
-test("shows the external member token after scheduling and opens the committee only after closing it", async () => {
+test("lists the invited e-mails after scheduling and never shows an access code", async () => {
   scheduleDefense.mockResolvedValue({ defense: scheduledDefense() })
-  addExternalMember.mockResolvedValue({
-    member: createdMember("Paula Externa"),
-    accessToken: "UFVJM-AAAA-BBBB-CCCC-DDDD",
-    accessTokenExpiresAt: "2026-12-15T15:00:00Z",
-  })
+  addExternalMember.mockResolvedValue({ member: { ...createdMember("Paula Externa"), email: "paula@externo.org" } })
   const onOpenCommittee = jest.fn()
   render(<DefenseScheduleForm onOpenCommittee={onOpenCommittee} />)
   await fillSchedule()
@@ -99,13 +95,15 @@ test("shows the external member token after scheduling and opens the committee o
   userEvent.click(screen.getByRole("button", { name: "Adicionar membro externo" }))
   userEvent.click(await screen.findByRole("button", { name: "Confirmar agendamento" }))
 
-  const dialog = await screen.findByRole("dialog", { name: "Token de acesso" })
-  expect(within(dialog).getByText("UFVJM-AAAA-BBBB-CCCC-DDDD")).toBeTruthy()
-  expect(within(dialog).getByText("Guarde este token: ele não será exibido novamente.")).toBeTruthy()
+  const notice = await screen.findByRole("status")
+  expect(notice.textContent).toContain("O código de acesso de cada membro externo é enviado por e-mail")
+  expect(within(notice).getByText("Convite enviado para paula@externo.org")).toBeTruthy()
   expect(addExternalMember).toHaveBeenCalledWith("defense-9", expect.objectContaining({ name: "Paula Externa" }))
+  expect(screen.queryByRole("dialog")).toBeNull()
+  expect(document.body.textContent).not.toMatch(/UFVJM-[A-Z0-9]{4}/)
   expect(onOpenCommittee).not.toHaveBeenCalled()
 
-  userEvent.click(within(dialog).getByRole("button", { name: "Concluir" }))
+  userEvent.click(screen.getByRole("button", { name: "Abrir membros da banca" }))
   expect(onOpenCommittee).toHaveBeenCalledWith("defense-9")
 })
 
