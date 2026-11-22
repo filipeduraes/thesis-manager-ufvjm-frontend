@@ -219,3 +219,8 @@ test("advisor dashboard uses the singular for one pending review and hides the '
   expect(await screen.findByRole("heading", { name: "1 submissão aguarda revisão" })).toBeTruthy()
   expect(screen.queryByRole("button", { name: /Ver todas as/ })).toBeNull()
 })
+
+test("DashboardView não cria um segundo elemento main", async () => {
+  const { container } = render(<DashboardView profiles={["Administrador"]} go={jest.fn()} review={jest.fn()} evaluate={jest.fn()} />)
+  expect(container.querySelectorAll("main")).toHaveLength(0)
+})

@@ -804,11 +804,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
             </Card>
 
             {confirm === "approve" && (
-              <Modal className="confirmation-modal">
+              <Modal className="confirmation-modal" labelledBy="confirm-approve-title" onClose={() => setConfirm(null)}>
                 <div className="modal-icon">
                   <Icon name="check" />
                 </div>
-                <h2>Aprovar para banca?</h2>
+                <h2 id="confirm-approve-title">Aprovar para banca?</h2>
                 <p>
                   Ao confirmar, a coordenação poderá agendar a defesa e o aluno será notificado.
                 </p>
@@ -827,11 +827,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
               </Modal>
             )}
             {confirm === "reject" && (
-              <Modal className="confirmation-modal">
+              <Modal className="confirmation-modal" labelledBy="confirm-reject-title" onClose={() => setConfirm(null)}>
                 <div className="modal-icon danger">
                   <Icon name="alert" />
                 </div>
-                <h2>Reprovar submissão?</h2>
+                <h2 id="confirm-reject-title">Reprovar submissão?</h2>
                 <p>
                   O aluno será notificado e deverá enviar uma nova versão antes de prosseguir. Descreva o motivo
                   nos comentários do parecer.
@@ -852,11 +852,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
               </Modal>
             )}
             {confirm === "publish" && (
-              <Modal className="confirmation-modal">
+              <Modal className="confirmation-modal" labelledBy="confirm-publish-title" onClose={() => setConfirm(null)}>
                 <div className="modal-icon">
                   <Icon name="book" />
                 </div>
-                <h2>Publicar no repositório?</h2>
+                <h2 id="confirm-publish-title">Publicar no repositório?</h2>
                 <p>
                   A monografia ficará visível publicamente e as versões anteriores serão removidas, mantendo apenas
                   a versão atual.

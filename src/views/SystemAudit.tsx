@@ -11,6 +11,7 @@ import {
 import CategoryChip from "../components/common/CategoryChip"
 import RoleMultiSelect from "../components/common/RoleMultiSelect"
 import { ALL_CATEGORIES, CATEGORY_COLORS, CATEGORY_OPTIONS } from "../data/auditCategories"
+import { buildAuditSummary } from "../data/auditFormat"
 
 const AUDIT_PAGE_SIZE = 50
 
@@ -195,8 +196,8 @@ export default function SystemAudit() {
           <Button variant="secondary" onClick={clearFilters}>Limpar filtros</Button>
         </div>
       </Card>
-      {error && <div className="success-notice" role="alert">{error}</div>}
-      {exportError && <div className="success-notice" role="alert">{exportError}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
+      {exportError && <div className="form-error" role="alert">{exportError}</div>}
       <Card className="audit-card">
         <div className="section-head">
           <div>
@@ -236,10 +237,10 @@ export default function SystemAudit() {
                 <strong>{event.actor}</strong>
                 <small>{event.roles?.map((r) => r.label).join(", ") ?? event.role}</small>
               </span>
-              <span data-label="Ação">{event.summary ?? event.action}</span>
+              <span data-label="Ação">{buildAuditSummary(event.event, event.summary ?? event.action)}</span>
               <span data-label="Entidade">
-                <strong>{event.entityNameShort ?? event.entityName ?? entityLabel(event.entityType)}</strong>
-                <small>{event.entityReference ?? event.entityId}</small>
+                <strong>{event.event?.entity.name || event.entityNameShort || event.entityName || event.entityId}</strong>
+                <small>{event.event?.entity.reference || event.entityReference || event.entityId}</small>
               </span>
               <span data-label="Categoria">
                 <CategoryChip category={event.category} label={event.categoryLabel} />
@@ -264,13 +265,18 @@ export default function SystemAudit() {
       </Card>
 
       {selected && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="audit-detail-title" onClose={() => setSelected(null)}>
           <div className="section-head">
             <div>
               <p className="eyebrow">Detalhes da auditoria</p>
-              <h2>{selected.summary ?? selected.action}</h2>
+              <h2 id="audit-detail-title">{buildAuditSummary(selected.event, selected.summary ?? selected.action)}</h2>
               <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <CategoryChip category={selected.category} label={selected.categoryLabel} />
+                {selected.event?.entity.exists === false && (
+                  <span style={{ fontSize: 12, color: "var(--danger)", fontWeight: 700 }}>
+                    Entidade removida do banco de dados
+                  </span>
+                )}
               </div>
             </div>
             <button className="icon-btn" onClick={() => setSelected(null)} aria-label="Fechar">
@@ -287,7 +293,8 @@ export default function SystemAudit() {
                 <div><span style={{ opacity: 0.7 }}>Tipo:</span> {selected.entityTypeLabel ?? entityLabel(selected.entityType)}</div>
                 <div><span style={{ opacity: 0.7 }}>ID:</span> <code>{selected.entityId}</code></div>
                 {selected.entityName && <div><span style={{ opacity: 0.7 }}>Nome:</span> {selected.entityName}</div>}
-                {selected.entityReference && <div><span style={{ opacity: 0.7 }}>Referência:</span> {selected.entityReference}</div>}
+                {(selected.event?.entity.reference || selected.entityReference) && <div><span style={{ opacity: 0.7 }}>Referência:</span> {selected.event?.entity.reference || selected.entityReference}</div>}
+                {selected.event?.entity.exists === false && <div style={{ color: "var(--danger)" }}>O registro relacionado não existe mais no banco de dados.</div>}
               </div>
             </div>
             <div><strong>Origem da rede:</strong> {selected.origin}{selected.ipAddress ? ` · IP ${selected.ipAddress}` : ""}</div>
@@ -305,7 +312,7 @@ export default function SystemAudit() {
                         key={`${entry.label}-${index}`}
                         style={{ display: "grid", gap: 2, padding: "6px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}
                       >
-                        <span className="audit-tooltip" data-tooltip={FIELD_TOOLTIPS[entry.label] ?? entry.label} style={{ fontSize: 12, opacity: 0.75, cursor: "help", borderBottom: "1px dotted var(--slate)" }}>{entry.label}</span>
+                        <span className="audit-tooltip" tabIndex={0} aria-label={FIELD_TOOLTIPS[entry.label] ?? entry.label} data-tooltip={FIELD_TOOLTIPS[entry.label] ?? entry.label} style={{ fontSize: 12, opacity: 0.75, cursor: "help", borderBottom: "1px dotted var(--slate)" }}>{entry.label}</span>
                         {isTransition ? (
                           <div style={{ display: "grid", gap: 2 }}>
                             <div style={{ color: before === "—" ? "var(--slate)" : "#9B1C31", textDecoration: before === "—" ? "none" : "line-through", opacity: 0.85 }}>

@@ -259,4 +259,11 @@ test("embutido no layout do sistema, não repete o cabeçalho nem o rodapé púb
   expect(await screen.findByRole("heading", { name: "Repositório de Monografias" })).toBeTruthy()
   expect(screen.queryByRole("navigation", { name: "Navegação do repositório" })).toBeNull()
   expect(screen.queryByRole("button", { name: "Entrar" })).toBeNull()
+  expect(screen.queryByRole("main")).toBeNull()
+})
+
+test("como página autônoma, declara a própria região principal", async () => {
+  render(<PublicRepository go={jest.fn()} />)
+  expect(await screen.findByRole("heading", { name: "Repositório de Monografias" })).toBeTruthy()
+  expect(screen.getAllByRole("main")).toHaveLength(1)
 })

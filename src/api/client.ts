@@ -9,6 +9,7 @@ import type {
   PublicRepositoryThesisDetail,
   RepositoryMetadataInput,
 } from "../types"
+import type { AuditEventData } from "../data/auditFormat"
 
 import { normalizeErrorBody } from "./errors"
 
@@ -320,6 +321,7 @@ export interface AuditRecord {
   roles?: Array<{ code: string; label: string }>
   roleCodes?: string[]
   action: string
+  event?: AuditEventData
   actionCode?: string
   actionLabel?: string
   summary?: string

@@ -217,6 +217,9 @@ export default function PublicRepository({ go, embedded = false, hasSession = fa
   ]
   const works = results?.results ?? []
 
+  // Dentro do AppShell já existe um <main>; a página só declara o seu quando é autônoma.
+  const ContentRegion = embedded ? "div" : "main"
+
   return (
     <div className={embedded ? "public-page embedded" : "public-page"}>
       {!embedded && (
@@ -259,7 +262,7 @@ export default function PublicRepository({ go, embedded = false, hasSession = fa
           </div>
         </div>
       </section>
-      <main className="repo-main">
+      <ContentRegion className="repo-main">
         <aside className="filters" aria-label="Filtros da busca">
           <div className="section-head">
             <div>
@@ -405,7 +408,7 @@ export default function PublicRepository({ go, embedded = false, hasSession = fa
             <Pagination page={results.page} totalPages={results.totalPages} onPageChange={setPage} disabled={loading} />
           )}
         </section>
-      </main>
+      </ContentRegion>
       {selectedId && (
         <ThesisDetailDrawer
           thesisId={selectedId}

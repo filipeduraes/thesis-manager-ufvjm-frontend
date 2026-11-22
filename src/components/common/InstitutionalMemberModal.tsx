@@ -73,7 +73,7 @@ export default function InstitutionalMemberModal({ onClose, onSubmit }: Institut
       </div>
 
       {submitError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {submitError}
         </div>
       )}

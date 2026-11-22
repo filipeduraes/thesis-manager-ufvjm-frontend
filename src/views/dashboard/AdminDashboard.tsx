@@ -1,3 +1,4 @@
+import { buildAuditSummary } from "../../data/auditFormat"
 import { useMemo } from "react"
 import { adminApi, ApiError, reportsApi, type AuditRecord, type ReportsOverview } from "../../api/client"
 import LazyChart from "../../components/charts/LazyChart"
@@ -135,7 +136,7 @@ export default function AdminDashboard({ go }: AdminDashboardProps) {
               {auditLogs.value.map((record) => (
                 <div key={record.id}>
                   <div>
-                    <strong>{record.summary || record.actionLabel || record.action}</strong>
+                    <strong>{buildAuditSummary(record.event, record.summary || record.actionLabel || record.action)}</strong>
                     <span>
                       {formatDateTime(record.timestamp)} · {record.actor}
                     </span>

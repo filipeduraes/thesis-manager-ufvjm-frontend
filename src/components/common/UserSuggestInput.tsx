@@ -18,9 +18,9 @@ export interface UserSuggestInputProps {
   disabled?: boolean
   autoFocus?: boolean
   required?: boolean
-  /** Surfaces loading/result counts so parents can render their own hint text. */
   /** Restricts suggestions to one role (honored by the backend for coordinators and administrators). */
   role?: UserSuggestRole
+  /** Surfaces loading/result counts so parents can render their own hint text. */
   onSuggestionsChange?: (state: { query: string; loading: boolean; results: UserSuggestion[]; error: string }) => void
 }
 

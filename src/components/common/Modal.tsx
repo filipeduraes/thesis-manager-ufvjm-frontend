@@ -26,7 +26,13 @@ export default function Modal({ children, className = "", onClose, labelledBy }:
     const dialog = dialogRef.current
     const firstFocusable = dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     firstFocusable?.focus()
-    return () => previouslyFocused?.focus()
+    return () => {
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus()
+      } else {
+        dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus()
+      }
+    }
   }, [])
 
   const trapKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {

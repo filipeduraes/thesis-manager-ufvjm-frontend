@@ -305,7 +305,7 @@ export default function App() {
       userInitials={session.user.initials}
       userAvatarUrl={session.user.avatarUrl}
     >
-      {error && <div className="success-notice" role="alert">{error}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
       {page === "dashboard" && (
         <DashboardView
           profiles={activeProfiles}

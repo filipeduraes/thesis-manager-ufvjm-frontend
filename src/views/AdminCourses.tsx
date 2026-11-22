@@ -215,7 +215,7 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
           </Button>
         }
       />
-      {error && <div className="success-notice" role="alert">{error}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
       {notice && (
         <div className="success-notice" role="status">
           <Icon name="check" />
@@ -325,9 +325,9 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
       )}
 
       {(addModal || courseAction === "edit") && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="course-modal-title" onClose={closeModals}>
           <div className="section-head">
-            <div><h2>{courseAction === "edit" ? "Editar curso" : "Adicionar curso"}</h2></div>
+            <div><h2 id="course-modal-title">{courseAction === "edit" ? "Editar curso" : "Adicionar curso"}</h2></div>
             <button className="icon-btn" onClick={closeModals} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <div className="two-col">
@@ -388,9 +388,9 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
       )}
 
       {courseAction === "delete" && selectedCourse && (
-        <Modal className="admin-modal confirmation-modal">
+        <Modal className="admin-modal confirmation-modal" labelledBy="confirm-course-title" onClose={closeModals}>
           <div className="modal-icon danger"><Icon name="trash" /></div>
-          <h2>Excluir curso?</h2>
+          <h2 id="confirm-course-title">Excluir curso?</h2>
           <p>Esta ação removerá <strong>{selectedCourse.name} ({selectedCourse.code})</strong>. Associações de usuários com este curso serão removidas.</p>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeModals}>Cancelar</Button>

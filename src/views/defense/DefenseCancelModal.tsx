@@ -45,7 +45,7 @@ export default function DefenseCancelModal({ defenseId, onClose, onCancelled }: 
       </div>
 
       {cancelError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {cancelError}
         </div>
       )}
