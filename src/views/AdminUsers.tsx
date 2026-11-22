@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   adminApi,
   codeToProfile,
@@ -111,7 +111,10 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
     }
   }, [])
 
+  const loadRequestRef = useRef(0)
+
   const loadData = useCallback(async () => {
+    const requestId = ++loadRequestRef.current
     setLoading(true)
     setError("")
     try {
@@ -125,17 +128,24 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
         adminApi.users(`?${params.toString()}`),
         adminApi.invitations(),
       ])
+      if (requestId !== loadRequestRef.current) return
       setUserPage(usersResponse)
       setInvitations(invitationResponse.results)
     } catch (reason) {
+      if (requestId !== loadRequestRef.current) return
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar os usuários.")
     } finally {
-      setLoading(false)
+      if (requestId === loadRequestRef.current) setLoading(false)
     }
   }, [debouncedSearch, page, roleFilter, statusFilter])
 
   useEffect(() => { void loadCourses() }, [loadCourses])
-  useEffect(() => { void loadData() }, [loadData])
+  useEffect(() => {
+    void loadData()
+    return () => {
+      loadRequestRef.current += 1
+    }
+  }, [loadData])
 
   const userList = (userPage?.results ?? []).map(toUser)
 
@@ -173,6 +183,7 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
         setModal(false)
         setNotice("Usuário criado com sucesso.")
         setPage(1)
+        await loadData()
         return
       }
       if (selectedUser) {

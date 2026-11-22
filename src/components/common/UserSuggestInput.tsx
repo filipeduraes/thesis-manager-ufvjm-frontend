@@ -66,7 +66,12 @@ export default function UserSuggestInput({
     }
     const cached = cacheRef.current.get(query.toLowerCase())
     if (cached) {
+      // Invalida qualquer requisição em andamento: um cache hit não pode ser
+      // sobrescrito pela resposta de uma consulta anterior.
+      requestIdRef.current += 1
       setSuggestions(cached)
+      setLoading(false)
+      setError("")
       return
     }
     const requestId = ++requestIdRef.current

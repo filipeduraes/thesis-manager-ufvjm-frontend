@@ -15,12 +15,16 @@ export class ApiError extends Error {
 let sessionCsrfToken = ""
 
 function csrfToken(): string {
-  if (sessionCsrfToken) return sessionCsrfToken
   const cookie = document.cookie
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith("csrftoken="))
-  return cookie ? decodeURIComponent(cookie.slice("csrftoken=".length)) : ""
+  const cookieToken = cookie ? decodeURIComponent(cookie.slice("csrftoken=".length)) : ""
+  // O cookie é a fonte da verdade: logout e expiração o rotacionam no servidor.
+  if (cookieToken && cookieToken !== sessionCsrfToken) {
+    sessionCsrfToken = cookieToken
+  }
+  return sessionCsrfToken || cookieToken
 }
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -126,7 +130,11 @@ export const authApi = {
   },
   listDevUsers: () =>
     apiRequest<{ results: DevUser[] }>("/auth/dev-users"),
-  logout: () => apiRequest<void>("/session", { method: "DELETE" }),
+  logout: async () => {
+    const response = await apiRequest<void>("/session", { method: "DELETE" })
+    sessionCsrfToken = ""
+    return response
+  },
 }
 
 export const profileToCode: Record<Profile, string> = {

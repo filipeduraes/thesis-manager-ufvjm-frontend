@@ -61,14 +61,14 @@ test("aplica e limpa filtros na primeira página e exporta somente os filtros ap
   userEvent.click(apply)
   await screen.findByText("Registro")
   expect(auditLogs).toHaveBeenCalledTimes(3)
-  expect(auditLogs).toHaveBeenLastCalledWith("?role=ADMIN&q=sess%C3%A3o&page=1&page_size=50", expect.anything())
+  expect(auditLogs).toHaveBeenLastCalledWith("?role=ADMIN&category=all&q=sess%C3%A3o&page=1&page_size=50", expect.anything())
 
   userEvent.click(screen.getByRole("button", { name: "Página 2" }))
   await screen.findByText("Registro")
-  expect(auditLogs).toHaveBeenLastCalledWith("?role=ADMIN&q=sess%C3%A3o&page=2&page_size=50", expect.anything())
+  expect(auditLogs).toHaveBeenLastCalledWith("?role=ADMIN&category=all&q=sess%C3%A3o&page=2&page_size=50", expect.anything())
   userEvent.clear(keyword)
   userEvent.click(screen.getByRole("button", { name: "Exportar log" }))
-  expect(exportAuditLogs).toHaveBeenCalledWith("?role=ADMIN&q=sess%C3%A3o")
+  expect(exportAuditLogs).toHaveBeenCalledWith("?role=ADMIN&category=all&q=sess%C3%A3o")
 
   userEvent.click(screen.getByRole("button", { name: "Limpar filtros" }))
   await screen.findByText("Registro")

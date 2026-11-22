@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   adminApi,
   type AdminCourse,
@@ -72,7 +72,10 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
     }
   }, [])
 
+  const courseRequestRef = useRef(0)
+
   const loadCourses = useCallback(async (targetPage = page) => {
+    const requestId = ++courseRequestRef.current
     setLoading(true)
     setError("")
     try {
@@ -82,11 +85,12 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
       params.set("page", String(targetPage))
       params.set("page_size", String(PAGE_SIZE))
       const response = await adminApi.courses(`?${params.toString()}`)
-      setCoursePage(response)
+      if (requestId === courseRequestRef.current) setCoursePage(response)
     } catch (reason) {
+      if (requestId !== courseRequestRef.current) return
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar os cursos.")
     } finally {
-      setLoading(false)
+      if (requestId === courseRequestRef.current) setLoading(false)
     }
   }, [debouncedSearch, departmentFilter, page])
 
@@ -100,7 +104,12 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
   }, [debouncedSearch, departmentFilter])
 
   useEffect(() => { void loadDepartments() }, [loadDepartments])
-  useEffect(() => { void loadCourses(page) }, [loadCourses, page])
+  useEffect(() => {
+    void loadCourses(page)
+    return () => {
+      courseRequestRef.current += 1
+    }
+  }, [loadCourses, page])
 
   const courseList = coursePage?.results ?? []
 

@@ -103,9 +103,12 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   const [regenerateLoading, setRegenerateLoading] = useState(false)
   const [regenerateError, setRegenerateError] = useState("")
 
-  const mountedRef = useRef(true)
+  // Identificador por requisição: respostas de uma banca anterior não podem
+  // sobrescrever o estado da banca atualmente aberta.
+  const requestSeqRef = useRef(0)
 
   const loadDefense = useCallback(() => {
+    const requestId = ++requestSeqRef.current
     if (firstLoadRef.current) {
       setLoading(true)
       firstLoadRef.current = false
@@ -117,10 +120,10 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     defenseApi
       .get(defenseId)
       .then(({ defense: data }) => {
-        if (mountedRef.current) setDefense(data)
+        if (requestId === requestSeqRef.current) setDefense(data)
       })
       .catch((reason: unknown) => {
-        if (!mountedRef.current) return
+        if (requestId !== requestSeqRef.current) return
         const msg =
           reason instanceof ApiError && reason.status === 403
             ? "Você não tem permissão para acessar esta banca."
@@ -130,7 +133,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
         setLoadError(msg)
       })
       .finally(() => {
-        if (mountedRef.current) {
+        if (requestId === requestSeqRef.current) {
           setLoading(false)
           setRefreshing(false)
         }
@@ -138,10 +141,9 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   }, [defenseId])
 
   useEffect(() => {
-    mountedRef.current = true
     loadDefense()
     return () => {
-      mountedRef.current = false
+      requestSeqRef.current += 1
     }
   }, [loadDefense])
 

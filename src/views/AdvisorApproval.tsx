@@ -91,7 +91,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
   const pageLabel = profile === "Orientador" ? "Orientandos" : "Monografias"
   const eyebrow = profile === "Orientador" ? "Orientação acadêmica" : "Gestão acadêmica"
 
+  const listRequestRef = useRef(0)
+  const detailRequestRef = useRef(0)
+
   const loadList = useCallback(async () => {
+    const requestId = ++listRequestRef.current
     setListLoading(true)
     setListError("")
     try {
@@ -103,27 +107,34 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
         page,
         pageSize: 10,
       })
+      if (requestId !== listRequestRef.current) return
       setItems(data.results)
       setTotalPages(data.totalPages)
       setCount(data.count)
     } catch (reason) {
+      if (requestId !== listRequestRef.current) return
       setListError(errorMessage(reason))
     } finally {
-      setListLoading(false)
+      if (requestId === listRequestRef.current) setListLoading(false)
     }
   }, [page, pendingOnly, query, scope, statusFilter])
 
   useEffect(() => {
     void loadList()
+    return () => {
+      listRequestRef.current += 1
+    }
   }, [loadList])
 
   const loadDetail = useCallback(async (id: string) => {
+    const requestId = ++detailRequestRef.current
     setDetailLoading(true)
     setDetailError("")
     setActionError("")
     setNotice("")
     try {
       const response = await thesesApi.detail(id)
+      if (requestId !== detailRequestRef.current) return
       setDetail(response.thesis)
       setActiveFileId(response.thesis.currentFile?.id ?? null)
       setComments("")
@@ -133,10 +144,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDocumentFile(null)
       setDocumentError("")
     } catch (reason) {
+      if (requestId !== detailRequestRef.current) return
       setDetail(null)
       setDetailError(errorMessage(reason))
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestRef.current) setDetailLoading(false)
     }
   }, [])
 
@@ -144,7 +156,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
     if (selectedId) {
       void loadDetail(selectedId)
     } else {
+      detailRequestRef.current += 1
       setDetail(null)
+    }
+    return () => {
+      detailRequestRef.current += 1
     }
   }, [loadDetail, selectedId])
 

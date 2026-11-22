@@ -35,6 +35,11 @@ const routeTitles: Partial<Record<Page, string>> = {
   style: "Guia de estilo",
 }
 
+function clearPersistedViewState(): void {
+  window.sessionStorage.removeItem("ufvjm:defense-view")
+  window.sessionStorage.removeItem("ufvjm:defense-list-filters")
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>("login")
   const [session, setSession] = useState<SessionPayload | null>(null)
@@ -163,6 +168,7 @@ export default function App() {
     } finally {
       setSession(null)
       setSearchFilter(undefined)
+      clearPersistedViewState()
       setPage("login")
     }
   }
@@ -220,6 +226,7 @@ export default function App() {
   const expireSearchSession = useCallback(() => {
     setSession(null)
     setSearchFilter(undefined)
+    clearPersistedViewState()
     setPage("login")
     setError("Sua sessão expirou. Entre novamente para continuar.")
   }, [])

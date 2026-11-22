@@ -57,6 +57,7 @@ export default function StudentSubmission() {
   const [notice, setNotice] = useState("")
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
@@ -158,6 +159,16 @@ export default function StudentSubmission() {
   })
 
   const persistMetadata = async (advanceTo?: number): Promise<boolean> => {
+    if (savingRef.current) return false
+    savingRef.current = true
+    try {
+      return await persistMetadataInner(advanceTo)
+    } finally {
+      savingRef.current = false
+    }
+  }
+
+  const persistMetadataInner = async (advanceTo?: number): Promise<boolean> => {
     const payload = metadataPayload()
     if (!payload.title) {
       setError("Informe o título da monografia.")

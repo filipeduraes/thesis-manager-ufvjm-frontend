@@ -42,11 +42,13 @@ export function useUserLookup(rawEmail: string): UserLookupState {
   useEffect(() => {
     const email = normalizeInstitutionalEmail(rawEmail)
     if (!email) {
+      setLoading(false)
       setLookup(null)
       setError("")
       return
     }
     let active = true
+    setLoading(false)
     const timer = window.setTimeout(async () => {
       setLoading(true)
       try {
