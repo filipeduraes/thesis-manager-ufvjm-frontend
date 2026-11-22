@@ -214,7 +214,7 @@ export default function DefenseEvaluation({
         {goBack && evaluationBreadcrumb}
         <PageTitle eyebrow="Avaliação de banca" title="Avaliação" />
         <Card>
-          <div className="success-notice" role="alert">
+          <div className="form-error" role="alert">
             {loadError}
           </div>
         </Card>
@@ -467,7 +467,7 @@ export default function DefenseEvaluation({
           </fieldset>
 
           {submitError && (
-            <div className="success-notice" role="alert">
+            <div className="form-error" role="alert">
               {submitError}
             </div>
           )}

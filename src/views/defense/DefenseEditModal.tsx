@@ -65,7 +65,7 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
       </div>
 
       {saveError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {saveError}
         </div>
       )}
@@ -80,7 +80,7 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
       </fieldset>
 
       {startInPast && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           O novo horário de início já passou. Escolha uma data e um horário futuros.
         </div>
       )}

@@ -108,7 +108,7 @@ export default function ReportsView() {
     setFilters((current) => ({ ...current, [field]: value }))
   }
 
-  if (report.status === "error") {
+  if (report.status === "error" && !report.value) {
     const message = loadErrorMessage(report.error, "Não foi possível carregar os relatórios.")
     return (
       <div className="page-content">
@@ -137,6 +137,13 @@ export default function ReportsView() {
   return (
     <div className="page-content">
       <PageTitle eyebrow="Inteligência acadêmica" title="Relatórios e indicadores" subtitle={scopeDescription} />
+
+      {report.status === "error" && report.value && (
+        <div className="form-error" role="alert">
+          <span>{loadErrorMessage(report.error, "Não foi possível atualizar os indicadores.")}</span>
+          <button type="button" className="btn btn-outline" onClick={report.reload}>Tentar novamente</button>
+        </div>
+      )}
 
       <Card className="report-filters">
         <SelectField label="Curso" options={options.courses} value={filters.courseId} onChange={updateFilter("courseId")} />

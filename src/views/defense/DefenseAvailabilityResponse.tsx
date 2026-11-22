@@ -80,7 +80,7 @@ export default function DefenseAvailabilityResponse({ defenseId, member, onRespo
       )}
 
       {confirmError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {confirmError}
         </div>
       )}

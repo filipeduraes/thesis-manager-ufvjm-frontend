@@ -93,6 +93,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   // Token do membro externo: fica só neste estado enquanto o modal está aberto.
   const [issuedTokens, setIssuedTokens] = useState<IssuedAccessToken[]>([])
   const [regenerateTarget, setRegenerateTarget] = useState<DefenseCommitteeMember | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<DefenseCommitteeMember | null>(null)
   const [regenerateLoading, setRegenerateLoading] = useState(false)
   const [regenerateError, setRegenerateError] = useState("")
 
@@ -244,6 +245,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     setRemoveError("")
     try {
       await defenseApi.removeMember(defenseId, memberId)
+      setRemoveTarget(null)
       loadDefense()
     } catch (reason) {
       setRemoveError(
@@ -276,7 +278,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
         />
         <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
         <Card>
-          <div className="success-notice" role="alert">
+          <div className="form-error" role="alert">
             {loadError}
           </div>
         </Card>
@@ -440,7 +442,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
       </Card>
 
       {removeError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {removeError}
         </div>
       )}
@@ -519,7 +521,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
                         <Button
                           variant="danger"
                           disabled={removing === member.id}
-                          onClick={() => void removeMember(member.id)}
+                          onClick={() => setRemoveTarget(member)}
                         >
                           {removing === member.id ? "Removendo…" : "Remover"}
                         </Button>
@@ -539,6 +541,23 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
 
       {addModal === "external" && (
         <ExternalMemberModal onClose={() => setAddModal(null)} onSubmit={addExternalMember} />
+      )}
+
+      {removeTarget && (
+        <DefenseStatusConfirmModal
+          title="Remover membro da banca?"
+          description={`${removeTarget.name} será removido da banca e seu convite/token deixará de funcionar.`}
+          confirmLabel="Remover membro"
+          pendingLabel="Removendo…"
+          destructive
+          loading={removing === removeTarget.id}
+          error={removeError}
+          onConfirm={() => void removeMember(removeTarget.id)}
+          onClose={() => {
+            setRemoveTarget(null)
+            setRemoveError("")
+          }}
+        />
       )}
 
       {regenerateTarget && (

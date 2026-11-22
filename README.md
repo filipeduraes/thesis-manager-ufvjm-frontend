@@ -188,3 +188,14 @@ DATABASE_URL=<url-do-banco-real> .venv/bin/python manage.py cleanup_e2e_data --a
 O comando remove usuários `e2e-*`, cursos/departamentos `E2E`, TCCs e bancas
 relacionados, além das notificações correspondentes. A tabela `audit_log` **não**
 é alterada: ela é append-only com cadeia SHA-256.
+
+### Contrato estruturado de auditoria
+
+Os registros retornam `event` com códigos, identificadores e contexto. Rótulos,
+frases e formatação são montados no frontend em `src/data/auditFormat.ts`.
+Campos antigos (`summary`, `details`, `entityName`) são mantidos apenas para
+compatibilidade com versões anteriores do backend.
+
+## Auditoria geral (2026-11-22)
+
+Correções de acessibilidade e UX: único `main` nos dashboards, erros com estilo de erro (não sucesso), nomes/Escape em todos os diálogos, foco restaurado com segurança, tooltip de auditoria acessível por teclado, guarda de duplo envio em AdminUsers, confirmação para remover membro da banca, persistência de filtros de relatório em caso de erro e tabelas com larguras controladas.

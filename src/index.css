@@ -36,10 +36,6 @@
   src: url("../public/fonts/rawline-700.woff2") format("woff2")
 }
 
-@theme {
-  --font-sans: "Rawline", Arial, sans-serif
-}
-
 :root {
   /* Design tokens: central palette, radii and type scale.
      Edit the values below to restyle the whole application. */
@@ -1229,7 +1225,7 @@ textarea:focus {
 .full-table .row {
   width: 100%;
   display: grid;
-  grid-template-columns: 2fr .9fr .65fr .8fr .4fr 24px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, .9fr) minmax(0, .65fr) minmax(0, .8fr) minmax(0, .4fr) 24px;
   gap: 12px;
   align-items: center;
   min-height: 66px;
@@ -1240,6 +1236,11 @@ textarea:focus {
   text-align: left;
   color: var(--navy);
   font-size: var(--font-size-sm)
+}
+
+.full-table .row>span {
+  min-width: 0;
+  overflow-wrap: anywhere
 }
 
 .full-table button.row:hover {
@@ -4380,7 +4381,7 @@ footer .logo {
 }
 
 .audit-card {
-  overflow: hidden
+  overflow-x: auto
 }
 
 .audit-table .admin-row {

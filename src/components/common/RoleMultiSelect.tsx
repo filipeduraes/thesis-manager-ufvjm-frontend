@@ -86,7 +86,11 @@ export default function RoleMultiSelect({
       setOpen(false)
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false)
+      if (event.key === "Escape") {
+        // Evita que um Modal ancestor também interprete o Escape e feche.
+        event.stopPropagation()
+        setOpen(false)
+      }
     }
     const handleReposition = () => updatePanelPosition()
     document.addEventListener("mousedown", handlePointerDown)
@@ -120,6 +124,9 @@ export default function RoleMultiSelect({
     <div
       className={`role-multiselect ${open ? "open" : ""} ${disabled ? "disabled" : ""}`}
       ref={rootRef}
+      onKeyDown={(event) => {
+        if (open && event.key === "Escape") event.stopPropagation()
+      }}
     >
       <button
         ref={triggerRef}
@@ -143,6 +150,9 @@ export default function RoleMultiSelect({
           role="listbox"
           aria-multiselectable="true"
           aria-label={ariaLabel}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") event.stopPropagation()
+          }}
           style={{
             position: "fixed",
             top: panelStyle.top,

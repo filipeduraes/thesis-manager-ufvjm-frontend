@@ -301,6 +301,8 @@ export interface AuditLogsPage {
   results: AuditRecord[]
 }
 
+import type { AuditEventData } from "../data/auditFormat"
+
 export interface AuditRecord {
   id: string
   timestamp: string
@@ -310,6 +312,7 @@ export interface AuditRecord {
   roles?: Array<{ code: string; label: string }>
   roleCodes?: string[]
   action: string
+  event?: AuditEventData
   actionCode?: string
   actionLabel?: string
   summary?: string

@@ -40,11 +40,11 @@ export default function DashboardView({ profiles, go, review, evaluate }: Dashbo
 
   if (visibleProfiles.length <= 1) {
     const singleProfile = visibleProfiles[0] ?? "Aluno"
-    return <main className="page-content">{renderDashboard(singleProfile)}</main>
+    return <div className="page-content">{renderDashboard(singleProfile)}</div>
   }
 
   return (
-    <main className="page-content">
+    <div className="page-content">
       {visibleProfiles.map((profile) => (
         <section className="dashboard-section" aria-labelledby={SECTION_IDS[profile]} key={profile}>
           <h2 className="dashboard-section-title" id={SECTION_IDS[profile]}>
@@ -53,6 +53,6 @@ export default function DashboardView({ profiles, go, review, evaluate }: Dashbo
           {renderDashboard(profile)}
         </section>
       ))}
-    </main>
+    </div>
   )
 }

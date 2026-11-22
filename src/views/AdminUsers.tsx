@@ -66,6 +66,8 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
   const [courses, setCourses] = useState<AdminCourse[]>([])
   const [invitations, setInvitations] = useState<ExternalInvitationRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [error, setError] = useState("")
   const [search, setSearch] = useState(initialSearch)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
@@ -159,6 +161,9 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
   }
 
   const saveUser = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     try {
       setError("")
       if (selectedRoles.length === 0) {
@@ -191,10 +196,16 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível salvar o usuário.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   const removeUser = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     if (!selectedUser) return
     try {
       setError("")
@@ -206,10 +217,16 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       if (nextPage === page) await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível desativar o usuário.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   const createExternalInvitation = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     try {
       setError("")
       const result = await adminApi.createInvitation({ name, email, institution })
@@ -217,16 +234,25 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível criar o convite.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   const revokeInvitation = async (id: string) => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     try {
       setError("")
       await adminApi.revokeInvitation(id)
       await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível revogar o convite.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
@@ -246,7 +272,7 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           </div>
         }
       />
-      {error && <div className="success-notice" role="alert">{error}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
       {notice && (
         <div className="success-notice" role="status">
           <Icon name="check" />
@@ -359,9 +385,9 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       </Card>
 
       {modal && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="user-modal-title" onClose={() => setModal(false)}>
           <div className="section-head">
-            <div><h2>Adicionar usuário</h2></div>
+            <div><h2 id="user-modal-title">Adicionar usuário</h2></div>
             <button className="icon-btn" onClick={() => setModal(false)} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <label className="field">
@@ -394,15 +420,15 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           </div>
           <div className="modal-actions">
             <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
-            <Button disabled={!name.trim() || !email.trim() || selectedRoles.length === 0} onClick={() => void saveUser()}>Criar usuário</Button>
+            <Button disabled={saving || !name.trim() || !email.trim() || selectedRoles.length === 0} onClick={() => void saveUser()}>Criar usuário</Button>
           </div>
         </Modal>
       )}
 
       {userAction === "edit" && selectedUser && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="user-modal-title" onClose={closeUserAction}>
           <div className="section-head">
-            <div><h2>Editar usuário</h2></div>
+            <div><h2 id="user-modal-title">Editar usuário</h2></div>
             <button className="icon-btn" onClick={closeUserAction} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <label className="field" title="Nome e e-mail são sincronizados pelo login institucional.">
@@ -455,31 +481,31 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           </label>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeUserAction}>Cancelar</Button>
-            <Button disabled={selectedRoles.length === 0} onClick={() => void saveUser()}>Salvar alterações</Button>
+            <Button disabled={saving || selectedRoles.length === 0} onClick={() => void saveUser()}>Salvar alterações</Button>
           </div>
         </Modal>
       )}
 
       {userAction === "remove" && selectedUser && (
-        <Modal className="admin-modal confirmation-modal">
+        <Modal className="admin-modal confirmation-modal" labelledBy="confirm-user-title" onClose={closeUserAction}>
           <div className="modal-icon danger"><Icon name="trash" /></div>
-          <h2>Desativar usuário?</h2>
+          <h2 id="confirm-user-title">Desativar usuário?</h2>
           <p>Esta ação desativará <strong>{selectedUser.name}</strong>. O usuário perderá o acesso imediatamente.</p>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeUserAction}>Cancelar</Button>
-            <Button variant="danger" onClick={() => void removeUser()}>Desativar usuário</Button>
+            <Button variant="danger" onClick={() => void removeUser()} disabled={saving}>Desativar usuário</Button>
           </div>
         </Modal>
       )}
 
       {inviteModal && (
-        <Modal className="admin-modal">
-          <div className="section-head"><h2>Convite para membro externo</h2><button className="icon-btn" onClick={() => setInviteModal(false)} aria-label="Fechar"><Icon name="close" /></button></div>
+        <Modal className="admin-modal" labelledBy="invite-modal-title" onClose={() => setInviteModal(false)}>
+          <div className="section-head"><h2 id="invite-modal-title">Convite para membro externo</h2><button className="icon-btn" onClick={() => setInviteModal(false)} aria-label="Fechar"><Icon name="close" /></button></div>
           {!inviteToken ? <>
             <label className="field"><span>Nome completo</span><input value={name} onChange={(event) => setName(event.target.value)} /></label>
             <label className="field"><span>E-mail</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
             <label className="field"><span>Instituição</span><input value={institution} onChange={(event) => setInstitution(event.target.value)} /></label>
-            <div className="modal-actions"><Button variant="secondary" onClick={() => setInviteModal(false)}>Cancelar</Button><Button disabled={!name.trim() || !email.trim()} onClick={() => void createExternalInvitation()}>Gerar token</Button></div>
+            <div className="modal-actions"><Button variant="secondary" onClick={() => setInviteModal(false)}>Cancelar</Button><Button disabled={saving || !name.trim() || !email.trim()} onClick={() => void createExternalInvitation()}>Gerar token</Button></div>
           </> : <>
             <p>Copie e entregue este token ao membro. Ele só será exibido nesta tela.</p>
             <strong>{inviteToken}</strong>
@@ -488,7 +514,7 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
         </Modal>
       )}
 
-      {invitations.length > 0 && <Card className="admin-table-card"><h2>Convites externos</h2>{invitations.map((invitation) => <div className="admin-row" key={invitation.id}><strong>{invitation.name}</strong><span>{invitation.email}</span><span>{invitation.status}</span><span>{new Date(invitation.expiresAt).toLocaleDateString("pt-BR")}</span>{invitation.status !== "REVOKED" && <Button variant="danger" onClick={() => void revokeInvitation(invitation.id)}>Revogar</Button>}</div>)}</Card>}
+      {invitations.length > 0 && <Card className="admin-table-card"><h2>Convites externos</h2>{invitations.map((invitation) => <div className="admin-row" key={invitation.id}><strong>{invitation.name}</strong><span>{invitation.email}</span><span>{invitation.status}</span><span>{new Date(invitation.expiresAt).toLocaleDateString("pt-BR")}</span>{invitation.status !== "REVOKED" && <Button variant="danger" onClick={() => void revokeInvitation(invitation.id)} disabled={saving}>Revogar</Button>}</div>)}</Card>}
     </div>
   )
 }
