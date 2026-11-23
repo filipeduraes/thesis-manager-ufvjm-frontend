@@ -22,7 +22,9 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
-    channel: "chrome",
+    // Usa o Chromium gerenciado pelo Playwright por padrão. Defina
+    // E2E_BROWSER_CHANNEL=chrome para usar o Google Chrome do sistema.
+    ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}),
   },
   projects: [
     {
@@ -44,6 +46,18 @@ export default defineConfig({
     {
       command: "PORT=3001 REACT_APP_API_BASE_URL=http://localhost:8001 BROWSER=none npm start",
       url: "http://localhost:3001",
+      reuseExistingServer: false,
+      timeout: 120_000,
+    },
+    {
+      // Processa PDFs de teste em segundo plano: a API exige extração de texto
+      // concluída antes de aceitar uma nova versão do mesmo arquivo.
+      command:
+        "cd ../thesis-manager-ufvjm-backend && " +
+        "bash -c 'while true; do DJANGO_SETTINGS_MODULE=thesismanagerbackend.settings_e2e " +
+        ".venv/bin/python manage.py extract_thesis_text --limit 20 >/dev/null 2>&1; sleep 1; done & " +
+        "WORKER=$!; trap \"kill $WORKER\" EXIT; python3 -m http.server 8002 >/dev/null 2>&1'",
+      url: "http://localhost:8002",
       reuseExistingServer: false,
       timeout: 120_000,
     },

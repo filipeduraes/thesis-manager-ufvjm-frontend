@@ -7,6 +7,8 @@ test.describe("Submissão de monografia (aluno)", () => {
     const academic = await seedAcademicContext(request)
     await loginAs(page, "Aluno E2E Form", uniqueEmail("student-form"), ["STUDENT"])
     await navigateTo(page, "Minha monografia")
+    // Aguarda o carregamento do contexto (cursos/orientadores) antes de interagir.
+    await expect.poll(async () => page.getByLabel("Curso").locator("option").count()).toBeGreaterThan(1)
 
     await page.getByRole("button", { name: "Salvar rascunho" }).click()
     await expect(page.getByRole("alert")).toHaveText("Informe o título da monografia.")
