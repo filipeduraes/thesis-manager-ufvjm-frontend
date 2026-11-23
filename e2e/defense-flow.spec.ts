@@ -56,6 +56,9 @@ test.describe("Fluxo completo de banca", () => {
     await page.getByRole("tab", { name: /Bancas/ }).click()
     await page.getByRole("textbox", { name: "Buscar bancas" }).fill(thesis.title)
     await page.getByRole("button", { name: "Filtrar" }).click()
-    await expect(page.getByText(thesis.title)).toBeVisible()
+    // O resumo em aria-live também cita o termo buscado; por isso o título da
+    // linha é verificado com correspondência exata, além do total filtrado.
+    await expect(page.getByText(`1 banca(s) encontrada(s) para “${thesis.title}”`)).toBeVisible()
+    await expect(page.getByText(thesis.title, { exact: true })).toBeVisible()
   })
 })

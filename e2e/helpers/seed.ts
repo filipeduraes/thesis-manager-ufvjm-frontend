@@ -69,7 +69,11 @@ export async function seedAcademicContext(request: APIRequestContext): Promise<A
   expect(departmentResponse.ok(), await departmentResponse.text()).toBeTruthy()
   const department = (await departmentResponse.json()) as { id: string }
 
-  const courseCode = `E2E${suffix.slice(-5)}`.toUpperCase()
+  // O código é único sem distinção de maiúsculas e tem no máximo 20 caracteres.
+  // Usar só o fim do sufixo deixava apenas a parte aleatória e repetia códigos
+  // na mesma execução; o carimbo de tempo em base 36 mais o sorteio evita isso.
+  const randomPart = Math.floor(Math.random() * 36 ** 4).toString(36).padStart(4, "0")
+  const courseCode = `E2E${Date.now().toString(36)}${randomPart}`.toUpperCase()
   const courseResponse = await request.post(`${API_ROOT}/admin/courses`, {
     headers: adminHeaders,
     data: {
