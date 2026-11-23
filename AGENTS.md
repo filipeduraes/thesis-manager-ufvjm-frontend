@@ -163,6 +163,14 @@ public/         Static assets (logos, Rawline fonts)
 - Use `npm` (the repository has `package-lock.json`); do not mix in `yarn` or `pnpm` lockfiles.
 - Local integration: the backend repository's `docker-compose.yml` can start PostgreSQL, Redis, and the backend (`docker compose up --build`), and with `--profile frontend` it also runs this project from `../thesis-manager-ufvjm-frontend` on Node 20 with `npm install && npm start` on port 3000 and `REACT_APP_API_BASE_URL=http://localhost:8000`. Keep the project compatible with Node 20 and with `npm start` on port 3000, since backend CORS, CSRF, and the Google redirect are configured for `http://localhost:3000`. Do not run two copies of the frontend on the same port.
 - Available scripts are `npm start`, `npm run build`, `npm test`, `npm run test:e2e` (Playwright) and `npm run test:e2e:report`. End-to-end tests live in `e2e/`; see the "Testes End-to-End" section of `README.md` for setup, the automatic backend/frontend servers and evidence locations.
+- The real-stack smoke is `./scripts/smoke-stack.sh` (`playwright.real.config.ts`, `e2e/smoke-real.spec.ts`): it starts a **disposable** Compose stack with `COMPOSE_PROJECT_NAME=thesis-smoke`, its own ports (9000/9001/9025/5434) and volumes, runs the smoke, then destroys everything with `down -v`. Never point it at the development stack (`:8000`/`:3000`) — that would pollute the database and accumulate test rows. The isolated E2E suite excludes this spec via `testIgnore`.
+- If the Docker socket denies access (`permission denied while trying to connect to the docker API`), ask the user to grant passwordless access **only to the Docker binary**, never their sudo password:
+  ```bash
+  echo 'fhdd ALL=(root) NOPASSWD: /usr/bin/docker' | sudo tee /etc/sudoers.d/docker-nopass
+  sudo chmod 440 /etc/sudoers.d/docker-nopass
+  sudo visudo -c
+  ```
+  The script auto-detects this and falls back to `sudo docker`. Verify with `sudo -n docker info` (a plain `sudo -n true` will still ask for a password — that is expected and fine). Use `127.0.0.1` (not `localhost`) in smoke URLs: the Docker ports are IPv4-only and Node resolves `localhost` to `::1` first.
 
 ### Changes and verification
 

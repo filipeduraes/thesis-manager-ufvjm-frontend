@@ -9,9 +9,9 @@ const backendPort = process.env.BACKEND_PORT ?? "8000"
 const frontendPort = process.env.FRONTEND_PORT ?? "3000"
 const mailpitPort = process.env.MAILPIT_PORT ?? "8025"
 
-process.env.E2E_API_URL ??= `http://localhost:${backendPort}/api/v1`
-process.env.E2E_BASE_URL ??= `http://localhost:${frontendPort}`
-process.env.MAILPIT_URL ??= `http://localhost:${mailpitPort}`
+process.env.E2E_API_URL ??= `http://127.0.0.1:${backendPort}/api/v1`
+process.env.E2E_BASE_URL ??= `http://127.0.0.1:${frontendPort}`
+process.env.MAILPIT_URL ??= `http://127.0.0.1:${mailpitPort}`
 
 export default defineConfig({
   testDir: "./e2e",
