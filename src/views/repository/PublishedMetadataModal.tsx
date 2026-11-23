@@ -6,6 +6,7 @@ import { useRepositoryCourses } from "../../hooks/useRepositoryCourses"
 import RepositoryMetadataFields from "./RepositoryMetadataFields"
 import {
   changedMetadata,
+  REPOSITORY_MAX_REASON_LENGTH,
   draftFromThesis,
   draftToMetadata,
   repositoryErrorMessage,
@@ -62,7 +63,7 @@ export default function PublishedMetadataModal({ thesis, onClose, onSaved }: Pub
   }
 
   return (
-    <Modal className="admin-modal" onClose={saving ? undefined : onClose} labelledBy="published-metadata-title">
+    <Modal className="admin-modal published-metadata-modal" onClose={saving ? undefined : onClose} labelledBy="published-metadata-title">
       <form className="repository-form" onSubmit={(event) => void save(event)} noValidate>
         <div className="section-head">
           <h2 id="published-metadata-title">Editar metadados publicados</h2>
@@ -70,28 +71,31 @@ export default function PublishedMetadataModal({ thesis, onClose, onSaved }: Pub
             <Icon name="close" />
           </button>
         </div>
+        <p className="published-metadata-intro">As alterações aparecem na publicação de “{thesis.title}” assim que forem salvas.</p>
         <RepositoryMetadataFields idPrefix="published" draft={draft} onChange={setDraft} courses={courses} disabled={saving} />
         <Field
           label="Motivo da alteração (opcional)"
           value={reason}
           onChange={setReason}
-          maxLength={1000}
+          maxLength={REPOSITORY_MAX_REASON_LENGTH}
           disabled={saving}
           hint="Fica registrado no histórico da monografia e na auditoria."
         />
-        {error && (
-          <div className="form-error" role="alert">
-            <Icon name="alert" size={16} />
-            <span>{error}</span>
+        <div className="published-metadata-footer">
+          {error && (
+            <div className="form-error" role="alert">
+              <Icon name="alert" size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={onClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Salvando…" : "Salvar alterações"}
+            </Button>
           </div>
-        )}
-        <div className="modal-actions">
-          <Button variant="secondary" onClick={onClose} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={saving}>
-            {saving ? "Salvando…" : "Salvar alterações"}
-          </Button>
         </div>
       </form>
     </Modal>

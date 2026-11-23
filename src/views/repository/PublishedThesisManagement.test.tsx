@@ -149,6 +149,35 @@ test("despublica apenas com motivo e confirmação", async () => {
   expect(unpublish).toHaveBeenCalledWith("thesis-1", "Solicitação do autor")
 })
 
+test("mostra a situação e o motivo de uma publicação arquivada", () => {
+  const thesis = publishedThesis({ canEditPublished: true, canUnpublish: true })
+  render(
+    <PublishedThesisManagement
+      thesis={{
+        ...thesis,
+        status: "ARCHIVED",
+        isPublic: false,
+        statusHistory: [{
+          id: "history-1",
+          previousStatus: "PUBLISHED",
+          newStatus: "ARCHIVED",
+          newStatusLabel: "Arquivada",
+          reason: "Solicitação do autor",
+          changedAt: thesis.updatedAt,
+          changedBy: null,
+          metadata: {},
+        }],
+      }}
+      onUpdated={jest.fn()}
+    />,
+  )
+
+  expect(screen.getByRole("heading", { name: "Publicação arquivada" })).toBeTruthy()
+  expect(screen.getByText(/Solicitação do autor/)).toBeTruthy()
+  expect(screen.queryByRole("button", { name: "Despublicar" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Editar metadados" })).toBeNull()
+})
+
 test("mantém o modal de despublicação aberto com a mensagem do backend", async () => {
   unpublish.mockRejectedValue(new ApiError("Apenas monografias publicadas podem ser despublicadas.", 400))
   render(<PublishedThesisManagement thesis={publishedThesis({ canUnpublish: true })} onUpdated={jest.fn()} />)

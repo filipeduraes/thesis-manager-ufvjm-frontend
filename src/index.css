@@ -5382,8 +5382,41 @@ textarea:focus-visible {
   gap: 8px
 }
 
-.repository-management .button-stack {
-  margin-top: 12px
+.repository-management {
+  display: grid;
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+
+.repository-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.published-metadata-modal {
+  --metadata-modal-padding: clamp(16px, 5vw, 32px);
+  padding: var(--metadata-modal-padding);
+  scroll-padding-bottom: 110px;
+}
+
+.published-metadata-modal .published-metadata-intro {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.published-metadata-footer {
+  position: sticky;
+  bottom: calc(-1 * var(--metadata-modal-padding));
+  margin: 0 calc(-1 * var(--metadata-modal-padding)) calc(-1 * var(--metadata-modal-padding));
+  padding: 12px var(--metadata-modal-padding);
+  background: var(--white);
+  border-top: 1px solid var(--line);
+  z-index: 2;
+}
+
+.published-metadata-footer .modal-actions {
+  flex-wrap: wrap;
 }
 
 .hash.drawer-hash code {
