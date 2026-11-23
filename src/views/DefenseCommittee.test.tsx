@@ -383,76 +383,146 @@ test("hides the availability answer when the user is not a member or the defense
 })
 
 const addExternalMember = jest.spyOn(defenseApi, "addExternalMember")
-const regenerateToken = jest.spyOn(defenseApi, "regenerateToken")
+const resendInvitation = jest.spyOn(defenseApi, "resendInvitation")
+const regenerateInvitation = jest.spyOn(defenseApi, "regenerateInvitation")
 
-function externalMember(id: string, name: string): DefenseCommitteeMember {
-  return buildMember(id, name, { isInstitutional: false, email: `${id}@externo.org`, institution: "UFMG" })
+const TOKEN_PATTERN = /UFVJM-[A-Z0-9]{4}/
+
+function externalMember(id: string, name: string, overrides: Partial<DefenseCommitteeMember> = {}): DefenseCommitteeMember {
+  return buildMember(id, name, {
+    isInstitutional: false,
+    email: `${id}@externo.org`,
+    institution: "UFMG",
+    invitationStatus: "PENDING",
+    invitationStatusLabel: "Pendente",
+    invitationExpiresAt: "2026-12-15T15:00:00Z",
+    invitationSentAt: "2026-11-21T13:30:00Z",
+    canResendInvitation: true,
+    ...overrides,
+  })
 }
 
-test("shows the access token once after adding an external member", async () => {
+function resetInvitationMocks() {
   addExternalMember.mockReset()
-  const created = externalMember("ext", "Paula Externa")
-  addExternalMember.mockResolvedValue({
-    member: created,
-    accessToken: "UFVJM-AAAA-BBBB-CCCC-DDDD",
-    accessTokenExpiresAt: "2026-12-15T15:00:00Z",
-  })
+  resendInvitation.mockReset()
+  regenerateInvitation.mockReset()
+}
+
+test("adding an external member announces the e-mail and never shows an access code", async () => {
+  resetInvitationMocks()
+  const created = externalMember("ext", "Paula Externa", { email: "ext@externo.org", invitationSentAt: null })
+  addExternalMember.mockResolvedValue({ member: created })
   renderCommittee(buildDefense("SCHEDULED"), "manager")
 
   userEvent.click(await screen.findByRole("button", { name: "Membro externo" }))
   userEvent.type(screen.getByPlaceholderText("Nome do avaliador"), "Paula Externa")
   userEvent.type(screen.getByPlaceholderText("avaliador@email.com"), "ext@externo.org")
-  getDefense.mockResolvedValue({ defense: defenseWithMembers("SCHEDULED", [created]) })
+  getDefense.mockResolvedValue({ defense: withViewer(defenseWithMembers("SCHEDULED", [created]), "manager") })
   userEvent.click(screen.getByRole("button", { name: "Adicionar membro externo" }))
 
-  const dialog = await screen.findByRole("dialog", { name: "Token de acesso" })
-  expect(within(dialog).getByText("UFVJM-AAAA-BBBB-CCCC-DDDD")).toBeTruthy()
-  expect(within(dialog).getByText("Guarde este token: ele não será exibido novamente.")).toBeTruthy()
+  expect(await screen.findByText("Membro adicionado. O convite com o código de acesso será enviado para ext@externo.org.")).toBeTruthy()
   expect(addExternalMember).toHaveBeenCalledWith("defense-1", {
     role: "MEMBER",
     name: "Paula Externa",
     email: "ext@externo.org",
     institution: undefined,
   })
-
-  userEvent.click(within(dialog).getByRole("button", { name: "Concluir" }))
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
-  expect(screen.queryByText("UFVJM-AAAA-BBBB-CCCC-DDDD")).toBeNull()
+  expect(await screen.findByText(/Envio do convite para ext@externo.org em processamento/)).toBeTruthy()
+  expect(screen.queryByRole("dialog")).toBeNull()
+  expect(document.body.textContent).not.toMatch(TOKEN_PATTERN)
 })
 
-test("regenerates an external member token after confirmation", async () => {
-  regenerateToken.mockReset()
+test("shows where the invitation was sent and offers Reenviar convite while it is valid", async () => {
+  renderCommittee(defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa"), buildMember("ana", "Ana Interna")]), "manager")
+
+  expect(await screen.findByText(/Convite enviado para ext@externo.org em 21\/11\/2026/)).toBeTruthy()
+  expect(screen.getAllByRole("button", { name: "Reenviar convite" })).toHaveLength(1)
+  expect(screen.queryByRole("button", { name: /Gerar novo convite/ })).toBeNull()
+  expect(document.body.textContent).not.toMatch(TOKEN_PATTERN)
+})
+
+test("resends the invitation with a loading state and a success message", async () => {
+  resetInvitationMocks()
   const member = externalMember("ext", "Paula Externa")
-  regenerateToken.mockResolvedValue({
-    member,
-    accessToken: "UFVJM-NEW0-NEW0-NEW0-NEW0",
-    accessTokenExpiresAt: "2026-12-15T15:00:00Z",
-  })
+  let finishResend: (value: { member: DefenseCommitteeMember }) => void = () => undefined
+  resendInvitation.mockReturnValue(new Promise((resolve) => { finishResend = resolve }))
+  renderCommittee(defenseWithMembers("SCHEDULED", [member]), "manager")
+
+  userEvent.click(await screen.findByRole("button", { name: "Reenviar convite" }))
+  const pending = await screen.findByRole("button", { name: "Reenviando…" })
+  expect(pending.getAttribute("aria-describedby")).toBe("committee-member-ext")
+  expect(pending).toHaveProperty("disabled", true)
+  expect(resendInvitation).toHaveBeenCalledWith("defense-1", "ext")
+
+  getDefense.mockResolvedValue({ defense: withViewer(defenseWithMembers("SCHEDULED", [{ ...member, invitationSentAt: null }]), "manager") })
+  finishResend({ member: { ...member, invitationSentAt: null } })
+  expect(await screen.findByText("Convite reenviado para ext@externo.org. O código anterior deixou de funcionar.")).toBeTruthy()
+  expect(await screen.findByText(/Envio do convite para ext@externo.org em processamento/)).toBeTruthy()
+  expect(screen.getByRole("button", { name: "Reenviar convite" })).toHaveProperty("disabled", false)
+})
+
+test.each([
+  [new ApiError("Convite já utilizado não pode ser reenviado. Gere um novo convite.", 400), "Convite já utilizado não pode ser reenviado. Gere um novo convite."],
+  [new ApiError("Forbidden", 403), "Você não tem permissão para esta ação."],
+  [new ApiError("Throttled", 429), "Muitas solicitações de convite em sequência. Aguarde um minuto e tente novamente."],
+])("shows a Portuguese error when the resend fails (%s)", async (failure, message) => {
+  resetInvitationMocks()
+  resendInvitation.mockRejectedValue(failure)
+  renderCommittee(defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa")]), "manager")
+
+  userEvent.click(await screen.findByRole("button", { name: "Reenviar convite" }))
+  expect(await screen.findByText(message)).toBeTruthy()
+  expect(screen.getByText(message).getAttribute("role")).toBe("alert")
+  expect(screen.getByRole("button", { name: "Reenviar convite" })).toHaveProperty("disabled", false)
+})
+
+test.each([
+  ["USED" as const, "Convite já utilizado por ext@externo.org. Para um novo acesso, gere um novo convite."],
+  ["EXPIRED" as const, "Convite para ext@externo.org expirado. Gere um novo convite."],
+])("offers Gerar novo convite instead of resend for a %s invitation", async (invitationStatus, text) => {
+  resetInvitationMocks()
+  const member = externalMember("ext", "Paula Externa", { invitationStatus, canResendInvitation: false })
+  regenerateInvitation.mockResolvedValue({ member: { ...member, invitationStatus: "PENDING", invitationSentAt: null, canResendInvitation: true } })
   renderCommittee(defenseWithMembers("IN_PROGRESS", [member, buildMember("ana", "Ana Interna")]), "manager")
 
-  const buttons = await screen.findAllByRole("button", { name: "Gerar novo token" })
-  expect(buttons).toHaveLength(1)
-  userEvent.click(buttons[0] as HTMLElement)
+  expect(await screen.findByText(text)).toBeTruthy()
+  expect(screen.queryByRole("button", { name: /Reenviar convite/ })).toBeNull()
+  userEvent.click(screen.getByRole("button", { name: "Gerar novo convite" }))
   const confirm = screen.getByRole("dialog")
-  expect(confirm.textContent).toContain("O token atual de Paula Externa deixa de funcionar")
-  expect(regenerateToken).not.toHaveBeenCalled()
-  userEvent.click(within(confirm).getByRole("button", { name: "Gerar novo token" }))
+  expect(confirm.textContent).toContain("Um novo código de acesso será enviado para ext@externo.org")
+  expect(confirm.textContent).toContain("A disponibilidade e a avaliação já registradas são mantidas.")
+  expect(regenerateInvitation).not.toHaveBeenCalled()
+  userEvent.click(within(confirm).getByRole("button", { name: "Gerar novo convite" }))
 
-  await waitFor(() => expect(regenerateToken).toHaveBeenCalledWith("defense-1", "ext"))
-  const tokenDialog = await screen.findByRole("dialog", { name: "Token de acesso" })
-  expect(within(tokenDialog).getByText("UFVJM-NEW0-NEW0-NEW0-NEW0")).toBeTruthy()
+  await waitFor(() => expect(regenerateInvitation).toHaveBeenCalledWith("defense-1", "ext"))
+  expect(await screen.findByText("Novo convite enviado para ext@externo.org. O código anterior deixou de funcionar.")).toBeTruthy()
+  expect(document.body.textContent).not.toMatch(TOKEN_PATTERN)
 })
 
-test("hides Gerar novo token without management permission", async () => {
-  renderCommittee(defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa")]))
-  await screen.findByText("Paula Externa")
-  expect(screen.queryByRole("button", { name: "Gerar novo token" })).toBeNull()
+test("keeps the confirmation open with the error when a new invitation is refused", async () => {
+  resetInvitationMocks()
+  regenerateInvitation.mockRejectedValue(new ApiError("Throttled", 429))
+  renderCommittee(defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa", { invitationStatus: "USED", canResendInvitation: false })]), "manager")
+
+  userEvent.click(await screen.findByRole("button", { name: "Gerar novo convite" }))
+  userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Gerar novo convite" }))
+  const dialog = await screen.findByRole("dialog")
+  expect(await within(dialog).findByText("Muitas solicitações de convite em sequência. Aguarde um minuto e tente novamente.")).toBeTruthy()
 })
 
-test("hides Gerar novo token on a completed defense", async () => {
-  renderCommittee(defenseWithMembers("COMPLETED", [externalMember("ext", "Paula Externa")]), "manager")
+test("hides invitation status and actions without management permission", async () => {
+  renderCommittee(defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa", { invitationStatus: null, invitationSentAt: null, canResendInvitation: false })]))
   await screen.findByText("Paula Externa")
-  expect(screen.queryByRole("button", { name: "Gerar novo token" })).toBeNull()
+  expect(screen.queryByText(/Convite enviado para/)).toBeNull()
+  expect(screen.queryByRole("button", { name: /Reenviar convite/ })).toBeNull()
+  expect(screen.queryByRole("button", { name: /Gerar novo convite/ })).toBeNull()
+})
+
+test("hides invitation actions on a completed defense", async () => {
+  renderCommittee(defenseWithMembers("COMPLETED", [externalMember("ext", "Paula Externa", { canResendInvitation: false })]), "manager")
+  await screen.findByText("Paula Externa")
+  expect(screen.queryByRole("button", { name: /Reenviar convite/ })).toBeNull()
+  expect(screen.queryByRole("button", { name: /Gerar novo convite/ })).toBeNull()
 })
 
 test("edit modal keeps an older remote location editable and validates a changed link", async () => {
@@ -543,7 +613,8 @@ const ALL_ACTIONS = [
   "Editar agendamento",
   "Membro institucional",
   "Membro externo",
-  "Gerar novo token",
+  "Reenviar convite",
+  "Gerar novo convite",
   "Remover",
 ]
 
@@ -584,7 +655,7 @@ test.each([
   ["canStart", ["Iniciar banca"]],
   ["canClose", ["Encerrar banca"]],
   ["canRevert", ["Reverter status"]],
-  ["canManageMembers", ["Membro institucional", "Membro externo", "Gerar novo token", "Remover"]],
+  ["canManageMembers", ["Membro institucional", "Membro externo", "Reenviar convite", "Remover"]],
 ] as const)("only %s shows %j", async (flag, expected) => {
   const defense: DefenseData = {
     ...defenseWithMembers("SCHEDULED", [externalMember("ext", "Paula Externa")]),
@@ -600,7 +671,7 @@ test.each([
 test("adds members on a defense in progress but does not offer removal", async () => {
   renderCommittee(defenseWithMembers("IN_PROGRESS", [externalMember("ext", "Paula Externa")]), "manager")
   await screen.findByText("Paula Externa")
-  expect(visibleActions()).toEqual(["Encerrar banca", "Membro institucional", "Membro externo", "Gerar novo token"])
+  expect(visibleActions()).toEqual(["Encerrar banca", "Membro institucional", "Membro externo", "Reenviar convite"])
 })
 
 test("shows Iniciar banca disabled with an explanation when canStart is true but nobody can confirm yet", async () => {

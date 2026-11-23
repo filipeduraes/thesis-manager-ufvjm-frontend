@@ -3205,18 +3205,18 @@ footer .logo {
   gap: 6px
 }
 
-.member-list .availability-note {
+.member-list .availability-note,
+.member-list .invitation-status {
   display: block;
   margin-top: 4px;
   font-size: var(--font-size-xxs);
   color: var(--slate)
 }
 
-/* Avisos informativos (confirmações pendentes, token exibido uma vez, encerramento
-   automático que falhou com a avaliação salva): não são erro,
+/* Avisos informativos (confirmações pendentes, encerramento automático que falhou
+   com a avaliação salva): não são erro,
    por isso não usam as cores de perigo de .conflict-message. */
 .conflict-message.availability-pending,
-.conflict-message.access-token-warning,
 .conflict-message.auto-close-warning {
   border-color: var(--line);
   background: var(--bg);
@@ -3225,33 +3225,6 @@ footer .logo {
 
 .conflict-message.availability-pending {
   margin: 8px 0 16px
-}
-
-.access-token code {
-  display: block;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--white);
-  color: var(--navy);
-  font-family: monospace;
-  font-size: var(--font-size-sm);
-  overflow-wrap: anywhere;
-  user-select: all
-}
-
-.access-token small {
-  display: block;
-  min-height: 1em;
-  margin-top: 6px;
-  color: var(--slate);
-  font-size: var(--font-size-xxs)
-}
-
-@media (max-width: 600px) {
-  .access-token .token-row {
-    grid-template-columns: 1fr
-  }
 }
 
 .availability-response {

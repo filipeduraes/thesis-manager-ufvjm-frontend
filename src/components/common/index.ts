@@ -1,5 +1,3 @@
-export { default as AccessTokenModal } from "./AccessTokenModal"
-export type { IssuedAccessToken } from "./AccessTokenModal"
 export { default as Avatar, initialsOf } from "./Avatar"
 export { default as Badge } from "./Badge"
 export { default as Breadcrumb } from "./Breadcrumb"

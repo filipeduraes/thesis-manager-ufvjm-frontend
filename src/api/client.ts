@@ -278,11 +278,6 @@ export const adminApi = {
     anchor.remove()
     window.URL.revokeObjectURL(url)
   },
-  createInvitation: (body: { name: string; email: string; institution: string }) =>
-    apiRequest<{ id: string; token: string; expiresAt: string }>(
-      "/admin/external-invitations",
-      { method: "POST", body: JSON.stringify(body) },
-    ),
   invitations: () =>
     apiRequest<{ results: ExternalInvitationRecord[] }>("/admin/external-invitations"),
   revokeInvitation: (id: string) =>
@@ -354,6 +349,8 @@ export interface ExternalInvitationRecord {
   status: string
   expiresAt: string
   usedAt: string | null
+  /** Quando o e-mail com o código atual foi enviado; o código em si nunca vem na API. */
+  sentAt: string | null
 }
 
 // ─── Directory API ────────────────────────────────────────────────────────────
@@ -539,9 +536,24 @@ export interface DefenseCommitteeMember {
   availabilityStatusLabel: string | null
   availabilityRespondedAt: string | null
   availabilityNote: string | null
+  /**
+   * Situação do convite do membro externo. Só vem preenchida para quem gerencia a banca
+   * (`viewerPermissions.canManage`); null para membros institucionais e demais leitores.
+   * O token de acesso nunca vem na API: o backend o envia só por e-mail.
+   */
+  invitationStatus?: InvitationStatusCode | null
+  invitationStatusLabel?: string | null
+  invitationExpiresAt?: string | null
+  /** Quando o e-mail com o código atual foi enviado; null enquanto o envio está em processamento. */
+  invitationSentAt?: string | null
+  /** Convite ainda válido e nunca usado: pode ser reenviado com um código novo. */
+  canResendInvitation?: boolean
   createdAt: string
   evaluation: DefenseMemberEvaluationData | null
 }
+
+/** Códigos de InvitationStatus no backend (expirado é informado mesmo antes de alguém tentar o código). */
+export type InvitationStatusCode = "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED" | "REVOKED" | "USED"
 
 /** Códigos de AvailabilityStatus no backend. */
 export type AvailabilityStatusCode = "PENDING" | "CONFIRMED" | "DECLINED"
@@ -657,7 +669,7 @@ export interface DefenseViewerPermissions {
   canClose: boolean
   /** Administrators only, while the defense is in progress or cancelled. */
   canRevert: boolean
-  /** Add members and regenerate external tokens while the defense is scheduled or in progress. */
+  /** Add members and resend or replace external invitations while the defense is scheduled or in progress. */
   canManageMembers: boolean
 }
 
@@ -673,13 +685,12 @@ export const NO_DEFENSE_PERMISSIONS: DefenseViewerPermissions = {
 }
 
 /**
- * Resposta de POST /defenses/{id}/members/external e de .../regenerate-token.
- * O accessToken vem uma única vez (Cache-Control: no-store) e nunca deve ser guardado.
+ * Resposta de POST /defenses/{id}/members/external, .../resend-invitation e
+ * .../regenerate-token. Não há token: o backend o envia ao membro só por e-mail, de forma
+ * assíncrona, e `member.invitationSentAt` fica null até o envio.
  */
-export interface ExternalMemberTokenResponse {
+export interface ExternalMemberResponse {
   member: DefenseCommitteeMember
-  accessToken: string
-  accessTokenExpiresAt: string
 }
 
 /** Resposta de PUT .../evaluation: o cálculo do resultado é assíncrono. */
@@ -748,7 +759,8 @@ export interface DefenseListParams {
  *   POST /defenses/{id}/members/external     — membro externo (endpoint distinto do enunciado original)
  *   DELETE /defenses/{id}/members/{member_id}
  *   POST /defenses/{id}/members/{member_id}/availability    — o próprio membro confirma ou recusa
- *   POST /defenses/{id}/members/{member_id}/regenerate-token — novo token do membro externo
+ *   POST /defenses/{id}/members/{member_id}/resend-invitation — reenvia o convite válido com código novo (202)
+ *   POST /defenses/{id}/members/{member_id}/regenerate-token  — novo convite para convite usado, expirado ou revogado (202)
  *   GET/PUT /defenses/{id}/members/{member_id}/evaluation
  */
 export const defenseApi = {
@@ -790,7 +802,7 @@ export const defenseApi = {
       conflictReason?: string
     },
   ) =>
-    apiRequest<ExternalMemberTokenResponse>(
+    apiRequest<ExternalMemberResponse>(
       `/defenses/${defenseId}/members/external`,
       { method: "POST", body: JSON.stringify(body) },
     ),
@@ -820,8 +832,16 @@ export const defenseApi = {
       { method: "POST", body: JSON.stringify(body) },
     ),
 
-  regenerateToken: (defenseId: string, memberId: string) =>
-    apiRequest<ExternalMemberTokenResponse>(
+  /** E-mails a new code for the member's still valid invitation; the previous code stops working. */
+  resendInvitation: (defenseId: string, memberId: string) =>
+    apiRequest<ExternalMemberResponse>(
+      `/defenses/${defenseId}/members/${memberId}/resend-invitation`,
+      { method: "POST" },
+    ),
+
+  /** Replaces a used, expired or revoked invitation and e-mails a code for the new one. */
+  regenerateInvitation: (defenseId: string, memberId: string) =>
+    apiRequest<ExternalMemberResponse>(
       `/defenses/${defenseId}/members/${memberId}/regenerate-token`,
       { method: "POST" },
     ),

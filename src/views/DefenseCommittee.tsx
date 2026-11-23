@@ -7,10 +7,8 @@ import {
   NO_DEFENSE_PERMISSIONS,
   type DefenseCommitteeMember,
   type DefenseData,
-  type ExternalMemberTokenResponse,
 } from "../api/client"
 import {
-  AccessTokenModal,
   Avatar,
   Badge,
   Breadcrumb,
@@ -20,7 +18,6 @@ import {
   Icon,
   InstitutionalMemberModal,
   PageTitle,
-  type IssuedAccessToken,
 } from "../components/common"
 import { availabilityStatusBadge, defenseDecisionTone, defenseStatusTone } from "../data/defenseStatus"
 import type { BadgeTone } from "../data/thesisStatus"
@@ -34,6 +31,7 @@ import DefenseThesisCard from "./defense/DefenseThesisCard"
 import DefenseStatusTimeline from "./defense/DefenseStatusTimeline"
 import { statusActionErrorMessage } from "./defense/defenseErrors"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
+import { invitationActionErrorMessage, invitationStatusText } from "./defense/invitationStatus"
 
 type AddModalKind = "institutional" | "external" | null
 type StatusModalKind = "start" | "close" | "revert" | null
@@ -69,7 +67,10 @@ function evaluationStatusBadge(
  *
  * Para adicionar membro institucional, o e-mail é resolvido via
  * GET /api/v1/admin/users/lookup (somente admin/coordenador na rede institucional).
- * Para adicionar membro externo, usa-se POST /defenses/{id}/members/external.
+ * Para adicionar membro externo, usa-se POST /defenses/{id}/members/external. O código de
+ * acesso do membro externo nunca chega ao navegador: o backend o envia por e-mail, e a tela
+ * mostra só para onde o convite foi e se o envio já saiu, com "Reenviar convite" (convite
+ * ainda válido) ou "Gerar novo convite" (usado, expirado ou revogado).
  */
 export default function DefenseCommittee({ defenseId, goBack }: DefenseCommitteeProps) {
   const [defense, setDefense] = useState<DefenseData | null>(null)
@@ -90,16 +91,21 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   const [revertLoading, setRevertLoading] = useState(false)
   const [revertError, setRevertError] = useState("")
 
-  // Token do membro externo: fica só neste estado enquanto o modal está aberto.
-  const [issuedTokens, setIssuedTokens] = useState<IssuedAccessToken[]>([])
+  // Convites de membros externos: o código vai só por e-mail; aqui ficam o andamento e os avisos.
   const [regenerateTarget, setRegenerateTarget] = useState<DefenseCommitteeMember | null>(null)
   const [removeTarget, setRemoveTarget] = useState<DefenseCommitteeMember | null>(null)
   const [regenerateLoading, setRegenerateLoading] = useState(false)
   const [regenerateError, setRegenerateError] = useState("")
+  const [resendingId, setResendingId] = useState<string | null>(null)
+  const [invitationNotice, setInvitationNotice] = useState("")
+  const [invitationError, setInvitationError] = useState("")
 
   // Identificador por requisição: respostas de uma banca anterior não podem
   // sobrescrever o estado da banca atualmente aberta.
   const requestSeqRef = useRef(0)
+  // Muda só quando a banca aberta muda ou a tela é desmontada; ações como "Reenviar
+  // convite" não podem usar requestSeqRef, que também avança a cada recarga.
+  const viewSeqRef = useRef(0)
 
   const loadDefense = useCallback(() => {
     const requestId = ++requestSeqRef.current
@@ -138,6 +144,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     loadDefense()
     return () => {
       requestSeqRef.current += 1
+      viewSeqRef.current += 1
     }
   }, [loadDefense])
 
@@ -152,17 +159,6 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     loadDefense()
   }
 
-  const showIssuedToken = (response: ExternalMemberTokenResponse) => {
-    setIssuedTokens([
-      {
-        memberId: response.member.id,
-        memberName: response.member.name,
-        token: response.accessToken,
-        expiresAt: response.accessTokenExpiresAt,
-      },
-    ])
-  }
-
   const addExternalMember = async (draft: ExternalMemberDraft) => {
     const response = await defenseApi.addExternalMember(defenseId, {
       role: draft.role,
@@ -170,21 +166,41 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
       email: draft.email,
       institution: draft.institution || undefined,
     })
-    showIssuedToken(response)
+    setInvitationError("")
+    setInvitationNotice(`Membro adicionado. O convite com o código de acesso será enviado para ${response.member.email}.`)
     loadDefense()
   }
 
-  const regenerateToken = async () => {
+  const resendInvitation = async (member: DefenseCommitteeMember) => {
+    if (resendingId) return
+    setResendingId(member.id)
+    setInvitationNotice("")
+    setInvitationError("")
+    const viewId = viewSeqRef.current
+    try {
+      await defenseApi.resendInvitation(defenseId, member.id)
+      if (viewId !== viewSeqRef.current) return
+      setInvitationNotice(`Convite reenviado para ${member.email}. O código anterior deixou de funcionar.`)
+      loadDefense()
+    } catch (reason) {
+      if (viewId === viewSeqRef.current) setInvitationError(invitationActionErrorMessage(reason, "Não foi possível reenviar o convite."))
+    } finally {
+      if (viewId === viewSeqRef.current) setResendingId(null)
+    }
+  }
+
+  const regenerateInvitation = async () => {
     if (!regenerateTarget) return
     setRegenerateLoading(true)
     setRegenerateError("")
     try {
-      const response = await defenseApi.regenerateToken(defenseId, regenerateTarget.id)
+      await defenseApi.regenerateInvitation(defenseId, regenerateTarget.id)
+      setInvitationError("")
+      setInvitationNotice(`Novo convite enviado para ${regenerateTarget.email}. O código anterior deixou de funcionar.`)
       setRegenerateTarget(null)
-      showIssuedToken(response)
       loadDefense()
     } catch (reason) {
-      setRegenerateError(statusActionErrorMessage(reason, "Não foi possível gerar um novo token."))
+      setRegenerateError(invitationActionErrorMessage(reason, "Não foi possível gerar um novo convite."))
     } finally {
       setRegenerateLoading(false)
     }
@@ -447,6 +463,19 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
         </div>
       )}
 
+      <div aria-live="polite">
+        {invitationNotice && (
+          <div className="success-notice" role="status">
+            {invitationNotice}
+          </div>
+        )}
+      </div>
+      {invitationError && (
+        <div className="success-notice" role="alert">
+          {invitationError}
+        </div>
+      )}
+
       <Card>
         <div className="section-head defense-section-head">
           <div>
@@ -484,13 +513,16 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
               // condição evita exibir um selo "pendente" no lugar de um dado oculto.
               const canSeeAvailability = permissions.canManage || member.id === myMemberId
               const showAvailability = canSeeAvailability && member.availabilityStatus !== null
-              const canRegenerateToken = canManageMembers && !member.isInstitutional
+              const isExternal = !member.isInstitutional
+              const canResend = canManageMembers && isExternal && member.canResendInvitation === true
+              const canRegenerate = canManageMembers && isExternal && !canResend
+              const invitationText = permissions.canManage ? invitationStatusText(member) : null
               const canRemove = canRemoveMembers && !member.evaluation
               return (
                 <div key={member.id}>
                   <Avatar name={member.name} imageUrl={member.isInstitutional ? member.avatarUrl : null} />
                   <div>
-                    <strong>{member.name}</strong>
+                    <strong id={`committee-member-${member.id}`}>{member.name}</strong>
                     <span>
                       {COMMITTEE_ROLE_LABELS[member.role] ?? member.role} ·{" "}
                       {member.isInstitutional ? "Institucional" : "Externo"}
@@ -505,16 +537,31 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
                     {showAvailability && member.availabilityStatus === "DECLINED" && member.availabilityNote && (
                       <small className="availability-note">Observação: {member.availabilityNote}</small>
                     )}
+                    {invitationText && <small className="invitation-status">{invitationText}</small>}
                   </div>
                   <div className="member-badges">
                     {showAvailability && <Badge tone={availability.tone}>{availability.label}</Badge>}
                     <Badge tone={evalStatus.tone}>{evalStatus.label}</Badge>
                   </div>
-                  {(canRemove || canRegenerateToken) && (
+                  {(canRemove || canResend || canRegenerate) && (
                     <div className="defense-actions">
-                      {canRegenerateToken && (
-                        <Button variant="outline" onClick={() => setRegenerateTarget(member)}>
-                          Gerar novo token
+                      {canResend && (
+                        <Button
+                          variant="outline"
+                          disabled={resendingId !== null}
+                          describedBy={`committee-member-${member.id}`}
+                          onClick={() => void resendInvitation(member)}
+                        >
+                          {resendingId === member.id ? "Reenviando…" : "Reenviar convite"}
+                        </Button>
+                      )}
+                      {canRegenerate && (
+                        <Button
+                          variant="outline"
+                          describedBy={`committee-member-${member.id}`}
+                          onClick={() => setRegenerateTarget(member)}
+                        >
+                          Gerar novo convite
                         </Button>
                       )}
                       {canRemove && (
@@ -562,22 +609,20 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
 
       {regenerateTarget && (
         <DefenseStatusConfirmModal
-          title="Gerar novo token?"
-          description={`O token atual de ${regenerateTarget.name} deixa de funcionar e as sessões abertas com ele são encerradas. A disponibilidade e a avaliação já registradas são mantidas.`}
-          confirmLabel="Gerar novo token"
+          title="Gerar novo convite?"
+          description={`O convite atual de ${regenerateTarget.name} será revogado e as sessões abertas com ele serão encerradas. Um novo código de acesso será enviado para ${regenerateTarget.email}. A disponibilidade e a avaliação já registradas são mantidas.`}
+          confirmLabel="Gerar novo convite"
           pendingLabel="Gerando…"
           destructive
           loading={regenerateLoading}
           error={regenerateError}
-          onConfirm={() => void regenerateToken()}
+          onConfirm={() => void regenerateInvitation()}
           onClose={() => {
             setRegenerateTarget(null)
             setRegenerateError("")
           }}
         />
       )}
-
-      {issuedTokens.length > 0 && <AccessTokenModal tokens={issuedTokens} onClose={() => setIssuedTokens([])} />}
 
       {scheduleModal === "edit" && (
         <DefenseEditModal defense={defense} onClose={() => setScheduleModal(null)} onSaved={finishScheduleChange} />

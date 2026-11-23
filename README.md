@@ -50,6 +50,10 @@ Após a inicialização, a aplicação estará disponível em `http://localhost:
 
 Para interromper o servidor, pressione `Ctrl + C` no terminal.
 
+### Acesso de membros externos da banca
+
+O código de acesso dos membros externos (`UFVJM-XXXX-XXXX-XXXX-XXXX`) é enviado pelo backend somente por e-mail; nenhuma tela o exibe. Quem gerencia a banca vê para qual e-mail o convite foi enviado e pode usar "Reenviar convite" ou "Gerar novo convite". Em desenvolvimento com o `docker-compose.yml` do backend, os e-mails ficam no Mailpit em `http://127.0.0.1:8025`; o membro externo usa o código na tela de login, em "Sou membro de banca externo".
+
 ## 6. Gerar a versão de produção
 
 Para compilar o projeto para produção, execute:
