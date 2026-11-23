@@ -47,8 +47,8 @@ export default function UnpublishThesisModal({ thesis, onClose, onUnpublished }:
       </div>
       <h2 id="unpublish-title">Despublicar monografia?</h2>
       <p>
-        “{thesis.title}” sairá do repositório público imediatamente e ficará arquivada. Arquivos e histórico são
-        mantidos, mas a monografia não poderá ser republicada nem excluída.
+        <strong>“{thesis.title}”</strong> sairá do repositório público e ficará arquivada com seus arquivos e histórico.
+        <strong> A despublicação é definitiva.</strong>
       </p>
       <div className="field">
         <label htmlFor="unpublish-reason">
@@ -60,10 +60,13 @@ export default function UnpublishThesisModal({ thesis, onClose, onUnpublished }:
           value={reason}
           maxLength={REPOSITORY_MAX_REASON_LENGTH}
           required
-          aria-required="true"
+          aria-describedby="unpublish-reason-hint"
           disabled={sending}
           onChange={(event) => setReason(event.target.value)}
         />
+        <small id="unpublish-reason-hint" className="field-hint">
+          Motivo obrigatório. Ele será registrado no histórico da monografia.
+        </small>
       </div>
       {error && (
         <div className="form-error" role="alert">

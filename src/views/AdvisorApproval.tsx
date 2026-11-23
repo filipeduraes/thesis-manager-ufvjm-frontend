@@ -427,6 +427,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
                 </button>
               </div>
             )}
+            <PublishedThesisManagement key={detail.id} thesis={detail} onUpdated={applyRepositoryUpdate} />
             <div className="review-split">
               <div className="review-media">
                 <Card>
@@ -664,8 +665,6 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
                     )}
                   </Card>
                 )}
-
-                <PublishedThesisManagement thesis={detail} onUpdated={applyRepositoryUpdate} />
 
                 <Card>
                   <div className="section-head">

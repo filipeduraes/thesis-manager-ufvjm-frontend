@@ -22,7 +22,18 @@ export default function PublishedThesisManagement({ thesis, onUpdated }: Publish
   const [dialog, setDialog] = useState<ManagementDialog>(null)
   const canEdit = thesis.permissions.canEditPublished === true
   const canUnpublish = thesis.permissions.canUnpublish === true
-  if (!canEdit && !canUnpublish) return null
+  const archived = thesis.status === "ARCHIVED" && Boolean(thesis.publishedAt)
+  if (archived) {
+    const archiveEntry = thesis.statusHistory?.find((entry) => entry.newStatus === "ARCHIVED")
+    return (
+      <Card className="repository-management">
+        <h2>Publicação arquivada</h2>
+        <p>A monografia foi retirada do repositório público. Os arquivos e o histórico seguem disponíveis neste detalhe.</p>
+        {archiveEntry?.reason && <p><strong>Motivo da despublicação</strong> · {archiveEntry.reason}</p>}
+      </Card>
+    )
+  }
+  if (thesis.status !== "PUBLISHED" || (!canEdit && !canUnpublish)) return null
 
   const finish = (updated: Thesis, notice: string) => {
     setDialog(null)
@@ -30,16 +41,16 @@ export default function PublishedThesisManagement({ thesis, onUpdated }: Publish
   }
 
   return (
-    <Card className="decision-card repository-management">
+    <Card className="repository-management">
       <div>
         <p className="eyebrow">Repositório público</p>
         <h2>Gestão da publicação</h2>
       </div>
       <div className="inline-alert">
         <Icon name="alert" />
-        <span>Cada alteração fica registrada no histórico e na auditoria e atualiza o repositório público.</span>
+        <span>As ações afetam a publicação no repositório e ficam registradas no histórico.</span>
       </div>
-      <div className="button-stack">
+      <div className="repository-management-actions">
         {canEdit && (
           <Button variant="outline" icon="file" onClick={() => setDialog("metadata")}>
             Editar metadados
