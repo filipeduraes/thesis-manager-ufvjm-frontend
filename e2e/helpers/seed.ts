@@ -24,7 +24,7 @@ interface SessionBody {
   user: { id: string }
 }
 
-async function devLogin(request: APIRequestContext, name: string, email: string, role: string): Promise<{ csrfToken: string; userId: string }> {
+export async function devLogin(request: APIRequestContext, name: string, email: string, role: string): Promise<{ csrfToken: string; userId: string }> {
   let lastError = ""
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Ao trocar de usuário no mesmo contexto, a sessão anterior ainda está ativa

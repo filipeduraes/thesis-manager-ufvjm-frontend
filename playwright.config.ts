@@ -31,6 +31,8 @@ const backendEnv = {
 
 export default defineConfig({
   testDir: "./e2e",
+  // O smoke do stack real tem config própria (playwright.real.config.ts).
+  testIgnore: ["**/smoke-real.spec.ts"],
   outputDir: `test-results-${runId}`,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

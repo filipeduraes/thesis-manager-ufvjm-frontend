@@ -125,6 +125,17 @@ npm run test:e2e              # suíte completa
 npx playwright test e2e/auth.spec.ts          # arquivo específico
 npx playwright test -g "exporta o log em CSV"  # teste específico
 npm run test:e2e:report       # abre o relatório HTML da última execução
+
+# Smoke no stack real (Docker Compose + Mailpit), sem subir servidores de teste.
+# Requer `docker compose --profile microservices up` e `npm start` rodando.
+npx playwright test --config playwright.real.config.ts
+```
+
+O smoke real (`e2e/smoke-real.spec.ts`) cria uma banca com membro externo pela
+API do backend em `:8000`, confirma na UI (`:3000`) que o convite aparece, lê o
+token no e-mail capturado pelo Mailpit (`:8025`) e troca esse token por uma
+sessão externa. Ele prova o fluxo completo事件 → consumidor → e-mail → token →
+sessão no ambiente de deploy; por isso fica fora da suíte isolada (`testIgnore`).
 ```
 
 Execute **na raiz do repositório frontend**, no host (o `webServer` usa o
