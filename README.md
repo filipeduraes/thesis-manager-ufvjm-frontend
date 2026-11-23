@@ -140,8 +140,18 @@ fora da suíte isolada (`testIgnore`).
 
 **Nunca rode o smoke contra o stack de desenvolvimento**: ele popularia o banco
 real e os dados se acumulariam a cada execução. O script acima usa um projeto
-Compose separado (`thesis-smoke`) e remove os volumes ao final. Se você já rodou
-o smoke contra o banco real por engano, use no backend:
+Compose separado (`thesis-smoke`) e remove os volumes ao final. Ele detecta
+automaticamente se precisa de `sudo docker`; se o socket negar acesso, conceda
+permissão sem senha **apenas ao binário do Docker** (nunca compartilhe sua senha
+de sudo):
+
+```bash
+echo 'fhdd ALL=(root) NOPASSWD: /usr/bin/docker' | sudo tee /etc/sudoers.d/docker-nopass
+sudo chmod 440 /etc/sudoers.d/docker-nopass
+sudo visudo -c
+```
+
+Se você já rodou o smoke contra o banco real por engano, use no backend:
 
 ```bash
 python manage.py cleanup_e2e_data --apply   # use --dry-run primeiro para conferir
