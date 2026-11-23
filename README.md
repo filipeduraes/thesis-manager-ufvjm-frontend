@@ -100,8 +100,14 @@ pré-condições (usuários, cursos e TCCs) dos cenários.
 
 ### Pré-requisitos
 
-- Node 20+ e Google Chrome (o `playwright.config.ts` usa `channel: "chrome"`;
-  não é necessário baixar navegadores).
+- Node 20+ e o Chromium do Playwright: rode `npx playwright install chromium`
+  uma vez (não é necessário Docker nem Chrome do sistema). Se quiser usar o
+  Chrome instalado, defina `E2E_BROWSER_CHANNEL=chrome`.
+- A suíte sobe sozinha: por padrão backend isolado em `:8001`, frontend em
+  `:3001` e um worker de extração de texto em `:8002` (status apenas). Nada
+  depende do Docker ou do banco da aplicação. Portas, banco SQLite, mídia e
+  diretórios de saída podem ser isolados por ambiente; para duas suítes
+  simultâneas use `./scripts/run-e2e-isolated.sh` (aloca portas livres).
 - Backend Django com `DEBUG=True` para habilitar `/api/v1/auth/dev-login`.
 - Ambiente virtual do backend em `../thesis-manager-ufvjm-backend/.venv` (o
   `webServer` chama `.venv/bin/python`): `python3 -m venv .venv &&
@@ -119,6 +125,37 @@ npm run test:e2e              # suíte completa
 npx playwright test e2e/auth.spec.ts          # arquivo específico
 npx playwright test -g "exporta o log em CSV"  # teste específico
 npm run test:e2e:report       # abre o relatório HTML da última execução
+
+# Smoke em stack DEDICADO (recomendado): sobe, roda e destrói tudo com `down -v`.
+# Portas próprias (9000/9001/9025) e COMPOSE_PROJECT_NAME=thesis-smoke:
+# volumes, bancos e filas nunca se misturam com o sistema em :8000/:3000.
+./scripts/smoke-stack.sh
+```
+
+O smoke (`e2e/smoke-real.spec.ts`) cria uma banca com membro externo pela API,
+confirma na UI que o convite aparece, lê o token no e-mail capturado pelo
+Mailpit e troca esse token por uma sessão externa. Ele prova o fluxo completo
+事件 → consumidor → e-mail → token → sessão no ambiente de deploy; por isso fica
+fora da suíte isolada (`testIgnore`).
+
+**Nunca rode o smoke contra o stack de desenvolvimento**: ele popularia o banco
+real e os dados se acumulariam a cada execução. O script acima usa um projeto
+Compose separado (`thesis-smoke`) e remove os volumes ao final. Ele detecta
+automaticamente se precisa de `sudo docker`; se o socket negar acesso, conceda
+permissão sem senha **apenas ao binário do Docker** (nunca compartilhe sua senha
+de sudo):
+
+```bash
+echo 'fhdd ALL=(root) NOPASSWD: /usr/bin/docker' | sudo tee /etc/sudoers.d/docker-nopass
+sudo chmod 440 /etc/sudoers.d/docker-nopass
+sudo visudo -c
+```
+
+Se você já rodou o smoke contra o banco real por engano, use no backend:
+
+```bash
+python manage.py cleanup_e2e_data --apply   # use --dry-run primeiro para conferir
+```
 ```
 
 Execute **na raiz do repositório frontend**, no host (o `webServer` usa o

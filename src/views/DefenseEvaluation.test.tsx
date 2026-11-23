@@ -74,6 +74,13 @@ function completedWithResult(): DefenseData {
   return { ...buildDefense("COMPLETED", SAVED_EVALUATION), result: "APPROVED", resultLabel: "Aprovada" }
 }
 
+async function typeNotes() {
+  const score = await screen.findByPlaceholderText<HTMLInputElement>("Ex.: 8.50")
+  if (!score.value) userEvent.type(score, "8.50")
+  const textarea = await screen.findByPlaceholderText("Comentários para o aluno e para a comissão")
+  userEvent.type(textarea, "Parecer de teste.")
+}
+
 function renderEvaluation() {
   render(<DefenseEvaluation defenseId="defense-1" goBack={() => undefined} />)
 }
@@ -93,16 +100,17 @@ test("institutional member still submits the evaluation with decision and score"
   getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS", SAVED_EVALUATION) })
   submitEvaluation.mockResolvedValue({
     evaluation: SAVED_EVALUATION,
-    autoCloseError: null,
+    resultCalculationQueued: true,
     defenseStatus: "IN_PROGRESS",
     defenseStatusLabel: "Em andamento",
   })
   renderEvaluation()
 
   userEvent.type(await screen.findByPlaceholderText("Ex.: 8.50"), "9")
+  await typeNotes()
   userEvent.click(screen.getByRole("button", { name: "Registrar avaliação" }))
   await waitFor(() =>
-    expect(submitEvaluation).toHaveBeenCalledWith("defense-1", "member-1", { decision: "APPROVED", notes: undefined, score: "9.00" }),
+    expect(submitEvaluation).toHaveBeenCalledWith("defense-1", "member-1", { decision: "APPROVED", notes: "Parecer de teste.", score: "9.00" }),
   )
   expect(await screen.findByText("Avaliação enviada")).toBeTruthy()
   expect(screen.queryByText(/Banca encerrada/)).toBeNull()
@@ -120,7 +128,7 @@ test.each(["institutional", "external"] as const)("loads and updates only the si
   })
   getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS", updated) })
   submitEvaluation.mockResolvedValue({
-    evaluation: updated, autoCloseError: null, defenseStatus: "IN_PROGRESS", defenseStatusLabel: "Em andamento",
+    evaluation: updated, resultCalculationQueued: true, defenseStatus: "IN_PROGRESS", defenseStatusLabel: "Em andamento",
   })
   render(<DefenseEvaluation defenseId="defense-1" memberId={variant === "external" ? "member-1" : undefined} variant={variant} />)
 
@@ -171,12 +179,13 @@ test("reloads after the last evaluation and shows the result of the automatic cl
   getDefense.mockResolvedValue({ defense: completedWithResult() })
   submitEvaluation.mockResolvedValue({
     evaluation: SAVED_EVALUATION,
-    autoCloseError: null,
+    resultCalculationQueued: true,
     defenseStatus: "COMPLETED",
     defenseStatusLabel: "Concluída",
   })
   renderEvaluation()
 
+  await typeNotes()
   userEvent.click(await screen.findByRole("button", { name: "Registrar avaliação" }))
   expect(await screen.findByText("Banca encerrada. Resultado: Aprovada")).toBeTruthy()
   expect(getDefense).toHaveBeenCalledTimes(2)
@@ -192,16 +201,17 @@ test("keeps the evaluation as saved when the automatic close fails", async () =>
   getDefense.mockResolvedValue({ defense: buildDefense("IN_PROGRESS", SAVED_EVALUATION) })
   submitEvaluation.mockResolvedValue({
     evaluation: SAVED_EVALUATION,
-    autoCloseError: "A monografia não possui PDF atual.",
+    resultCalculationQueued: false,
     defenseStatus: "IN_PROGRESS",
     defenseStatusLabel: "Em andamento",
   })
   renderEvaluation()
 
+  await typeNotes()
   userEvent.click(await screen.findByRole("button", { name: "Registrar avaliação" }))
   expect(
     await screen.findByText(
-      "Avaliação salva. A banca não pôde ser encerrada automaticamente: A monografia não possui PDF atual.",
+      "Avaliação salva, mas a apuração do resultado não foi agendada. Tente novamente.",
     ),
   ).toBeTruthy()
   expect(screen.getByText("Avaliação enviada")).toBeTruthy()
@@ -218,12 +228,13 @@ test("tells a viewer with canClose that the defense can be closed manually", asy
   getDefense.mockResolvedValue({ defense: { ...inProgress, members: [member(SAVED_EVALUATION)] } })
   submitEvaluation.mockResolvedValue({
     evaluation: SAVED_EVALUATION,
-    autoCloseError: "A monografia não possui PDF atual.",
+    resultCalculationQueued: false,
     defenseStatus: "IN_PROGRESS",
     defenseStatusLabel: "Em andamento",
   })
   renderEvaluation()
 
+  await typeNotes()
   userEvent.click(await screen.findByRole("button", { name: "Registrar avaliação" }))
   expect(await screen.findByText("Você pode encerrar a banca manualmente em Gerenciar banca.")).toBeTruthy()
 })

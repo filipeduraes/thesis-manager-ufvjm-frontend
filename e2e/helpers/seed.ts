@@ -3,6 +3,12 @@ import { uniqueEmail } from "./auth"
 
 const API_ROOT = process.env.E2E_API_URL ?? "http://localhost:8001/api/v1"
 
+/** PDF com bytes únicos por teste: o cadastro de acervo recusa PDFs já usados. */
+export async function uniquePdfBuffer(): Promise<Buffer> {
+  const base = await readFixture()
+  return Buffer.concat([base, Buffer.from(`\n% e2e-${Date.now()}-${Math.random().toString(36).slice(2)}\n`)])
+}
+
 export interface SeededThesis {
   courseId: string
   courseCode: string
@@ -18,7 +24,7 @@ interface SessionBody {
   user: { id: string }
 }
 
-async function devLogin(request: APIRequestContext, name: string, email: string, role: string): Promise<{ csrfToken: string; userId: string }> {
+export async function devLogin(request: APIRequestContext, name: string, email: string, role: string): Promise<{ csrfToken: string; userId: string }> {
   let lastError = ""
   for (let attempt = 0; attempt < 3; attempt += 1) {
     // Ao trocar de usuário no mesmo contexto, a sessão anterior ainda está ativa
@@ -47,6 +53,64 @@ async function devLogin(request: APIRequestContext, name: string, email: string,
  * testes validam as operações pela interface. Cada chamada usa identificadores
  * únicos para permitir execução paralela e repetida.
  */
+export interface InProgressDefense {
+  thesis: SeededThesis
+  defenseId: string
+  memberId: string
+  evaluatorEmail: string
+}
+
+/**
+ * Schedule a defense and leave it IN_PROGRESS with one non-alternate evaluator.
+ */
+export async function seedInProgressDefense(request: APIRequestContext, title: string): Promise<InProgressDefense> {
+  const thesis = await seedApprovedThesis(request, title)
+  const advisor = await devLogin(request, "Orientador E2E Defesa", thesis.advisorEmail, "ADVISOR")
+  const review = await request.post(`${API_ROOT}/theses/${thesis.thesisId}/reviews`, {
+    headers: { "X-CSRFToken": advisor.csrfToken },
+    data: { decision: "APPROVED", comments: "Aprovado para banca." },
+  })
+  expect(review.ok(), await review.text()).toBeTruthy()
+
+  const coordinator = await devLogin(request, "Coord E2E Defesa", thesis.coordinatorEmail, "COORDINATOR")
+  const coordinatorHeaders = { "X-CSRFToken": coordinator.csrfToken }
+  const when = new Date()
+  when.setDate(when.getDate() + 1)
+  const defenseResponse = await request.post(`${API_ROOT}/theses/${thesis.thesisId}/defenses`, {
+    headers: coordinatorHeaders,
+    data: {
+      scheduledDatetime: when.toISOString(),
+      durationMinutes: 90,
+      modality: "IN_PERSON",
+      location: "Sala E2E",
+    },
+  })
+  expect(defenseResponse.ok(), await defenseResponse.text()).toBeTruthy()
+  const defense = (await defenseResponse.json()) as { defense: { id: string } }
+
+  const evaluatorEmail = uniqueEmail("evaluator")
+  const evaluator = await devLogin(request, "Avaliador E2E", evaluatorEmail, "ADVISOR")
+  const coordinatorAgain = await devLogin(request, "Coord E2E Defesa", thesis.coordinatorEmail, "COORDINATOR")
+  const memberResponse = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/members`, {
+    headers: { "X-CSRFToken": coordinatorAgain.csrfToken },
+    data: { userId: evaluator.userId, role: "MEMBER" },
+  })
+  expect(memberResponse.ok(), await memberResponse.text()).toBeTruthy()
+  const member = (await memberResponse.json()) as { member: { id: string } }
+
+  const evaluatorAgain = await devLogin(request, "Avaliador E2E", evaluatorEmail, "ADVISOR")
+  const availability = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/members/${member.member.id}/availability`, {
+    headers: { "X-CSRFToken": evaluatorAgain.csrfToken },
+    data: { status: "CONFIRMED" },
+  })
+  expect(availability.ok(), await availability.text()).toBeTruthy()
+  const coordinatorForStart = await devLogin(request, "Coord E2E Defesa", thesis.coordinatorEmail, "COORDINATOR")
+  const start = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/start`, { headers: { "X-CSRFToken": coordinatorForStart.csrfToken } })
+  expect(start.ok(), await start.text()).toBeTruthy()
+
+  return { thesis, defenseId: defense.defense.id, memberId: member.member.id, evaluatorEmail }
+}
+
 export interface AcademicContext {
   courseId: string
   courseCode: string
@@ -142,6 +206,7 @@ export async function seedApprovedThesis(request: APIRequestContext, title: stri
     },
   })
   expect(uploadResponse.ok(), await uploadResponse.text()).toBeTruthy()
+  await waitForTextExtraction(request, studentHeaders)
 
   const submitResponse = await request.post(`${API_ROOT}/theses/me/submit`, { headers: studentHeaders })
   expect(submitResponse.ok(), await submitResponse.text()).toBeTruthy()
@@ -155,6 +220,18 @@ export async function seedApprovedThesis(request: APIRequestContext, title: stri
     thesisId: metadata.thesis.id,
     title,
   }
+}
+
+
+async function waitForTextExtraction(request: APIRequestContext, headers: Record<string, string>): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const response = await request.get(`${API_ROOT}/theses/me`, { headers })
+    const body = (await response.json()) as { thesis?: { currentFile?: { storedFile?: { processingStatus?: string } } } }
+    const status = body.thesis?.currentFile?.storedFile?.processingStatus
+    if (status === "COMPLETED" || status === "FAILED") return
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  throw new Error("A extração de texto do PDF de teste não concluiu a tempo.")
 }
 
 async function readFixture(): Promise<Buffer> {

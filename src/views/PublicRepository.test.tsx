@@ -267,3 +267,18 @@ test("como página autônoma, declara a própria região principal", async () =>
   expect(await screen.findByRole("heading", { name: "Repositório de Monografias" })).toBeTruthy()
   expect(screen.getAllByRole("main")).toHaveLength(1)
 })
+
+test("mostra todas as palavras-chave do card, cada uma em um badge", async () => {
+  const keywords = ["Água", "Sustentabilidade", "Processamento de sinais", "Cidades inteligentes"]
+  search.mockResolvedValueOnce(resultPage([{ ...work("t2", "Gestão hídrica"), keywords }]))
+  render(<PublicRepository go={jest.fn()} />)
+  const title = await screen.findByRole("heading", { name: "Gestão hídrica" })
+  const card = title.closest("article")
+  expect(card).not.toBeNull()
+  const tags = card!.querySelector(".tags")
+  expect(tags).not.toBeNull()
+  expect(within(tags as HTMLElement).getAllByText(/./)).toHaveLength(keywords.length)
+  for (const keyword of keywords) {
+    expect(within(tags as HTMLElement).getByText(keyword)).toBeTruthy()
+  }
+})

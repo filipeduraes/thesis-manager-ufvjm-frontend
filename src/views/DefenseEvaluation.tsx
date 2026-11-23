@@ -152,18 +152,26 @@ export default function DefenseEvaluation({
     setSubmitting(true)
     setSubmitError("")
     try {
-      const body: { decision: string; score?: string | null; notes?: string } = {
-        decision,
-        notes: notes.trim() || undefined,
+      if (!score.trim()) {
+        setSubmitError("Informe a nota do avaliador (0 a 10).")
+        setSubmitting(false)
+        return
       }
-      if (score.trim()) {
-        const numeric = parseFloat(score)
-        if (isNaN(numeric) || numeric < 0 || numeric > 10) {
-          setSubmitError("A nota deve ser um número entre 0,00 e 10,00.")
-          setSubmitting(false)
-          return
-        }
-        body.score = numeric.toFixed(2)
+      const numeric = parseFloat(score)
+      if (isNaN(numeric) || numeric < 0 || numeric > 10) {
+        setSubmitError("A nota deve ser um número entre 0,00 e 10,00.")
+        setSubmitting(false)
+        return
+      }
+      if (!notes.trim()) {
+        setSubmitError("Informe o parecer do avaliador.")
+        setSubmitting(false)
+        return
+      }
+      const body: { decision: string; score: string; notes: string } = {
+        decision,
+        score: numeric.toFixed(2),
+        notes: notes.trim(),
       }
       const response = await defenseApi.submitEvaluation(
         defenseId,
@@ -180,7 +188,7 @@ export default function DefenseEvaluation({
       setDecision((ev.decision as DecisionCode) ?? "APPROVED")
       setScore(ev.score ?? "")
       setNotes(ev.notes ?? "")
-      setAutoCloseError(response.autoCloseError ?? "")
+      setAutoCloseError(response.resultCalculationQueued ? "" : "a apuração do resultado não foi agendada. Tente novamente.")
       onSubmitted?.()
       // A última avaliação pode ter encerrado a banca: recarrega status e resultado.
       loadDefense()
@@ -353,7 +361,7 @@ export default function DefenseEvaluation({
           <div className="conflict-message auto-close-warning" role="status" aria-live="polite">
             <Icon name="alert" />
             <div>
-              <strong>Avaliação salva. A banca não pôde ser encerrada automaticamente: {autoCloseError}</strong>
+              <strong>Avaliação salva, mas {autoCloseError}</strong>
               <span>
                 {canClose
                   ? "Você pode encerrar a banca manualmente em Gerenciar banca."
@@ -436,7 +444,7 @@ export default function DefenseEvaluation({
 
             <label className="field grade-field">
               <span>
-                Nota <small>(0 a 10, opcional)</small>
+                Nota <small>(0 a 10, obrigatória)</small>
               </span>
               <div>
                 <input
@@ -454,7 +462,7 @@ export default function DefenseEvaluation({
 
             <label className="field">
               <span>
-                Observações <small>(opcional)</small>
+                Parecer <small>(obrigatório)</small>
               </span>
               <textarea
                 className="feedback-area"

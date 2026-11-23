@@ -1816,8 +1816,16 @@ textarea:focus {
 
 .tags {
   display: flex;
+  flex-wrap: wrap;
   gap: 5px;
-  margin-top: 10px
+  margin-top: 10px;
+  min-width: 0
+}
+
+.work-card .tags .badge {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%
 }
 
 .course {
@@ -5380,6 +5388,50 @@ textarea:focus-visible {
 
 .hash.drawer-hash code {
   word-break: break-all
+}
+
+.coauthor-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px
+}
+
+.coauthor-picker .field {
+  margin-bottom: 0
+}
+
+.coauthor-picker-input {
+  margin-top: 2px
+}
+
+.coauthor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px
+}
+
+.coauthor-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--soft)
+}
+
+.coauthor-list li span {
+  font-weight: 600
+}
+
+.coauthor-list li small {
+  color: var(--slate);
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere
 }
 
 @media (max-width:600px) {

@@ -57,7 +57,7 @@ const NO_THESIS: StudentThesisContext = {
   courses: [],
   advisors: [],
   defaultCourseId: null,
-  limits: { maxPdfSizeMb: 50, maxDocumentSizeMb: 20, maxKeywords: 5 },
+  limits: { maxPdfSizeMb: 50, maxDocumentSizeMb: 20, maxKeywords: 5, maxAuthors: 5 },
 }
 
 function renderDashboard(profiles: Profile[]) {

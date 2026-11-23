@@ -7,12 +7,14 @@ import {
   type ThesisDocumentType,
   type ThesisFile,
   type ThesisMetadataInput,
+  type UserSuggestion,
 } from "../api/client"
 import { apiErrorMessage } from "../api/errors"
 import {
   Badge,
   Button,
   Card,
+  CoauthorPicker,
   Field,
   Icon,
   PageTitle,
@@ -37,6 +39,13 @@ const defaultForm = {
   courseId: "",
   advisorId: "",
   keywords: "",
+  authors: [] as UserSuggestion[],
+}
+
+function coauthorsOf(thesis: Thesis): UserSuggestion[] {
+  return thesis.authors
+    .filter((author) => !author.isMainAuthor && author.user)
+    .map((author) => ({ id: author.user!.id, name: author.user!.name, email: author.user!.email, avatarUrl: null }))
 }
 
 function parseKeywords(value: string): string[] {
@@ -80,6 +89,7 @@ export default function StudentSubmission() {
       courseId: next.course.id,
       advisorId: next.advisor.id,
       keywords: next.keywords.join(", "),
+      authors: coauthorsOf(next),
     })
     setActiveFileId(next.currentFile?.id ?? null)
   }, [])
@@ -98,6 +108,7 @@ export default function StudentSubmission() {
           courseId: data.thesis.course.id,
           advisorId: data.thesis.advisor.id,
           keywords: data.thesis.keywords.join(", "),
+          authors: coauthorsOf(data.thesis),
         })
         setActiveFileId(data.thesis.currentFile?.id ?? null)
         setStep(3)
@@ -135,6 +146,7 @@ export default function StudentSubmission() {
   )
   const latestReview = thesis?.reviews?.[0] ?? null
   const maxKeywords = context?.limits.maxKeywords ?? 10
+  const maxAuthors = context?.limits.maxAuthors ?? 5
   const maxPdfSizeMb = context?.limits.maxPdfSizeMb ?? 50
   const maxDocumentSizeMb = context?.limits.maxDocumentSizeMb ?? 20
 
@@ -153,6 +165,7 @@ export default function StudentSubmission() {
     courseId: form.courseId,
     advisorId: form.advisorId,
     keywords: parseKeywords(form.keywords),
+    authors: form.authors.map((author) => author.id),
   })
 
   const persistMetadata = async (advanceTo?: number): Promise<boolean> => {
@@ -189,6 +202,10 @@ export default function StudentSubmission() {
     }
     if (payload.keywords.length > maxKeywords) {
       setError(`Informe no máximo ${maxKeywords} palavras-chave.`)
+      return false
+    }
+    if ((payload.authors?.length ?? 0) >= maxAuthors) {
+      setError(`O grupo pode ter no máximo ${maxAuthors} alunos, incluindo você.`)
       return false
     }
     setSaving(true)
@@ -532,6 +549,12 @@ export default function StudentSubmission() {
               required
             />
           </div>
+          <CoauthorPicker
+            value={form.authors}
+            onChange={(authors) => setForm((current) => ({ ...current, authors }))}
+            maxAuthors={maxAuthors}
+            disabled={!canEdit}
+          />
           <Field
             label="Palavras-chave"
             placeholder="Cidades inteligentes, Sustentabilidade, IoT"
@@ -772,6 +795,10 @@ export default function StudentSubmission() {
                     <div>
                       <dt>Orientador</dt>
                       <dd>{thesis.advisor.name}</dd>
+                    </div>
+                    <div>
+                      <dt>Autores</dt>
+                      <dd>{thesis.authors.map((author) => author.name ?? author.user?.name).join(", ")}</dd>
                     </div>
                     <div>
                       <dt>Palavras-chave</dt>
