@@ -3,6 +3,12 @@ import { uniqueEmail } from "./auth"
 
 const API_ROOT = process.env.E2E_API_URL ?? "http://localhost:8001/api/v1"
 
+/** PDF com bytes únicos por teste: o cadastro de acervo recusa PDFs já usados. */
+export async function uniquePdfBuffer(): Promise<Buffer> {
+  const base = await readFixture()
+  return Buffer.concat([base, Buffer.from(`\n% e2e-${Date.now()}-${Math.random().toString(36).slice(2)}\n`)])
+}
+
 export interface SeededThesis {
   courseId: string
   courseCode: string
