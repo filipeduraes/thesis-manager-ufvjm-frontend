@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from "../data/storageKeys"
 import { useEffect, useState } from "react"
 import { defenseApi } from "../api/client"
 import { Badge, PageTitle } from "../components/common"
@@ -6,7 +7,7 @@ import PresentedDefenseList from "./defense/PresentedDefenseList"
 
 type DefenseView = "schedule" | "presented"
 
-const DEFENSE_VIEW_STORAGE_KEY = "ufvjm:defense-view"
+const DEFENSE_VIEW_STORAGE_KEY = STORAGE_KEYS.defenseView
 
 function initialDefenseView(): DefenseView {
   const stored = window.sessionStorage.getItem(DEFENSE_VIEW_STORAGE_KEY)

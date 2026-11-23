@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { KeyboardEvent } from "react"
-import { ApiError, usersApi, type UserSuggestion } from "../../api/client"
+import { ApiError, usersApi, type UserSuggestRole, type UserSuggestion } from "../../api/client"
 import Avatar from "./Avatar"
 
 const SUGGEST_DEBOUNCE_MS = 300
@@ -18,12 +18,17 @@ export interface UserSuggestInputProps {
   disabled?: boolean
   autoFocus?: boolean
   required?: boolean
+  /** Restricts suggestions to one role (honored by the backend for coordinators and administrators). */
+  role?: UserSuggestRole
   /** Surfaces loading/result counts so parents can render their own hint text. */
   onSuggestionsChange?: (state: { query: string; loading: boolean; results: UserSuggestion[]; error: string }) => void
 }
 
 /**
  * Text input with a top-3 autocomplete of institutional users.
+ *
+ * Searches only while the field is focused or being typed in, so prefilled values
+ * do not trigger requests.
  *
  * Keyboard: ArrowUp/ArrowDown cycle, Enter selects the highlighted entry and
  * Escape closes the list (Enter also submits normally when nothing is
@@ -43,6 +48,7 @@ export default function UserSuggestInput({
   disabled = false,
   autoFocus = false,
   required = false,
+  role,
   onSuggestionsChange,
 }: UserSuggestInputProps) {
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([])
@@ -64,18 +70,26 @@ export default function UserSuggestInput({
       setLoading(false)
       return
     }
-    const cached = cacheRef.current.get(query.toLowerCase())
+    // Só busca com o campo em uso: valores pré-preenchidos (edição) ou recém-selecionados
+    // não devem gastar requisições do limite do autocomplete.
+    if (!open) return
+    const key = `${role ?? ""}:${query.toLowerCase()}`
+    const cached = cacheRef.current.get(key)
     if (cached) {
+      // Invalida qualquer requisição em andamento: um cache hit não pode ser
+      // sobrescrito pela resposta de uma consulta anterior.
+      requestIdRef.current += 1
       setSuggestions(cached)
+      setLoading(false)
+      setError("")
       return
     }
     const requestId = ++requestIdRef.current
-    const key = query.toLowerCase()
     const timer = window.setTimeout(() => {
       setLoading(true)
       setError("")
-      usersApi
-        .suggest(query)
+      const request = role ? usersApi.suggest(query, role) : usersApi.suggest(query)
+      request
         .then(({ results }) => {
           if (requestId !== requestIdRef.current) return
           if (cacheRef.current.size >= MAX_CACHE_ENTRIES) {
@@ -101,7 +115,7 @@ export default function UserSuggestInput({
         })
     }, SUGGEST_DEBOUNCE_MS)
     return () => window.clearTimeout(timer)
-  }, [query])
+  }, [open, query, role])
 
   useEffect(() => {
     onSuggestionsChange?.({ query, loading, results: suggestions, error })

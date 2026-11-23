@@ -1,4 +1,17 @@
-import type { CommitteeRoleCode, DefenseModalityCode, Profile } from "../types"
+import type {
+  CommitteeRoleCode,
+  DefenseModalityCode,
+  LegacyThesisInput,
+  Profile,
+  PublicRepositoryFilters,
+  PublicRepositorySearchParams,
+  PublicRepositoryThesis,
+  PublicRepositoryThesisDetail,
+  RepositoryMetadataInput,
+} from "../types"
+import type { AuditEventData } from "../data/auditFormat"
+
+import { normalizeErrorBody } from "./errors"
 
 const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
 const API_ROOT = `${API_ORIGIN}/api/v1`
@@ -15,12 +28,16 @@ export class ApiError extends Error {
 let sessionCsrfToken = ""
 
 function csrfToken(): string {
-  if (sessionCsrfToken) return sessionCsrfToken
   const cookie = document.cookie
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith("csrftoken="))
-  return cookie ? decodeURIComponent(cookie.slice("csrftoken=".length)) : ""
+  const cookieToken = cookie ? decodeURIComponent(cookie.slice("csrftoken=".length)) : ""
+  // O cookie é a fonte da verdade: logout e expiração o rotacionam no servidor.
+  if (cookieToken && cookieToken !== sessionCsrfToken) {
+    sessionCsrfToken = cookieToken
+  }
+  return sessionCsrfToken || cookieToken
 }
 
 async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -45,8 +62,8 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
-    const detail = body.detail ?? Object.values(body).flat().join(" ")
-    throw new ApiError(detail || "Não foi possível concluir a solicitação.", response.status)
+    const detail = normalizeErrorBody(body, "Não foi possível concluir a solicitação.")
+    throw new ApiError(detail, response.status)
   }
   return body as T
 }
@@ -126,7 +143,11 @@ export const authApi = {
   },
   listDevUsers: () =>
     apiRequest<{ results: DevUser[] }>("/auth/dev-users"),
-  logout: () => apiRequest<void>("/session", { method: "DELETE" }),
+  logout: async () => {
+    const response = await apiRequest<void>("/session", { method: "DELETE" })
+    sessionCsrfToken = ""
+    return response
+  },
 }
 
 export const profileToCode: Record<Profile, string> = {
@@ -238,7 +259,7 @@ export const adminApi = {
     })
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
-      const detail = (body as { detail?: string }).detail ?? "Não foi possível exportar o log."
+      const detail = normalizeErrorBody(body, "Não foi possível exportar o log.")
       if (response.status === 404) {
         throw new ApiError("Exportação indisponível. Reinicie o backend para carregar a rota de auditoria.", response.status)
       }
@@ -290,14 +311,27 @@ export interface AuditRecord {
   id: string
   timestamp: string
   actor: string
+  actorEmail?: string | null
   role: string
+  roles?: Array<{ code: string; label: string }>
+  roleCodes?: string[]
   action: string
+  event?: AuditEventData
   actionCode?: string
   actionLabel?: string
   summary?: string
+  category?: string
+  categoryLabel?: string
+  verbosity?: "TRACE" | "RELEVANT"
+  verbosityLabel?: string
   entityType: string
+  entityTypeLabel?: string
   entityAppLabel?: string
   entityId: string
+  entityName?: string
+  entityNameShort?: string
+  entityReference?: string
+  details?: Array<{ label: string; value: string; before?: string; after?: string }>
   origin: string
   originCode?: string
   ipAddress?: string | null
@@ -329,10 +363,14 @@ export interface UserSuggestion {
   avatarUrl: string | null
 }
 
+/** Papéis aceitos pelo filtro `role` de `GET /users/suggest`. */
+export type UserSuggestRole = "ADMIN" | "COORDINATOR" | "ADVISOR" | "STUDENT"
+
 /** Busca de usuários institucionais para autocomplete (admin, coordenador e orientador). */
 export const usersApi = {
-  suggest: (query: string) =>
-    apiRequest<{ results: UserSuggestion[] }>(`/users/suggest${queryString({ q: query })}`),
+  /** `role` (ADMIN, COORDINATOR, ADVISOR, STUDENT) narrows the list for coordinators and administrators. */
+  suggest: (query: string, role?: UserSuggestRole) =>
+    apiRequest<{ results: UserSuggestion[] }>(`/users/suggest${queryString({ q: query, role })}`),
 }
 
 // ─── Reports API ──────────────────────────────────────────────────────────────
@@ -954,12 +992,19 @@ export interface ThesisPermissions {
   canPublish: boolean
   canRecordDefenseResult: boolean
   canUploadDocuments: boolean
+  /** Ausentes em backends anteriores ao PR #2: tratar como false. */
+  canUploadCorrection?: boolean
+  canUnpublish?: boolean
+  canEditPublished?: boolean
+  canDelete?: boolean
 }
 
 export interface ThesisAuthorEntry {
   id: string
   position: number
   isMainAuthor: boolean
+  /** Nome impresso no trabalho (autores do acervo podem não ter conta). */
+  name?: string
   user: ThesisUserBrief | null
 }
 
@@ -994,6 +1039,12 @@ export interface Thesis {
   submittedAt: string | null
   advisorApprovedAt: string | null
   publishedAt: string | null
+  /** Origem: fluxo do sistema ou cadastro manual de acervo (`LEGACY_IMPORT`). */
+  origin?: "WORKFLOW" | "LEGACY_IMPORT"
+  originLabel?: string
+  /** Data (`YYYY-MM-DD`) e ano da defesa, preenchidos na publicação. */
+  defenseDate?: string | null
+  defenseYear?: number | null
   createdAt: string
   updatedAt: string
   permissions: ThesisPermissions
@@ -1223,4 +1274,83 @@ export const thesesApi = {
     ),
   downloadFile: (path: string, filename: string) => downloadApiFile(path, filename),
   fetchFile: (path: string) => fetchApiBlob(path),
+}
+
+/** Normalized query string of the public search; `keyword` is repeated and sorted so equal searches hit the same cache key. */
+export function repositorySearchQuery(params: PublicRepositorySearchParams): string {
+  const search = new URLSearchParams()
+  const q = (params.q ?? "").trim().replace(/\s+/g, " ")
+  if (q) search.set("q", q)
+  if (params.courseId) search.set("courseId", params.courseId)
+  if (params.advisorId) search.set("advisorId", params.advisorId)
+  if (params.year) search.set("year", String(params.year))
+  const keywords = Array.from(new Set(params.keywords ?? [])).sort()
+  keywords.forEach((keyword) => search.append("keyword", keyword))
+  if (params.ordering) search.set("ordering", params.ordering)
+  if (params.page && params.page > 1) search.set("page", String(params.page))
+  if (params.pageSize) search.set("pageSize", String(params.pageSize))
+  const serialized = search.toString()
+  return serialized ? `?${serialized}` : ""
+}
+
+/** Page of the public search, with the ordering actually applied by the backend. */
+export interface PublicRepositoryPage extends PaginatedResponse<PublicRepositoryThesis> {
+  ordering: string
+}
+
+function repositoryMetadataForm(input: LegacyThesisInput): FormData {
+  const form = new FormData()
+  form.append("title", input.title)
+  form.append("abstract", input.abstract)
+  form.append("keywords", JSON.stringify(input.keywords))
+  form.append("authors", JSON.stringify(input.authors))
+  form.append("advisorId", input.advisorId)
+  form.append("courseId", input.courseId)
+  form.append("defenseYear", String(input.defenseYear))
+  if (input.defenseDate) form.append("defenseDate", input.defenseDate)
+  form.append("result", input.result)
+  if (input.type) form.append("type", input.type)
+  if (input.journal) form.append("journal", input.journal)
+  form.append("file", input.file)
+  return form
+}
+
+/**
+ * Public repository (anonymous) and repository management (admin/course coordination).
+ *
+ * Public endpoints need no session; invalid parameters answer 400 and the
+ * throttles `public_repository` (120/min) and `public_download` (30/min) answer 429.
+ * Management endpoints answer 403 outside the coordinator's courses.
+ */
+export const repositoryApi = {
+  search: (params: PublicRepositorySearchParams, signal?: AbortSignal) =>
+    apiRequest<PublicRepositoryPage>(`/public/theses${repositorySearchQuery(params)}`, { signal }),
+  filters: (signal?: AbortSignal) =>
+    apiRequest<PublicRepositoryFilters>("/public/theses/filters", { signal }),
+  detail: (id: string, signal?: AbortSignal) =>
+    apiRequest<{ thesis: PublicRepositoryThesisDetail }>(`/public/theses/${encodeURIComponent(id)}`, { signal }),
+  courses: (signal?: AbortSignal) =>
+    apiRequest<{ count: number; results: Array<{ id: string; name: string; code: string }> }>("/public/courses", { signal }),
+  download: (path: string, filename: string) => downloadApiFile(path, filename),
+  createLegacy: (input: LegacyThesisInput) =>
+    apiRequest<{ thesis: Thesis }>("/theses/legacy", { method: "POST", body: repositoryMetadataForm(input) }),
+  updatePublished: (id: string, body: Partial<RepositoryMetadataInput> & { reason?: string }) =>
+    apiRequest<{ thesis: Thesis }>(`/theses/${encodeURIComponent(id)}/published`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  replacePublishedFile: (id: string, file: File, changeDescription = "") => {
+    const form = new FormData()
+    form.append("file", file)
+    if (changeDescription) form.append("changeDescription", changeDescription)
+    return apiRequest<{ file: ThesisFile; thesis: Thesis }>(`/theses/${encodeURIComponent(id)}/published/files`, {
+      method: "POST",
+      body: form,
+    })
+  },
+  unpublish: (id: string, reason: string) =>
+    apiRequest<{ thesis: Thesis }>(`/theses/${encodeURIComponent(id)}/unpublish`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 }

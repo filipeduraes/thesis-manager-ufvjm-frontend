@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   adminApi,
   codeToProfile,
@@ -9,6 +9,7 @@ import {
   type PaginatedResponse,
 } from "../api/client"
 import type { Profile, User } from "../types"
+import { pageNumbers } from "../components/common/pagination"
 import { Badge, Button, Card, Icon, Modal, PageTitle, RoleMultiSelect } from "../components/common"
 
 type UserAction = "edit" | "remove" | null
@@ -40,14 +41,6 @@ function rolesFromUser(user: User & { roles?: Array<{ code: string; label: strin
   return roles.length > 0 ? roles : [user.role]
 }
 
-function pageNumbers(current: number, total: number): number[] {
-  const pages: number[] = []
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, start + 4)
-  for (let page = Math.max(1, end - 4); page <= end; page += 1) pages.push(page)
-  return pages
-}
-
 function UserListAvatar({ url, initials }: { url?: string | null; initials: string }) {
   const [failed, setFailed] = useState(false)
   useEffect(() => {
@@ -73,6 +66,8 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
   const [courses, setCourses] = useState<AdminCourse[]>([])
   const [invitations, setInvitations] = useState<ExternalInvitationRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [error, setError] = useState("")
   const [search, setSearch] = useState(initialSearch)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
@@ -108,7 +103,10 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
     }
   }, [])
 
+  const loadRequestRef = useRef(0)
+
   const loadData = useCallback(async () => {
+    const requestId = ++loadRequestRef.current
     setLoading(true)
     setError("")
     try {
@@ -122,17 +120,24 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
         adminApi.users(`?${params.toString()}`),
         adminApi.invitations(),
       ])
+      if (requestId !== loadRequestRef.current) return
       setUserPage(usersResponse)
       setInvitations(invitationResponse.results)
     } catch (reason) {
+      if (requestId !== loadRequestRef.current) return
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar os usuários.")
     } finally {
-      setLoading(false)
+      if (requestId === loadRequestRef.current) setLoading(false)
     }
   }, [debouncedSearch, page, roleFilter, statusFilter])
 
   useEffect(() => { void loadCourses() }, [loadCourses])
-  useEffect(() => { void loadData() }, [loadData])
+  useEffect(() => {
+    void loadData()
+    return () => {
+      loadRequestRef.current += 1
+    }
+  }, [loadData])
 
   const userList = (userPage?.results ?? []).map(toUser)
 
@@ -153,6 +158,9 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
   }
 
   const saveUser = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     try {
       setError("")
       if (selectedRoles.length === 0) {
@@ -170,6 +178,7 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
         setModal(false)
         setNotice("Usuário criado com sucesso.")
         setPage(1)
+        await loadData()
         return
       }
       if (selectedUser) {
@@ -184,10 +193,16 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível salvar o usuário.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   const removeUser = async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     if (!selectedUser) return
     try {
       setError("")
@@ -199,16 +214,25 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       if (nextPage === page) await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível desativar o usuário.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   const revokeInvitation = async (id: string) => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
     try {
       setError("")
       await adminApi.revokeInvitation(id)
       await loadData()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível revogar o convite.")
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
@@ -225,7 +249,7 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           </div>
         }
       />
-      {error && <div className="success-notice" role="alert">{error}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
       {notice && (
         <div className="success-notice" role="status">
           <Icon name="check" />
@@ -338,9 +362,9 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
       </Card>
 
       {modal && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="user-modal-title" onClose={() => setModal(false)}>
           <div className="section-head">
-            <div><h2>Adicionar usuário</h2></div>
+            <div><h2 id="user-modal-title">Adicionar usuário</h2></div>
             <button className="icon-btn" onClick={() => setModal(false)} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <label className="field">
@@ -373,15 +397,15 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           </div>
           <div className="modal-actions">
             <Button variant="secondary" onClick={() => setModal(false)}>Cancelar</Button>
-            <Button disabled={!name.trim() || !email.trim() || selectedRoles.length === 0} onClick={() => void saveUser()}>Criar usuário</Button>
+            <Button disabled={saving || !name.trim() || !email.trim() || selectedRoles.length === 0} onClick={() => void saveUser()}>Criar usuário</Button>
           </div>
         </Modal>
       )}
 
       {userAction === "edit" && selectedUser && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="user-modal-title" onClose={closeUserAction}>
           <div className="section-head">
-            <div><h2>Editar usuário</h2></div>
+            <div><h2 id="user-modal-title">Editar usuário</h2></div>
             <button className="icon-btn" onClick={closeUserAction} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <label className="field" title="Nome e e-mail são sincronizados pelo login institucional.">
@@ -434,19 +458,19 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
           </label>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeUserAction}>Cancelar</Button>
-            <Button disabled={selectedRoles.length === 0} onClick={() => void saveUser()}>Salvar alterações</Button>
+            <Button disabled={saving || selectedRoles.length === 0} onClick={() => void saveUser()}>Salvar alterações</Button>
           </div>
         </Modal>
       )}
 
       {userAction === "remove" && selectedUser && (
-        <Modal className="admin-modal confirmation-modal">
+        <Modal className="admin-modal confirmation-modal" labelledBy="confirm-user-title" onClose={closeUserAction}>
           <div className="modal-icon danger"><Icon name="trash" /></div>
-          <h2>Desativar usuário?</h2>
+          <h2 id="confirm-user-title">Desativar usuário?</h2>
           <p>Esta ação desativará <strong>{selectedUser.name}</strong>. O usuário perderá o acesso imediatamente.</p>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeUserAction}>Cancelar</Button>
-            <Button variant="danger" onClick={() => void removeUser()}>Desativar usuário</Button>
+            <Button variant="danger" onClick={() => void removeUser()} disabled={saving}>Desativar usuário</Button>
           </div>
         </Modal>
       )}
@@ -463,7 +487,7 @@ export default function AdminUsers({ initialSearch = "" }: AdminUsersProps) {
               <span>{invitation.status}</span>
               <span>{new Date(invitation.expiresAt).toLocaleDateString("pt-BR")}</span>
               <span>{invitation.sentAt ? `E-mail enviado em ${new Date(invitation.sentAt).toLocaleDateString("pt-BR")}` : "Envio pendente"}</span>
-              {invitation.status !== "REVOKED" && <Button variant="danger" onClick={() => void revokeInvitation(invitation.id)}>Revogar</Button>}
+              {invitation.status !== "REVOKED" && <Button variant="danger" onClick={() => void revokeInvitation(invitation.id)} disabled={saving}>Revogar</Button>}
             </div>
           ))}
         </Card>

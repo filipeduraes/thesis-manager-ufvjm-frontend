@@ -21,61 +21,7 @@ export interface User {
   lastAccess?: string
 }
 
-export interface Thesis {
-  id: string
-  title: string
-  student: string
-  course: string
-  advisor: string
-  status: string
-  version: string
-}
 
-export interface AuditLog {
-  timestamp: string
-  actor: string
-  role: string
-  action: string
-  entityId: string
-  origin: string
-  hash: string
-}
-
-export interface Course {
-  id?: string
-  name: string
-  code: string
-  department?: { id: string; name: string }
-  departmentId?: string
-  coordinator: string
-  coordinatorEmail?: string
-  coordinatorStatus?: "FOUND_ACTIVE" | "FOUND_INACTIVE" | "PENDING"
-  activeStudents: number
-  publishedTheses: number
-}
-
-export interface RepositoryWork {
-  title: string
-  author: string
-  advisor: string
-  course: string
-  type: "Monografia" | "Artigo"
-  journal?: string
-  year: string
-  abstract: string
-  tags: string[]
-  uri: string
-  doi: string
-}
-
-export interface AdvisorSubmission {
-  student: string
-  title: string
-  course: string
-  submittedAt: string
-  status: string
-  version: string
-}
 
 /** Committee role codes accepted by the defense member endpoints. */
 export type CommitteeRoleCode = "PRESIDENT" | "MEMBER" | "ALTERNATE"
@@ -113,4 +59,107 @@ export interface DefenseScheduleDraft {
   modality: DefenseModalityCode | null
   location: string
   notes: string
+}
+
+/** Ordering codes accepted by `GET /api/v1/public/theses`. */
+export type RepositoryOrdering = "relevance" | "recent" | "title"
+
+/** Search parameters of the public repository (`keyword` carries the normalized `value`). */
+export interface PublicRepositorySearchParams {
+  q?: string
+  courseId?: string
+  advisorId?: string
+  year?: number
+  keywords?: string[]
+  ordering?: RepositoryOrdering
+  page?: number
+  pageSize?: number
+}
+
+/** Public author entry: no e-mail, `user` is null for authors without an account. */
+export interface PublicRepositoryAuthor {
+  id: string
+  position: number
+  isMainAuthor: boolean
+  name: string
+  user: { id: string; name: string } | null
+}
+
+/** Item of `GET /api/v1/public/theses` (`public_thesis_list_payload`). */
+export interface PublicRepositoryThesis {
+  id: string
+  referenceCode: string
+  type: "MONOGRAPH" | "ARTICLE"
+  typeLabel: string
+  title: string
+  abstract: string
+  journal: string
+  origin: "WORKFLOW" | "LEGACY_IMPORT"
+  course: { id: string; name: string; code: string }
+  advisor: { id: string; name: string } | null
+  authors: PublicRepositoryAuthor[]
+  authorNames: string[]
+  keywords: string[]
+  publishedAt: string | null
+  defenseDate: string | null
+  defenseYear: number | null
+  currentFile: {
+    id: string
+    versionNumber: number
+    originalFilename: string
+    sizeBytes: number
+    sha256: string
+    downloadUrl: string
+    previewUrl: string
+  } | null
+}
+
+/** SHA-256 of the published PDF exposed by the public detail. */
+export interface PublicRepositoryIntegrity {
+  algorithm: string
+  sha256: string
+  sizeBytes: number
+  versionNumber: number
+  hashVerifiedAt: string | null
+}
+
+/** `GET /api/v1/public/theses/<id>` (`public_thesis_detail_payload`). */
+export interface PublicRepositoryThesisDetail extends Omit<PublicRepositoryThesis, "currentFile"> {
+  currentFile: { downloadUrl: string; previewUrl: string } | null
+  integrity: PublicRepositoryIntegrity | null
+  fileVersions: Array<{ versionNumber: number; isCurrent: boolean; sha256: string; sizeBytes: number; uploadedAt: string }>
+}
+
+/** `GET /api/v1/public/theses/filters`. */
+export interface PublicRepositoryFilters {
+  courses: Array<{ id: string; name: string; code: string; count: number }>
+  advisors: Array<{ id: string; name: string; count: number }>
+  years: Array<{ year: number; count: number }>
+  keywords: Array<{ name: string; value: string; count: number }>
+}
+
+/** Author of a repository entry: a printed name, optionally linked to a user. */
+export interface RepositoryAuthorInput {
+  name?: string
+  userId?: string
+}
+
+/** Metadata shared by `POST /theses/legacy` and `PATCH /theses/<id>/published`. */
+export interface RepositoryMetadataInput {
+  title: string
+  abstract: string
+  keywords: string[]
+  authors: RepositoryAuthorInput[]
+  advisorId: string
+  courseId: string
+  defenseYear: number
+  defenseDate?: string | null
+  type?: "MONOGRAPH" | "ARTICLE"
+  journal?: string
+}
+
+/** Multipart body of `POST /api/v1/theses/legacy`. */
+export interface LegacyThesisInput extends RepositoryMetadataInput {
+  result: "APPROVED" | "APPROVED_WITH_REMARKS"
+  file: File
 }

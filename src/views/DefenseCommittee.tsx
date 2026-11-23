@@ -23,6 +23,7 @@ import { availabilityStatusBadge, defenseDecisionTone, defenseStatusTone } from 
 import type { BadgeTone } from "../data/thesisStatus"
 import type { ExternalMemberDraft, InstitutionalMemberDraft } from "../types"
 import DefenseAvailabilityResponse from "./defense/DefenseAvailabilityResponse"
+import { LONG_DATE_FORMATTER } from "../data/dateFormat"
 import DefenseCancelModal from "./defense/DefenseCancelModal"
 import DefenseEditModal from "./defense/DefenseEditModal"
 import DefenseStatusConfirmModal from "./defense/DefenseStatusConfirmModal"
@@ -31,14 +32,6 @@ import DefenseStatusTimeline from "./defense/DefenseStatusTimeline"
 import { statusActionErrorMessage } from "./defense/defenseErrors"
 import { formatDefenseTimeRange, formatDuration } from "./defense/defenseSchedule"
 import { invitationActionErrorMessage, invitationStatusText } from "./defense/invitationStatus"
-
-const LONG_DATE_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-  timeZone: "America/Sao_Paulo",
-})
 
 type AddModalKind = "institutional" | "external" | null
 type StatusModalKind = "start" | "close" | "revert" | null
@@ -100,15 +93,22 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
 
   // Convites de membros externos: o código vai só por e-mail; aqui ficam o andamento e os avisos.
   const [regenerateTarget, setRegenerateTarget] = useState<DefenseCommitteeMember | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<DefenseCommitteeMember | null>(null)
   const [regenerateLoading, setRegenerateLoading] = useState(false)
   const [regenerateError, setRegenerateError] = useState("")
   const [resendingId, setResendingId] = useState<string | null>(null)
   const [invitationNotice, setInvitationNotice] = useState("")
   const [invitationError, setInvitationError] = useState("")
 
-  const mountedRef = useRef(true)
+  // Identificador por requisição: respostas de uma banca anterior não podem
+  // sobrescrever o estado da banca atualmente aberta.
+  const requestSeqRef = useRef(0)
+  // Muda só quando a banca aberta muda ou a tela é desmontada; ações como "Reenviar
+  // convite" não podem usar requestSeqRef, que também avança a cada recarga.
+  const viewSeqRef = useRef(0)
 
   const loadDefense = useCallback(() => {
+    const requestId = ++requestSeqRef.current
     if (firstLoadRef.current) {
       setLoading(true)
       firstLoadRef.current = false
@@ -120,10 +120,10 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     defenseApi
       .get(defenseId)
       .then(({ defense: data }) => {
-        if (mountedRef.current) setDefense(data)
+        if (requestId === requestSeqRef.current) setDefense(data)
       })
       .catch((reason: unknown) => {
-        if (!mountedRef.current) return
+        if (requestId !== requestSeqRef.current) return
         const msg =
           reason instanceof ApiError && reason.status === 403
             ? "Você não tem permissão para acessar esta banca."
@@ -133,7 +133,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
         setLoadError(msg)
       })
       .finally(() => {
-        if (mountedRef.current) {
+        if (requestId === requestSeqRef.current) {
           setLoading(false)
           setRefreshing(false)
         }
@@ -141,10 +141,10 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   }, [defenseId])
 
   useEffect(() => {
-    mountedRef.current = true
     loadDefense()
     return () => {
-      mountedRef.current = false
+      requestSeqRef.current += 1
+      viewSeqRef.current += 1
     }
   }, [loadDefense])
 
@@ -176,15 +176,16 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     setResendingId(member.id)
     setInvitationNotice("")
     setInvitationError("")
+    const viewId = viewSeqRef.current
     try {
       await defenseApi.resendInvitation(defenseId, member.id)
-      if (!mountedRef.current) return
+      if (viewId !== viewSeqRef.current) return
       setInvitationNotice(`Convite reenviado para ${member.email}. O código anterior deixou de funcionar.`)
       loadDefense()
     } catch (reason) {
-      if (mountedRef.current) setInvitationError(invitationActionErrorMessage(reason, "Não foi possível reenviar o convite."))
+      if (viewId === viewSeqRef.current) setInvitationError(invitationActionErrorMessage(reason, "Não foi possível reenviar o convite."))
     } finally {
-      if (mountedRef.current) setResendingId(null)
+      if (viewId === viewSeqRef.current) setResendingId(null)
     }
   }
 
@@ -260,6 +261,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     setRemoveError("")
     try {
       await defenseApi.removeMember(defenseId, memberId)
+      setRemoveTarget(null)
       loadDefense()
     } catch (reason) {
       setRemoveError(
@@ -292,7 +294,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
         />
         <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
         <Card>
-          <div className="success-notice" role="alert">
+          <div className="form-error" role="alert">
             {loadError}
           </div>
         </Card>
@@ -456,7 +458,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
       </Card>
 
       {removeError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {removeError}
         </div>
       )}
@@ -566,7 +568,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
                         <Button
                           variant="danger"
                           disabled={removing === member.id}
-                          onClick={() => void removeMember(member.id)}
+                          onClick={() => setRemoveTarget(member)}
                         >
                           {removing === member.id ? "Removendo…" : "Remover"}
                         </Button>
@@ -586,6 +588,23 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
 
       {addModal === "external" && (
         <ExternalMemberModal onClose={() => setAddModal(null)} onSubmit={addExternalMember} />
+      )}
+
+      {removeTarget && (
+        <DefenseStatusConfirmModal
+          title="Remover membro da banca?"
+          description={`${removeTarget.name} será removido da banca e seu convite/token deixará de funcionar.`}
+          confirmLabel="Remover membro"
+          pendingLabel="Removendo…"
+          destructive
+          loading={removing === removeTarget.id}
+          error={removeError}
+          onConfirm={() => void removeMember(removeTarget.id)}
+          onClose={() => {
+            setRemoveTarget(null)
+            setRemoveError("")
+          }}
+        />
       )}
 
       {regenerateTarget && (

@@ -354,7 +354,7 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
 
             {submitStep && <p aria-live="polite">{submitStep}</p>}
             {submitError && (
-              <div className="success-notice" role="alert">
+              <div className="form-error" role="alert">
                 {submitError}
               </div>
             )}

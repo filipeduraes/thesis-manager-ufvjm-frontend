@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   adminApi,
   type AdminCourse,
@@ -6,6 +6,7 @@ import {
   type PaginatedResponse,
   type UserLookupResult,
 } from "../api/client"
+import { pageNumbers } from "../components/common/pagination"
 import { Button, Card, Icon, Modal, PageTitle, UserFoundCard, UserSuggestInput } from "../components/common"
 import { normalizeInstitutionalEmail, useUserLookup } from "../hooks/useUserLookup"
 
@@ -13,14 +14,6 @@ type CourseAction = "edit" | "delete" | null
 
 const PAGE_SIZE = 10
 const NEW_DEPARTMENT = "__new__"
-
-function pageNumbers(current: number, total: number): number[] {
-  const pages: number[] = []
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, start + 4)
-  for (let page = Math.max(1, end - 4); page <= end; page += 1) pages.push(page)
-  return pages
-}
 
 function coordinatorLabel(course: AdminCourse): string {
   if (course.coordinator?.name) return course.coordinator.name
@@ -72,7 +65,10 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
     }
   }, [])
 
+  const courseRequestRef = useRef(0)
+
   const loadCourses = useCallback(async (targetPage = page) => {
+    const requestId = ++courseRequestRef.current
     setLoading(true)
     setError("")
     try {
@@ -82,11 +78,12 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
       params.set("page", String(targetPage))
       params.set("page_size", String(PAGE_SIZE))
       const response = await adminApi.courses(`?${params.toString()}`)
-      setCoursePage(response)
+      if (requestId === courseRequestRef.current) setCoursePage(response)
     } catch (reason) {
+      if (requestId !== courseRequestRef.current) return
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar os cursos.")
     } finally {
-      setLoading(false)
+      if (requestId === courseRequestRef.current) setLoading(false)
     }
   }, [debouncedSearch, departmentFilter, page])
 
@@ -100,7 +97,12 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
   }, [debouncedSearch, departmentFilter])
 
   useEffect(() => { void loadDepartments() }, [loadDepartments])
-  useEffect(() => { void loadCourses(page) }, [loadCourses, page])
+  useEffect(() => {
+    void loadCourses(page)
+    return () => {
+      courseRequestRef.current += 1
+    }
+  }, [loadCourses, page])
 
   const courseList = coursePage?.results ?? []
 
@@ -213,7 +215,7 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
           </Button>
         }
       />
-      {error && <div className="success-notice" role="alert">{error}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
       {notice && (
         <div className="success-notice" role="status">
           <Icon name="check" />
@@ -323,9 +325,9 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
       )}
 
       {(addModal || courseAction === "edit") && (
-        <Modal className="admin-modal">
+        <Modal className="admin-modal" labelledBy="course-modal-title" onClose={closeModals}>
           <div className="section-head">
-            <div><h2>{courseAction === "edit" ? "Editar curso" : "Adicionar curso"}</h2></div>
+            <div><h2 id="course-modal-title">{courseAction === "edit" ? "Editar curso" : "Adicionar curso"}</h2></div>
             <button className="icon-btn" onClick={closeModals} aria-label="Fechar"><Icon name="close" /></button>
           </div>
           <div className="two-col">
@@ -386,9 +388,9 @@ export default function AdminCourses({ initialSearch = "", initialDepartmentId =
       )}
 
       {courseAction === "delete" && selectedCourse && (
-        <Modal className="admin-modal confirmation-modal">
+        <Modal className="admin-modal confirmation-modal" labelledBy="confirm-course-title" onClose={closeModals}>
           <div className="modal-icon danger"><Icon name="trash" /></div>
-          <h2>Excluir curso?</h2>
+          <h2 id="confirm-course-title">Excluir curso?</h2>
           <p>Esta ação removerá <strong>{selectedCourse.name} ({selectedCourse.code})</strong>. Associações de usuários com este curso serão removidas.</p>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeModals}>Cancelar</Button>

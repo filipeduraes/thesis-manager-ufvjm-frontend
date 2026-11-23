@@ -4,6 +4,7 @@ import { authApi, codeToProfile, type SessionPayload } from "./api/client"
 import { menuByProfile, menuForProfiles, profilesFromCodes } from "./data/navigation"
 import type { SearchDestination } from "./data/globalSearch"
 import type { Page } from "./types"
+import { STORAGE_KEYS } from "./data/storageKeys"
 import AdminCourses from "./views/AdminCourses"
 import AdminUsers from "./views/AdminUsers"
 import AdvisorApproval from "./views/AdvisorApproval"
@@ -21,6 +22,8 @@ import DashboardView from "./views/dashboard"
 // Relatórios carregam Chart.js; o chunk só é baixado por quem abre a tela.
 const ReportsView = lazy(() => import("./views/ReportsView"))
 
+const REPOSITORY_TITLE = "Repositório de Monografias"
+
 const routeTitles: Partial<Record<Page, string>> = {
   dashboard: "Início",
   submission: "Submissão",
@@ -33,6 +36,11 @@ const routeTitles: Partial<Record<Page, string>> = {
   courses: "Cursos",
   audit: "Auditoria",
   style: "Guia de estilo",
+}
+
+function clearPersistedViewState(): void {
+  window.sessionStorage.removeItem(STORAGE_KEYS.defenseView)
+  window.sessionStorage.removeItem(STORAGE_KEYS.defenseListFilters)
 }
 
 export default function App() {
@@ -81,13 +89,13 @@ export default function App() {
   }, [activeProfiles, canEvaluate, menuItems])
 
   const title = useMemo(() => {
+    if (page === "repository") return REPOSITORY_TITLE
     const menuItem = menuItems.find((item) => item.page === page)
     return menuItem?.label ?? routeTitles[page] ?? ""
   }, [menuItems, page])
 
   useEffect(() => {
-    const pageTitle = page === "repository" ? "Repositório de Monografias" : title
-    document.title = pageTitle ? `${pageTitle} · Monografias UFVJM` : "Monografias UFVJM"
+    document.title = title ? `${title} · Monografias UFVJM` : "Monografias UFVJM"
   }, [page, title])
 
   const refreshSession = async () => {
@@ -163,6 +171,7 @@ export default function App() {
     } finally {
       setSession(null)
       setSearchFilter(undefined)
+      clearPersistedViewState()
       setPage("login")
     }
   }
@@ -220,12 +229,16 @@ export default function App() {
   const expireSearchSession = useCallback(() => {
     setSession(null)
     setSearchFilter(undefined)
+    clearPersistedViewState()
     setPage("login")
     setError("Sua sessão expirou. Entre novamente para continuar.")
   }, [])
 
-  if (page === "repository") {
-    return <PublicRepository go={setPage} />
+  // Com sessão institucional o repositório abre dentro do layout (menu lateral e topo);
+  // visitantes, a carga da sessão e sessões externas usam a página pública.
+  const hasInstitutionalSession = Boolean(session?.authenticated && session.user && session.authType !== "external")
+  if (page === "repository" && !hasInstitutionalSession) {
+    return <PublicRepository go={setPage} hasSession={Boolean(session?.authenticated)} />
   }
 
   if (sessionLoading) return <main className="login-page" aria-live="polite">Carregando sessão…</main>
@@ -292,7 +305,7 @@ export default function App() {
       userInitials={session.user.initials}
       userAvatarUrl={session.user.avatarUrl}
     >
-      {error && <div className="success-notice" role="alert">{error}</div>}
+      {error && <div className="form-error" role="alert">{error}</div>}
       {page === "dashboard" && (
         <DashboardView
           profiles={activeProfiles}
@@ -329,6 +342,7 @@ export default function App() {
         <AdminCourses key={activeSearchFilter?.revision} initialSearch={activeSearchFilter?.query}
           initialDepartmentId={activeSearchFilter?.departmentId} />
       )}
+      {page === "repository" && <PublicRepository embedded go={navigate} />}
       {page === "audit" && <SystemAudit />}
       {page === "style" && <StyleGuideView />}
     </AppShell>

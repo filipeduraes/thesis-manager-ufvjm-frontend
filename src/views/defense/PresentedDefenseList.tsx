@@ -1,3 +1,4 @@
+import { STORAGE_KEYS } from "../../data/storageKeys"
 import { useEffect, useState } from "react"
 import { ApiError, defenseApi, type DefenseListItem } from "../../api/client"
 import { Badge, Button, Card, Icon, Pagination } from "../../components/common"
@@ -7,7 +8,7 @@ import { formatDefenseTimeRange } from "./defenseSchedule"
 // Mesmo tamanho de página da tela "Acompanhamento e aprovação".
 const DEFENSE_PAGE_SIZE = 10
 
-const FILTERS_STORAGE_KEY = "ufvjm:defense-list-filters"
+const FILTERS_STORAGE_KEY = STORAGE_KEYS.defenseListFilters
 
 interface PersistedDefenseFilters {
   searchInput: string

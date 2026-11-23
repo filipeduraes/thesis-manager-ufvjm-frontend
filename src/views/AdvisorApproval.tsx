@@ -9,6 +9,7 @@ import {
   type ThesisListItem,
   type ThesisReviewDecision,
 } from "../api/client"
+import { apiErrorMessage } from "../api/errors"
 import {
   Badge,
   Breadcrumb,
@@ -35,6 +36,9 @@ import {
   thesisStatusTone,
 } from "../data/thesisStatus"
 import type { Profile } from "../types"
+import LegacyThesisForm from "./repository/LegacyThesisForm"
+import PublishedThesisManagement from "./repository/PublishedThesisManagement"
+import { mainAuthorName } from "./repository/repositoryForm"
 
 interface AdvisorApprovalProps {
   initialThesisId?: string
@@ -51,10 +55,6 @@ const defenseResultOptions = (Object.keys(defenseResultLabels) as ThesisDefenseR
   value,
   label: defenseResultLabels[value],
 }))
-
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : "Não foi possível concluir a solicitação."
-}
 
 export default function AdvisorApproval({ initialThesisId, profile = "Orientador" }: AdvisorApprovalProps) {
   const [items, setItems] = useState<ThesisListItem[]>([])
@@ -86,12 +86,22 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
   const [documentError, setDocumentError] = useState("")
   const [validatingDocumentId, setValidatingDocumentId] = useState<string | null>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
+  const [creatingLegacy, setCreatingLegacy] = useState(false)
+  // Aviso exibido depois que o detalhe recém-aberto termina de carregar (o carregamento limpa avisos antigos).
+  const noticeAfterLoadRef = useRef("")
 
   const scope = profile === "Orientador" ? "advised" : undefined
   const pageLabel = profile === "Orientador" ? "Orientandos" : "Monografias"
   const eyebrow = profile === "Orientador" ? "Orientação acadêmica" : "Gestão acadêmica"
+  // Não há flag de permissão para o cadastro de acervo: o botão segue o perfil e o backend
+  // recusa (403) cursos que o coordenador não gerencia.
+  const canRegisterLegacy = profile === "Coordenador" || profile === "Administrador"
+
+  const listRequestRef = useRef(0)
+  const detailRequestRef = useRef(0)
 
   const loadList = useCallback(async () => {
+    const requestId = ++listRequestRef.current
     setListLoading(true)
     setListError("")
     try {
@@ -103,27 +113,34 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
         page,
         pageSize: 10,
       })
+      if (requestId !== listRequestRef.current) return
       setItems(data.results)
       setTotalPages(data.totalPages)
       setCount(data.count)
     } catch (reason) {
-      setListError(errorMessage(reason))
+      if (requestId !== listRequestRef.current) return
+      setListError(apiErrorMessage(reason))
     } finally {
-      setListLoading(false)
+      if (requestId === listRequestRef.current) setListLoading(false)
     }
   }, [page, pendingOnly, query, scope, statusFilter])
 
   useEffect(() => {
     void loadList()
+    return () => {
+      listRequestRef.current += 1
+    }
   }, [loadList])
 
   const loadDetail = useCallback(async (id: string) => {
+    const requestId = ++detailRequestRef.current
     setDetailLoading(true)
     setDetailError("")
     setActionError("")
     setNotice("")
     try {
       const response = await thesesApi.detail(id)
+      if (requestId !== detailRequestRef.current) return
       setDetail(response.thesis)
       setActiveFileId(response.thesis.currentFile?.id ?? null)
       setComments("")
@@ -132,11 +149,16 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDefenseReason("")
       setDocumentFile(null)
       setDocumentError("")
+      if (noticeAfterLoadRef.current) {
+        setNotice(noticeAfterLoadRef.current)
+        noticeAfterLoadRef.current = ""
+      }
     } catch (reason) {
+      if (requestId !== detailRequestRef.current) return
       setDetail(null)
-      setDetailError(errorMessage(reason))
+      setDetailError(apiErrorMessage(reason))
     } finally {
-      setDetailLoading(false)
+      if (requestId === detailRequestRef.current) setDetailLoading(false)
     }
   }, [])
 
@@ -144,7 +166,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
     if (selectedId) {
       void loadDetail(selectedId)
     } else {
+      detailRequestRef.current += 1
       setDetail(null)
+    }
+    return () => {
+      detailRequestRef.current += 1
     }
   }, [loadDetail, selectedId])
 
@@ -207,7 +233,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       )
       await loadList()
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
       setConfirm(null)
     } finally {
       setActionLoading(null)
@@ -230,7 +256,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setNotice("Resultado da banca registrado.")
       await loadList()
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     } finally {
       setActionLoading(null)
     }
@@ -249,7 +275,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setNotice("Monografia publicada no repositório institucional.")
       await loadList()
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
       setConfirm(null)
     } finally {
       setActionLoading(null)
@@ -273,7 +299,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDetail(response.thesis)
       setNotice("Documento complementar enviado.")
     } catch (reason) {
-      setDocumentError(errorMessage(reason))
+      setDocumentError(apiErrorMessage(reason))
     } finally {
       setDocumentUploading(false)
     }
@@ -290,7 +316,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDetail(response.thesis)
       setNotice(`${document.typeLabel} validado.`)
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     } finally {
       setValidatingDocumentId(null)
     }
@@ -301,7 +327,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       const filename = file.storedFile.originalFilename || `monografia-v${file.versionNumber}.pdf`
       await thesesApi.downloadFile(file.downloadUrl, filename)
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     }
   }
 
@@ -309,8 +335,30 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
     try {
       await thesesApi.downloadFile(document.downloadUrl, document.storedFile.originalFilename)
     } catch (reason) {
-      setActionError(errorMessage(reason))
+      setActionError(apiErrorMessage(reason))
     }
+  }
+
+  const applyRepositoryUpdate = (updated: Thesis, message: string) => {
+    setDetail(updated)
+    setActiveFileId(updated.currentFile?.id ?? null)
+    setActionError("")
+    setNotice(message)
+    void loadList()
+  }
+
+  if (creatingLegacy) {
+    return (
+      <LegacyThesisForm
+        parentLabel={pageLabel}
+        onCancel={() => setCreatingLegacy(false)}
+        onCreated={(created) => {
+          noticeAfterLoadRef.current = "Monografia cadastrada e publicada no repositório público."
+          setCreatingLegacy(false)
+          setSelectedId(created.id)
+        }}
+      />
+    )
   }
 
   if (selectedId) {
@@ -358,7 +406,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
             <PageTitle
               eyebrow={`Submissão ${detail.referenceCode}`}
               title={detail.title}
-              subtitle={`${detail.student?.name ?? "Aluno"} · ${detail.course.name}`}
+              subtitle={`${mainAuthorName(detail)} · ${detail.course.name}`}
               action={<Badge tone={thesisStatusTone(detail.status)}>{detail.statusLabel}</Badge>}
             />
             {notice && (
@@ -450,6 +498,24 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
                       <dt>Enviada em</dt>
                       <dd>{formatDateTime(detail.submittedAt)}</dd>
                     </div>
+                    {detail.authors.length > 1 && (
+                      <div>
+                        <dt>Autores</dt>
+                        <dd>{detail.authors.map((author) => author.name || author.user?.name).filter(Boolean).join(", ")}</dd>
+                      </div>
+                    )}
+                    {detail.defenseYear && (
+                      <div>
+                        <dt>Ano de defesa</dt>
+                        <dd>{detail.defenseYear}</dd>
+                      </div>
+                    )}
+                    {detail.origin === "LEGACY_IMPORT" && (
+                      <div>
+                        <dt>Origem</dt>
+                        <dd>{detail.originLabel ?? "Cadastro manual de acervo"}</dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Versão atual</dt>
                       <dd>{currentFile ? `v${currentFile.versionNumber}` : "—"}</dd>
@@ -599,6 +665,8 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
                   </Card>
                 )}
 
+                <PublishedThesisManagement thesis={detail} onUpdated={applyRepositoryUpdate} />
+
                 <Card>
                   <div className="section-head">
                     <div>
@@ -736,11 +804,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
             </Card>
 
             {confirm === "approve" && (
-              <Modal className="confirmation-modal">
+              <Modal className="confirmation-modal" labelledBy="confirm-approve-title" onClose={() => setConfirm(null)}>
                 <div className="modal-icon">
                   <Icon name="check" />
                 </div>
-                <h2>Aprovar para banca?</h2>
+                <h2 id="confirm-approve-title">Aprovar para banca?</h2>
                 <p>
                   Ao confirmar, a coordenação poderá agendar a defesa e o aluno será notificado.
                 </p>
@@ -759,11 +827,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
               </Modal>
             )}
             {confirm === "reject" && (
-              <Modal className="confirmation-modal">
+              <Modal className="confirmation-modal" labelledBy="confirm-reject-title" onClose={() => setConfirm(null)}>
                 <div className="modal-icon danger">
                   <Icon name="alert" />
                 </div>
-                <h2>Reprovar submissão?</h2>
+                <h2 id="confirm-reject-title">Reprovar submissão?</h2>
                 <p>
                   O aluno será notificado e deverá enviar uma nova versão antes de prosseguir. Descreva o motivo
                   nos comentários do parecer.
@@ -784,11 +852,11 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
               </Modal>
             )}
             {confirm === "publish" && (
-              <Modal className="confirmation-modal">
+              <Modal className="confirmation-modal" labelledBy="confirm-publish-title" onClose={() => setConfirm(null)}>
                 <div className="modal-icon">
                   <Icon name="book" />
                 </div>
-                <h2>Publicar no repositório?</h2>
+                <h2 id="confirm-publish-title">Publicar no repositório?</h2>
                 <p>
                   A monografia ficará visível publicamente e as versões anteriores serão removidas, mantendo apenas
                   a versão atual.
@@ -811,7 +879,17 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
 
   return (
     <div className="page-content">
-      <PageTitle eyebrow={eyebrow} title="Acompanhamento e aprovação" />
+      <PageTitle
+        eyebrow={eyebrow}
+        title="Acompanhamento e aprovação"
+        action={
+          canRegisterLegacy ? (
+            <Button icon="plus" onClick={() => setCreatingLegacy(true)}>
+              Cadastrar monografia do acervo
+            </Button>
+          ) : undefined
+        }
+      />
       <Card>
         <div className="filterbar">
           <div className="top-search">

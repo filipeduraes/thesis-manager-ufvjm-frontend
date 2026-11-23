@@ -60,7 +60,7 @@ export default function ExternalMemberModal({ onClose, onSubmit }: ExternalMembe
       </div>
 
       {submitError && (
-        <div className="success-notice" role="alert">
+        <div className="form-error" role="alert">
           {submitError}
         </div>
       )}

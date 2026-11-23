@@ -8,6 +8,7 @@ import {
   type ThesisFile,
   type ThesisMetadataInput,
 } from "../api/client"
+import { apiErrorMessage } from "../api/errors"
 import {
   Badge,
   Button,
@@ -45,10 +46,6 @@ function parseKeywords(value: string): string[] {
     .filter((item, index, list) => item.length > 0 && list.indexOf(item) === index)
 }
 
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : "Não foi possível concluir a solicitação."
-}
-
 export default function StudentSubmission() {
   const [context, setContext] = useState<StudentThesisContext | null>(null)
   const [thesis, setThesis] = useState<Thesis | null>(null)
@@ -57,6 +54,7 @@ export default function StudentSubmission() {
   const [notice, setNotice] = useState("")
   const [step, setStep] = useState(1)
   const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [uploading, setUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
@@ -113,7 +111,7 @@ export default function StudentSubmission() {
         setStep(1)
       }
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(apiErrorMessage(reason))
     } finally {
       setLoading(false)
     }
@@ -158,6 +156,16 @@ export default function StudentSubmission() {
   })
 
   const persistMetadata = async (advanceTo?: number): Promise<boolean> => {
+    if (savingRef.current) return false
+    savingRef.current = true
+    try {
+      return await persistMetadataInner(advanceTo)
+    } finally {
+      savingRef.current = false
+    }
+  }
+
+  const persistMetadataInner = async (advanceTo?: number): Promise<boolean> => {
     const payload = metadataPayload()
     if (!payload.title) {
       setError("Informe o título da monografia.")
@@ -192,7 +200,7 @@ export default function StudentSubmission() {
       if (advanceTo) setStep(advanceTo)
       return true
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(apiErrorMessage(reason))
       return false
     } finally {
       setSaving(false)
@@ -264,7 +272,7 @@ export default function StudentSubmission() {
           if (fileInputRef.current) fileInputRef.current.value = ""
           setStep(3)
           setError(
-            `A versão ${response.file.versionNumber} foi enviada, mas não foi possível submetê-la automaticamente: ${errorMessage(submitReason)}. Use "Enviar para o orientador".`,
+            `A versão ${response.file.versionNumber} foi enviada, mas não foi possível submetê-la automaticamente: ${apiErrorMessage(submitReason)}. Use "Enviar para o orientador".`,
           )
           return
         }
@@ -278,7 +286,7 @@ export default function StudentSubmission() {
       setNotice(noticeMessage)
       setStep(3)
     } catch (reason) {
-      setUploadError(errorMessage(reason))
+      setUploadError(apiErrorMessage(reason))
     } finally {
       setUploading(false)
     }
@@ -294,7 +302,7 @@ export default function StudentSubmission() {
       setNotice("Monografia enviada ao orientador. Acompanhe o parecer nesta página.")
       setStep(3)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(apiErrorMessage(reason))
     } finally {
       setSubmitting(false)
     }
@@ -319,7 +327,7 @@ export default function StudentSubmission() {
       )
       setStep(3)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(apiErrorMessage(reason))
     } finally {
       setWithdrawing(false)
     }
@@ -358,7 +366,7 @@ export default function StudentSubmission() {
       await refreshThesis(thesis.id)
       setNotice("Documento complementar enviado.")
     } catch (reason) {
-      setDocumentError(errorMessage(reason))
+      setDocumentError(apiErrorMessage(reason))
     } finally {
       setDocumentUploading(false)
     }
@@ -369,7 +377,7 @@ export default function StudentSubmission() {
       const filename = file.storedFile.originalFilename || `monografia-v${file.versionNumber}.pdf`
       await thesesApi.downloadFile(file.downloadUrl, filename)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(apiErrorMessage(reason))
     }
   }
 
@@ -377,7 +385,7 @@ export default function StudentSubmission() {
     try {
       await thesesApi.downloadFile(path, filename)
     } catch (reason) {
-      setError(errorMessage(reason))
+      setError(apiErrorMessage(reason))
     }
   }
 
