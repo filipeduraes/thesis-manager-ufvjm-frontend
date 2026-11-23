@@ -103,9 +103,11 @@ pré-condições (usuários, cursos e TCCs) dos cenários.
 - Node 20+ e o Chromium do Playwright: rode `npx playwright install chromium`
   uma vez (não é necessário Docker nem Chrome do sistema). Se quiser usar o
   Chrome instalado, defina `E2E_BROWSER_CHANNEL=chrome`.
-- A suíte sobe sozinha: backend isolado em `:8001`, frontend em `:3001` e um
-  worker de extração de texto em `:8002` (status apenas). Nada depende do
-  Docker ou do banco da aplicação.
+- A suíte sobe sozinha: por padrão backend isolado em `:8001`, frontend em
+  `:3001` e um worker de extração de texto em `:8002` (status apenas). Nada
+  depende do Docker ou do banco da aplicação. Portas, banco SQLite, mídia e
+  diretórios de saída podem ser isolados por ambiente; para duas suítes
+  simultâneas use `./scripts/run-e2e-isolated.sh` (aloca portas livres).
 - Backend Django com `DEBUG=True` para habilitar `/api/v1/auth/dev-login`.
 - Ambiente virtual do backend em `../thesis-manager-ufvjm-backend/.venv` (o
   `webServer` chama `.venv/bin/python`): `python3 -m venv .venv &&
