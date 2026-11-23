@@ -36,6 +36,9 @@ import {
   thesisStatusTone,
 } from "../data/thesisStatus"
 import type { Profile } from "../types"
+import LegacyThesisForm from "./repository/LegacyThesisForm"
+import PublishedThesisManagement from "./repository/PublishedThesisManagement"
+import { mainAuthorName } from "./repository/repositoryForm"
 
 interface AdvisorApprovalProps {
   initialThesisId?: string
@@ -83,10 +86,16 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
   const [documentError, setDocumentError] = useState("")
   const [validatingDocumentId, setValidatingDocumentId] = useState<string | null>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
+  const [creatingLegacy, setCreatingLegacy] = useState(false)
+  // Aviso exibido depois que o detalhe recém-aberto termina de carregar (o carregamento limpa avisos antigos).
+  const noticeAfterLoadRef = useRef("")
 
   const scope = profile === "Orientador" ? "advised" : undefined
   const pageLabel = profile === "Orientador" ? "Orientandos" : "Monografias"
   const eyebrow = profile === "Orientador" ? "Orientação acadêmica" : "Gestão acadêmica"
+  // Não há flag de permissão para o cadastro de acervo: o botão segue o perfil e o backend
+  // recusa (403) cursos que o coordenador não gerencia.
+  const canRegisterLegacy = profile === "Coordenador" || profile === "Administrador"
 
   const listRequestRef = useRef(0)
   const detailRequestRef = useRef(0)
@@ -140,6 +149,10 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
       setDefenseReason("")
       setDocumentFile(null)
       setDocumentError("")
+      if (noticeAfterLoadRef.current) {
+        setNotice(noticeAfterLoadRef.current)
+        noticeAfterLoadRef.current = ""
+      }
     } catch (reason) {
       if (requestId !== detailRequestRef.current) return
       setDetail(null)
@@ -326,6 +339,28 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
     }
   }
 
+  const applyRepositoryUpdate = (updated: Thesis, message: string) => {
+    setDetail(updated)
+    setActiveFileId(updated.currentFile?.id ?? null)
+    setActionError("")
+    setNotice(message)
+    void loadList()
+  }
+
+  if (creatingLegacy) {
+    return (
+      <LegacyThesisForm
+        parentLabel={pageLabel}
+        onCancel={() => setCreatingLegacy(false)}
+        onCreated={(created) => {
+          noticeAfterLoadRef.current = "Monografia cadastrada e publicada no repositório público."
+          setCreatingLegacy(false)
+          setSelectedId(created.id)
+        }}
+      />
+    )
+  }
+
   if (selectedId) {
     return (
       <div className="page-content">
@@ -371,7 +406,7 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
             <PageTitle
               eyebrow={`Submissão ${detail.referenceCode}`}
               title={detail.title}
-              subtitle={`${detail.student?.name ?? "Aluno"} · ${detail.course.name}`}
+              subtitle={`${mainAuthorName(detail)} · ${detail.course.name}`}
               action={<Badge tone={thesisStatusTone(detail.status)}>{detail.statusLabel}</Badge>}
             />
             {notice && (
@@ -463,6 +498,24 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
                       <dt>Enviada em</dt>
                       <dd>{formatDateTime(detail.submittedAt)}</dd>
                     </div>
+                    {detail.authors.length > 1 && (
+                      <div>
+                        <dt>Autores</dt>
+                        <dd>{detail.authors.map((author) => author.name || author.user?.name).filter(Boolean).join(", ")}</dd>
+                      </div>
+                    )}
+                    {detail.defenseYear && (
+                      <div>
+                        <dt>Ano de defesa</dt>
+                        <dd>{detail.defenseYear}</dd>
+                      </div>
+                    )}
+                    {detail.origin === "LEGACY_IMPORT" && (
+                      <div>
+                        <dt>Origem</dt>
+                        <dd>{detail.originLabel ?? "Cadastro manual de acervo"}</dd>
+                      </div>
+                    )}
                     <div>
                       <dt>Versão atual</dt>
                       <dd>{currentFile ? `v${currentFile.versionNumber}` : "—"}</dd>
@@ -611,6 +664,8 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
                     )}
                   </Card>
                 )}
+
+                <PublishedThesisManagement thesis={detail} onUpdated={applyRepositoryUpdate} />
 
                 <Card>
                   <div className="section-head">
@@ -824,7 +879,17 @@ export default function AdvisorApproval({ initialThesisId, profile = "Orientador
 
   return (
     <div className="page-content">
-      <PageTitle eyebrow={eyebrow} title="Acompanhamento e aprovação" />
+      <PageTitle
+        eyebrow={eyebrow}
+        title="Acompanhamento e aprovação"
+        action={
+          canRegisterLegacy ? (
+            <Button icon="plus" onClick={() => setCreatingLegacy(true)}>
+              Cadastrar monografia do acervo
+            </Button>
+          ) : undefined
+        }
+      />
       <Card>
         <div className="filterbar">
           <div className="top-search">

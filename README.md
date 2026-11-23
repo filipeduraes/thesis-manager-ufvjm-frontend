@@ -99,6 +99,9 @@ pré-condições (usuários, cursos e TCCs) dos cenários.
 - Node 20+ e Google Chrome (o `playwright.config.ts` usa `channel: "chrome"`;
   não é necessário baixar navegadores).
 - Backend Django com `DEBUG=True` para habilitar `/api/v1/auth/dev-login`.
+- Ambiente virtual do backend em `../thesis-manager-ufvjm-backend/.venv` (o
+  `webServer` chama `.venv/bin/python`): `python3 -m venv .venv &&
+  .venv/bin/pip install -r requirements.txt` na pasta do backend.
 - Frontend em `npm start` (o login de teste só aparece em build de
   desenvolvimento).
 
@@ -158,14 +161,22 @@ está na imagem).
 
 - O login via Google e o fluxo do membro externo com token real dependem de
   serviços externos; o teste cobre apenas a validação de token inválido.
-- O repositório público ainda usa dados mockados no frontend. O teste em
-  `e2e/public-repository.spec.ts` publica um TCC de verdade no backend e tenta
-  encontrá-lo pela interface; ele está marcado como `test.fixme()` e aparece no
-  resumo como **1 skipped**, com o motivo da limitação. O teste em `auth.spec.ts` valida
-  apenas a tela mockada — não deve ser lido como cobertura da busca pública.
+- O repositório público consulta a API anônima (`/api/v1/public/theses`). O teste em
+  `e2e/public-repository.spec.ts` publica um TCC de verdade no backend, encontra-o
+  pela busca e confere o SHA-256 no detalhe; depende do backend com o PR #2
+  (`feature/repositorio-publico`). O cadastro de acervo, a edição de publicadas, a
+  troca de PDF e a despublicação têm testes de componente (React Testing Library),
+  ainda sem spec E2E.
 - No backend SQLite isolado, requisições concorrentes de visualização de PDF
   podem registrar `database is locked` (500) ao gravar a auditoria. Isso é
   artefato do SQLite usado no E2E; em PostgreSQL (Docker) não ocorre.
+- Repetir specs em sequência (`--repeat-each`) pode ultrapassar o limite
+  `session` (120/min) do backend e o `dev-login` passa a responder 429. A
+  execução normal da suíte fica abaixo do limite.
+- Buscas nas listas exibem um resumo que repete o termo pesquisado
+  (“N banca(s) encontrada(s) para “…””). Para conferir a linha da tabela, use
+  `getByText(titulo, { exact: true })`; sem `exact`, o seletor também encontra o
+  resumo.
 
 ## Correções de concorrência (2026-11-22)
 

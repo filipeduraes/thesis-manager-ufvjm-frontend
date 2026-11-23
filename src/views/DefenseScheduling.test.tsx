@@ -38,14 +38,14 @@ test("keeps the tab counter on the unfiltered total while the list is filtered",
 test("restores the selected tab and the list filters when the screen is reopened", async () => {
   listDefenses.mockResolvedValue(emptyPage(0))
   listSchedulable.mockResolvedValue(emptyPage(0))
-  const firstRender = render(
+  const { unmount } = render(
     <DefenseScheduling onEvaluate={() => undefined} onOpenCommittee={() => undefined} />,
   )
   userEvent.click(await screen.findByRole("tab", { name: "Bancas 0" }))
   const searchInput = await screen.findByPlaceholderText("Buscar aluno, título, código ou local...")
   userEvent.type(searchInput, "Maria{enter}")
   await waitFor(() => expect(listDefenses).toHaveBeenCalledWith(expect.objectContaining({ q: "Maria" })))
-  firstRender.unmount()
+  unmount()
 
   render(<DefenseScheduling onEvaluate={() => undefined} onOpenCommittee={() => undefined} />)
   const restoredTab = await screen.findByRole("tab", { name: "Bancas 0" })

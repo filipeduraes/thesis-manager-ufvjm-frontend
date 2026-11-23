@@ -6,6 +6,7 @@ import {
   authApi,
   defenseApi,
   reportsApi,
+  repositoryApi,
   type DefenseData,
   type DefenseListItem,
   type SessionPayload,
@@ -23,6 +24,9 @@ const updateDefense = jest.spyOn(defenseApi, "update")
 const cancelDefense = jest.spyOn(defenseApi, "cancel")
 // O coordenador abre na tela inicial, que consulta os relatórios.
 const reportsOverview = jest.spyOn(reportsApi, "overview")
+const searchRepository = jest.spyOn(repositoryApi, "search")
+const repositoryFilters = jest.spyOn(repositoryApi, "filters")
+const listDevUsers = jest.spyOn(authApi, "listDevUsers")
 
 const COORDINATOR_SESSION: SessionPayload = {
   authenticated: true,
@@ -91,6 +95,9 @@ beforeEach(() => {
   listSchedulable.mockResolvedValue(page([]))
   getDefense.mockResolvedValue({ defense: DEFENSE })
   reportsOverview.mockResolvedValue(buildReportsOverview({ scope: "COORDINATED_COURSES" }))
+  searchRepository.mockResolvedValue({ ...page([]), ordering: "recent" })
+  repositoryFilters.mockResolvedValue({ courses: [], advisors: [], years: [], keywords: [] })
+  listDevUsers.mockResolvedValue({ results: [] })
 })
 
 afterAll(() => {
@@ -208,4 +215,36 @@ test("schedules, edits and cancels a defense, then returns to the list", async (
   userEvent.click(within(breadcrumb).getByRole("button", { name: "Bancas" }))
   userEvent.click(await screen.findByRole("tab", { name: "Bancas 1" }))
   expect(await screen.findByText("Monografia de teste")).toBeTruthy()
+})
+
+test("usuário logado abre o repositório dentro do layout e volta pelo menu lateral", async () => {
+  render(<App />)
+
+  const menu = await screen.findByRole("navigation", { name: "Menu principal" })
+  userEvent.click(within(menu).getByRole("button", { name: "Repositório" }))
+
+  expect(await screen.findByRole("heading", { name: "Repositório de Monografias" })).toBeTruthy()
+  expect(screen.getByRole("complementary", { name: "Navegação principal" })).toBeTruthy()
+  expect(screen.queryByRole("navigation", { name: "Navegação do repositório" })).toBeNull()
+  expect(screen.queryByRole("button", { name: "Entrar" })).toBeNull()
+  await waitFor(() => expect(document.title).toBe("Repositório de Monografias · Monografias UFVJM"))
+  await waitFor(() => expect(searchRepository).toHaveBeenCalled())
+
+  userEvent.click(within(screen.getByRole("navigation", { name: "Menu principal" })).getByRole("button", { name: "Bancas" }))
+  expect(await screen.findByRole("tab", { name: "Bancas 1" })).toBeTruthy()
+  expect(screen.queryByRole("heading", { name: "Repositório de Monografias" })).toBeNull()
+})
+
+test("visitante sem sessão vê o repositório com o cabeçalho público e o botão Entrar", async () => {
+  getSession.mockResolvedValue({ authenticated: false, authType: null, user: null, csrfToken: "", externalInvitation: null })
+  render(<App />)
+
+  userEvent.click(await screen.findByRole("button", { name: "Ir para o repositório público" }))
+  const header = await screen.findByRole("navigation", { name: "Navegação do repositório" })
+  expect(within(header).getByRole("button", { name: "Entrar" })).toBeTruthy()
+  expect(within(header).queryByRole("button", { name: "Voltar ao sistema" })).toBeNull()
+  expect(screen.queryByRole("navigation", { name: "Menu principal" })).toBeNull()
+
+  userEvent.click(within(header).getByRole("button", { name: "Entrar" }))
+  expect(await screen.findByRole("button", { name: "Ir para o repositório público" })).toBeTruthy()
 })

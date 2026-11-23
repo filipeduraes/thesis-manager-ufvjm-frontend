@@ -11,7 +11,9 @@ test.describe("Parecer do orientador", () => {
     await expect(page.getByRole("heading", { name: "Acompanhamento e aprovação" })).toBeVisible()
     await page.getByPlaceholder("Buscar aluno, título ou referência...").fill(thesis.title)
     await page.getByRole("button", { name: "Filtrar" }).click()
-    await expect(page.getByText(thesis.title)).toBeVisible()
+    // O resumo da busca repete o termo; a linha é conferida pelo título exato.
+    await expect(page.getByText(`1 monografia(s) encontrada(s) para “${thesis.title}”`)).toBeVisible()
+    await expect(page.getByText(thesis.title, { exact: true })).toBeVisible()
 
     await page.getByRole("button", { name: new RegExp(thesis.title) }).first().click()
     await expect(page.getByText("Parecer do orientador")).toBeVisible()

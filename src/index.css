@@ -1642,6 +1642,12 @@ textarea:focus {
   background: var(--bg)
 }
 
+/* Dentro do layout autenticado o conteúdo acompanha a área principal, sem altura de tela cheia. */
+.public-page.embedded {
+  min-height: auto;
+  background: transparent
+}
+
 .public-header {
   height: 76px;
   background: var(--white);
@@ -5353,4 +5359,59 @@ textarea:focus-visible {
 }
 .audit-tooltip:hover::after {
   opacity: 1;
+}
+
+/* Cadastro e edição de monografias do repositório */
+.repository-authors {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px
+}
+
+.repository-authors>legend {
+  padding: 0 6px;
+  font-weight: 700;
+  color: var(--navy)
+}
+
+.repository-author-row {
+  display: flex;
+  gap: 8px;
+  align-items: center
+}
+
+.repository-author-row>.user-suggest {
+  flex: 1
+}
+
+.repository-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px
+}
+
+.repository-form .modal-actions,
+.repository-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px
+}
+
+.repository-management .button-stack {
+  margin-top: 12px
+}
+
+.hash.drawer-hash code {
+  word-break: break-all
+}
+
+@media (max-width:600px) {
+  .repository-author-row {
+    flex-direction: column;
+    align-items: stretch
+  }
 }
