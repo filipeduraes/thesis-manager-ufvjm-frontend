@@ -1,253 +1,210 @@
-# Thesis Manager UFVJM Frontend
+# Frontend do Gerenciador de TCCs da UFVJM
 
-Frontend do sistema de gerenciamento de Trabalhos de Conclusão de Curso (TCC), desenvolvido com React.
+Grupo:
 
-## 1. Requisitos
+- Ana Carolina Pereira dos Santos
+- Ana Júlia Oliveira Araújo
+- Camila Santos Barbosa
+- Deivid Camargos Batista
+- Filipe Hipólito Diniz Durães
 
-O projeto utiliza Node.js, npm e Git. As instruções abaixo consideram distribuições Linux baseadas em Ubuntu, como Ubuntu e Linux Mint.
+Professor: Alessandro Vivas Andrade
 
-Para instalar todas as ferramentas necessárias, abra o terminal e execute:
+Disciplina: Sistemas Distribuídos
+
+## Visão geral
+
+Interface web do Gerenciador de TCCs da UFVJM, feita em React. Ela fala com a API do backend, que fica no repositório `thesis-manager-ufvjm-backend`. As regras de negócio ficam no servidor. A interface não decide permissões.
+
+As telas cobrem:
+
+- submissão de monografias e acompanhamento do status;
+- parecer do orientador e agendamento de bancas;
+- avaliação dos membros e gestão do acervo publicado;
+- relatórios, auditoria e busca pública.
+
+## Tecnologias
+
+React 19, TypeScript, React Scripts 5, Tailwind 3, Chart.js 4, React Testing Library e Playwright. O Compose do backend usa `node:20-alpine`. Instale o Node 20 pelo nvm para acompanhar essa versão.
+
+## Como o sistema se encaixa
+
+O diagrama acompanha um TCC desde a interface até a busca pública. Cada coluna mostra quem age. As notas em roxo dizem qual serviço atua, onde o dado fica e o que acontece fora do pedido HTTP.
+
+![Fluxo do TCC por raia: aluno, orientador, coordenador, membros da banca e visitante](readme/fluxo-tcc.png)
+
+## Capturas de tela
+
+Imagens do sistema rodando com dados de teste.
+
+<img src="readme/repositorio-publico.png" width="700" alt="Busca pública de monografias">
+
+<img src="readme/painel-admin.png" width="700" alt="Painel inicial do administrador">
+
+<img src="readme/gestao-monografias.png" width="700" alt="Acompanhamento e gestão de monografias">
+
+## Rodando o projeto
+
+### 1. Preparar o Linux
+
+Os comandos são para Ubuntu, Debian ou Linux Mint.
 
 ```bash
 sudo apt update
-sudo apt install nodejs npm git
+sudo apt install -y git curl ca-certificates
 ```
 
-## 2. Clonar o repositório
-
-Clone o repositório e entre na pasta do projeto:
+Instale o nvm e o Node 20:
 
 ```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+source ~/.nvm/nvm.sh
+nvm install 20
+```
+
+Confira com `node -v` e `npm -v`. O primeiro comando precisa mostrar `v20`.
+
+### 2. Clonar os repositórios
+
+Clone o backend ao lado deste repositório. A API precisa estar disponível para o frontend funcionar.
+
+```bash
+git clone https://github.com/filipeduraes/thesis-manager-ufvjm-backend.git
 git clone https://github.com/filipeduraes/thesis-manager-ufvjm-frontend.git
 cd thesis-manager-ufvjm-frontend
 ```
 
-## 3. Instalar as dependências
-
-Na raiz do projeto, execute:
+### 3. Instalar as dependências
 
 ```bash
 npm install
 ```
 
-Esse comando instala as dependências necessárias para executar e desenvolver a aplicação.
+### 4. Configurar o ambiente
 
-## 4. Configurar variáveis de ambiente
+```bash
+cp .env.example .env
+```
 
-Copie `.env.example` para `.env` e configure `REACT_APP_API_BASE_URL` com a origem do backend, sem `/api/v1` no final. O frontend envia cookies com `credentials: include`; configure no backend CORS e CSRF para a origem do frontend.
+Em `.env`, configure `REACT_APP_API_BASE_URL` com a origem do backend, sem `/api/v1` no final. Para rodar o backend localmente, use `http://localhost:8000`.
 
-Mantenha credenciais e outros dados sensíveis privados. Não versione arquivos `.env` que contenham informações confidenciais.
+O frontend envia cookies com `credentials: "include"`. No backend, `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS` precisam aceitar a origem do frontend. O `.env` já está no `.gitignore`.
 
-## 5. Executar o projeto
+### 5. Rodar
 
-Para iniciar o servidor de desenvolvimento, execute:
+Inicie o backend em outro terminal e rode o frontend aqui:
 
 ```bash
 npm start
 ```
 
-Após a inicialização, a aplicação estará disponível em `http://localhost:3000`.
+A aplicação abre em `http://localhost:3000`. Pare o servidor com `Ctrl + C`.
 
-Para interromper o servidor, pressione `Ctrl + C` no terminal.
+### Acesso de membro externo
 
-### Acesso de membros externos da banca
+O código do convite tem o formato `UFVJM-XXXX-XXXX-XXXX-XXXX`. O backend envia esse código só por e-mail. Nenhuma tela mostra o código.
 
-O código de acesso dos membros externos (`UFVJM-XXXX-XXXX-XXXX-XXXX`) é enviado pelo backend somente por e-mail; nenhuma tela o exibe. Quem gerencia a banca vê para qual e-mail o convite foi enviado e pode usar "Reenviar convite" ou "Gerar novo convite". Em desenvolvimento com o `docker-compose.yml` do backend, os e-mails ficam no Mailpit em `http://127.0.0.1:8025`; o membro externo usa o código na tela de login, em "Sou membro de banca externo".
+Quem gerencia a banca vê o e-mail do convidado e tem os botões "Reenviar convite" e "Gerar novo convite".
 
-## 6. Gerar a versão de produção
+No stack de desenvolvimento do backend, os e-mails vão para o Mailpit em `http://127.0.0.1:8025`. O membro externo digita o código na tela de login, na opção "Sou membro de banca externo".
 
-Para compilar o projeto para produção, execute:
+## Testes
 
-```bash
-npm run build
-```
+### Testes de componente
 
-Para testar localmente a versão compilada, use qualquer servidor estático apontando a raiz para a pasta `build`, por exemplo:
-
-```bash
-npx serve -s build
-```
-
-## 7. Desenvolvimento
-
-Para atualizar sua cópia local do repositório e instalar as dependências, execute:
-
-```bash
-git pull
-npm install
-```
-
-Em seguida, inicie o servidor de desenvolvimento:
-
-```bash
-npm start
-```
-
-Antes de enviar alterações, rode os testes e a verificação de tipos:
+São os testes rápidos. Rodam com `tsc` e Jest:
 
 ```bash
 npx tsc --noEmit
 CI=true npm test -- --watchAll=false
 ```
 
-Consulte a seção `scripts` do arquivo `package.json` para verificar os comandos disponíveis no projeto.
+### Testes end-to-end
 
-## Testes End-to-End (Playwright)
+A suíte usa o navegador. Ela sobe sozinha um backend isolado em `:8001` e o frontend em `:3001`. Não reaproveita servidores que já estejam nessas portas, para não gravar dados de teste no banco da aplicação.
 
-A suíte E2E exercita a aplicação pela interface real (browser), sem chamadas
-diretas aos endpoints nas asserções. A API é usada apenas na preparação de
-pré-condições (usuários, cursos e TCCs) dos cenários.
-
-### Pré-requisitos
-
-- Node 20+ e o Chromium do Playwright: rode `npx playwright install chromium`
-  uma vez (não é necessário Docker nem Chrome do sistema). Se quiser usar o
-  Chrome instalado, defina `E2E_BROWSER_CHANNEL=chrome`.
-- A suíte sobe sozinha: por padrão backend isolado em `:8001`, frontend em
-  `:3001` e um worker de extração de texto em `:8002` (status apenas). Nada
-  depende do Docker ou do banco da aplicação. Portas, banco SQLite, mídia e
-  diretórios de saída podem ser isolados por ambiente; para duas suítes
-  simultâneas use `./scripts/run-e2e-isolated.sh` (aloca portas livres).
-- Backend Django com `DEBUG=True` para habilitar `/api/v1/auth/dev-login`.
-- Ambiente virtual do backend em `../thesis-manager-ufvjm-backend/.venv` (o
-  `webServer` chama `.venv/bin/python`): `python3 -m venv .venv &&
-  .venv/bin/pip install -r requirements.txt` na pasta do backend.
-- Frontend em `npm start` (o login de teste só aparece em build de
-  desenvolvimento).
-
-### Execução (servidores automáticos)
-
-Basta rodar a suíte. O `playwright.config.ts` sobe automaticamente o backend
-isolado e o frontend quando eles não estão rodando, e os encerra ao final:
+Instale o navegador uma vez:
 
 ```bash
-npm run test:e2e              # suíte completa
-npx playwright test e2e/auth.spec.ts          # arquivo específico
-npx playwright test -g "exporta o log em CSV"  # teste específico
-npm run test:e2e:report       # abre o relatório HTML da última execução
+npx playwright install chromium
+```
 
-# Smoke em stack DEDICADO (recomendado): sobe, roda e destrói tudo com `down -v`.
-# Portas próprias (9000/9001/9025) e COMPOSE_PROJECT_NAME=thesis-smoke:
-# volumes, bancos e filas nunca se misturam com o sistema em :8000/:3000.
+O backend da suíte roda em Python. Crie o ambiente virtual dele antes:
+
+```bash
+cd ../thesis-manager-ufvjm-backend
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cd ../thesis-manager-ufvjm-frontend
+```
+
+Rode a suíte na raiz do frontend e no host. Não deixe nada ocupando a porta `:3001` antes de começar.
+
+```bash
+npm run test:e2e
+npx playwright test e2e/auth.spec.ts
+npx playwright test -g "exporta o log em CSV"
+```
+
+Para duas suítes ao mesmo tempo, use `./scripts/run-e2e-isolated.sh`.
+
+O smoke `e2e/smoke-real.spec.ts` cria uma banca com membro externo pela API, confere o convite na interface, lê o token no Mailpit e troca o token por uma sessão externa. Ele roda em stack Compose separado e fica fora da suíte isolada:
+
+```bash
 ./scripts/smoke-stack.sh
 ```
 
-O smoke (`e2e/smoke-real.spec.ts`) cria uma banca com membro externo pela API,
-confirma na UI que o convite aparece, lê o token no e-mail capturado pelo
-Mailpit e troca esse token por uma sessão externa. Ele prova o fluxo completo
-事件 → consumidor → e-mail → token → sessão no ambiente de deploy; por isso fica
-fora da suíte isolada (`testIgnore`).
+O script usa `COMPOSE_PROJECT_NAME=thesis-smoke`, portas 9000, 9001 e 9025, e apaga os volumes quando termina. Não rode o smoke contra o stack de desenvolvimento.
 
-**Nunca rode o smoke contra o stack de desenvolvimento**: ele popularia o banco
-real e os dados se acumulariam a cada execução. O script acima usa um projeto
-Compose separado (`thesis-smoke`) e remove os volumes ao final. Ele detecta
-automaticamente se precisa de `sudo docker`; se o socket negar acesso, conceda
-permissão sem senha **apenas ao binário do Docker** (nunca compartilhe sua senha
-de sudo):
+Se o socket do Docker negar acesso, libere só o binário do Docker:
 
 ```bash
-echo 'fhdd ALL=(root) NOPASSWD: /usr/bin/docker' | sudo tee /etc/sudoers.d/docker-nopass
+echo "$(whoami) ALL=(root) NOPASSWD: /usr/bin/docker" | sudo tee /etc/sudoers.d/docker-nopass
 sudo chmod 440 /etc/sudoers.d/docker-nopass
 sudo visudo -c
 ```
 
-Se você já rodou o smoke contra o banco real por engano, use no backend:
-
-```bash
-python manage.py cleanup_e2e_data --apply   # use --dry-run primeiro para conferir
-```
-```
-
-Execute **na raiz do repositório frontend**, no host (o `webServer` usa o
-caminho relativo `../thesis-manager-ufvjm-backend`). A suíte usa portas
-**dedicadas**: backend `:8001` (SQLite isolado) e frontend `:3001`.
-`reuseExistingServer: false` impede que um backend da aplicação em `:8000` seja
-reaproveitado — isso gravaria dados de teste no banco real.
-
-### Ambiente isolado (sem PostgreSQL/Redis/RabbitMQ)
-
-O módulo `thesismanagerbackend.settings_e2e` é usado automaticamente pelo
-`webServer`: SQLite, cache em memória, e-mail em memória e diretório temporário
-para uploads. Se preferir iniciar manualmente:
+Se uma execução antiga gravou no banco da aplicação, rode no backend. O primeiro comando mostra o que seria removido. O segundo executa a remoção. Troque a URL pelo endereço real do banco:
 
 ```bash
 cd ../thesis-manager-ufvjm-backend
-DJANGO_SETTINGS_MODULE=thesismanagerbackend.settings_e2e .venv/bin/python manage.py migrate --noinput
-DJANGO_SETTINGS_MODULE=thesismanagerbackend.settings_e2e .venv/bin/python manage.py runserver 127.0.0.1:8001 --noreload
+DATABASE_URL='postgresql://usuario:senha@host:5432/banco' .venv/bin/python manage.py cleanup_e2e_data
+DATABASE_URL='postgresql://usuario:senha@host:5432/banco' .venv/bin/python manage.py cleanup_e2e_data --apply
 ```
 
-### Usando o Docker Compose normal
+O teste do repositório público publica um TCC no backend isolado, busca pelo título e confere o SHA-256 no detalhe. Cadastro de acervo, edição de metadados e despublicação estão em `e2e/repository-management.spec.ts`. A suíte isolada usa `/api/v1/auth/dev-login`, porque o login com Google depende de credenciais externas.
 
-Também funciona sem configuração extra:
+Localmente o reporter do Playwright é `list`. Quando `CI` está definido, o relatório HTML vai para uma pasta `playwright-report-` seguida do número da execução. Para abrir um relatório existente, use o número da sua execução no lugar de 12345:
 
 ```bash
-cd ../thesis-manager-ufvjm-backend
-docker compose --profile frontend up --build -d
+npx playwright show-report playwright-report-12345
 ```
 
-O compose sobe a aplicação em `:8000`/`:3000`, mas **não é usado pelos testes**.
-A suíte sempre sobe seu próprio backend isolado em `:8001` e frontend em
-`:3001`, para que os dados de teste nunca entrem no banco da aplicação. Execute
-a suíte no host, não dentro do container do frontend (o Chrome do sistema não
-está na imagem).
+Em caso de falha, screenshots, traces e o contexto do erro ficam em `test-results-*`. As variáveis opcionais são `E2E_BASE_URL` e `E2E_API_URL`.
 
-### Evidências
-
-- Relatório HTML: `playwright-report/` (gerado automaticamente).
-- Em falhas: screenshot, trace e error context em `test-results/`.
-- Variáveis opcionais: `E2E_BASE_URL` (padrão `http://localhost:3001`) e
-  `E2E_API_URL` (padrão `http://localhost:8001/api/v1`).
-
-### Limitações conhecidas
-
-- O login via Google e o fluxo do membro externo com token real dependem de
-  serviços externos; o teste cobre apenas a validação de token inválido.
-- O repositório público consulta a API anônima (`/api/v1/public/theses`). O teste em
-  `e2e/public-repository.spec.ts` publica um TCC de verdade no backend, encontra-o
-  pela busca e confere o SHA-256 no detalhe; depende do backend com o PR #2
-  (`feature/repositorio-publico`). O cadastro de acervo, a edição de publicadas, a
-  troca de PDF e a despublicação têm testes de componente (React Testing Library),
-  ainda sem spec E2E.
-- No backend SQLite isolado, requisições concorrentes de visualização de PDF
-  podem registrar `database is locked` (500) ao gravar a auditoria. Isso é
-  artefato do SQLite usado no E2E; em PostgreSQL (Docker) não ocorre.
-- Repetir specs em sequência (`--repeat-each`) pode ultrapassar o limite
-  `session` (120/min) do backend e o `dev-login` passa a responder 429. A
-  execução normal da suíte fica abaixo do limite.
-- Buscas nas listas exibem um resumo que repete o termo pesquisado
-  (“N banca(s) encontrada(s) para “…””). Para conferir a linha da tabela, use
-  `getByText(titulo, { exact: true })`; sem `exact`, o seletor também encontra o
-  resumo.
-
-## Correções de concorrência (2026-11-22)
-
-Telas com carregamento assíncrono passaram a descartar respostas obsoletas por identificador de requisição (`DefenseCommittee`, `AdvisorApproval`, `AdminUsers`, `AdminCourses`), o campo de sugestão de usuários invalida requisições pendentes em cache hits, o token CSRF é renovado após logout, e formulários de submissão possuem guarda síncrona contra envio duplicado. Filtros de sessão são limpos no logout. Testes: `src/hooks/useUserLookup.test.ts` e suíte E2E existente.
-
-## Refatoração de qualidade (2026-11-22)
-
-Extraídos `api/errors.ts`, `data/{auditCategories,dateFormat,storageKeys}.ts`, `components/common/{CategoryChip,pagination}.ts` e removidos tipos legados sem uso em `types/index.ts`. Textos, cores e contratos de API permanecem idênticos.
-
-### Limpeza de dados de execuções antigas
-
-Se uma execução antiga (antes das portas dedicadas) gravou no banco da aplicação:
+## Gerar a versão de produção
 
 ```bash
-cd ../thesis-manager-ufvjm-backend
-DATABASE_URL=<url-do-banco-real> .venv/bin/python manage.py cleanup_e2e_data
-DATABASE_URL=<url-do-banco-real> .venv/bin/python manage.py cleanup_e2e_data --apply
+npm run build
 ```
 
-O comando remove usuários `e2e-*`, cursos/departamentos `E2E`, TCCs e bancas
-relacionados, além das notificações correspondentes. A tabela `audit_log` **não**
-é alterada: ela é append-only com cadeia SHA-256.
+Para servir a pasta `build`, aponte a raiz do servidor estático para ela:
 
-### Contrato estruturado de auditoria
+```bash
+npx serve -s build
+```
 
-Os registros retornam `event` com códigos, identificadores e contexto. Rótulos,
-frases e formatação são montados no frontend em `src/data/auditFormat.ts`.
-Campos antigos (`summary`, `details`, `entityName`) são mantidos apenas para
-compatibilidade com versões anteriores do backend.
+## Estrutura do diretório
 
-## Auditoria geral (2026-11-22)
-
-Correções de acessibilidade e UX: único `main` nos dashboards, erros com estilo de erro (não sucesso), nomes/Escape em todos os diálogos, foco restaurado com segurança, tooltip de auditoria acessível por teclado, guarda de duplo envio em AdminUsers, confirmação para remover membro da banca, persistência de filtros de relatório em caso de erro e tabelas com larguras controladas.
+```text
+src/api/          chamadas à API e tratamento de erros
+src/components/   componentes comuns, layout, gráficos e busca
+src/data/         formatação de dados e constantes
+src/hooks/        hooks compartilhados
+src/views/        telas por fluxo, com pastas para bancas e repositório
+src/types/        tipos TypeScript
+src/App.tsx       rotas e composição das telas
+e2e/              especificações Playwright e auxiliares
+scripts/          execução isolada e smoke do stack real
+readme/           imagens usadas neste arquivo
+```

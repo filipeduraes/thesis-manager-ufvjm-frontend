@@ -3,7 +3,8 @@
  *
  * Backend :8000, frontend :3000 e Mailpit :8025. Prova o fluxo completo do
  * convite externo: API → evento → consumidor → e-mail → token → sessão externa.
- * Requer `docker compose --profile microservices up` e o frontend em `npm start`.
+ * Requer o stack padrão do Compose (`docker compose up`) com o frontend em
+ * `npm start`, ou `./scripts/smoke-stack.sh` para um stack descartável.
  */
 import { expect, test } from "@playwright/test"
 import { loginAs, uniqueEmail } from "./helpers/auth"
