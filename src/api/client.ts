@@ -682,11 +682,11 @@ export interface ExternalMemberTokenResponse {
   accessTokenExpiresAt: string
 }
 
-/** Resposta de PUT .../evaluation: a última avaliação pode encerrar a banca automaticamente. */
+/** Resposta de PUT .../evaluation: o cálculo do resultado é assíncrono. */
 export interface SubmitEvaluationResponse {
   evaluation: DefenseMemberEvaluationData
-  /** Mensagem quando o encerramento automático falhou; a avaliação continua salva. */
-  autoCloseError: string | null
+  /** Confirma que o evento de apuração foi gravado na outbox. */
+  resultCalculationQueued: boolean
   defenseStatus: string
   defenseStatusLabel: string
 }
@@ -803,7 +803,7 @@ export const defenseApi = {
   submitEvaluation: (
     defenseId: string,
     memberId: string,
-    body: { decision: string; score?: string | null; notes?: string },
+    body: { decision: string; score: string; notes: string },
   ) =>
     apiRequest<SubmitEvaluationResponse>(
       `/defenses/${defenseId}/members/${memberId}/evaluation`,
@@ -1060,6 +1060,7 @@ export interface ThesisLimits {
   maxPdfSizeMb: number
   maxDocumentSizeMb: number
   maxKeywords: number
+  maxAuthors: number
 }
 
 export interface StudentThesisContext {
@@ -1076,6 +1077,7 @@ export interface ThesisMetadataInput {
   courseId: string
   advisorId: string
   keywords: string[]
+  authors?: string[]
   type?: string
   journal?: string
 }

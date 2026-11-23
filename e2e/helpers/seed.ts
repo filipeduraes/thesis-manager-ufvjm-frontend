@@ -47,6 +47,61 @@ async function devLogin(request: APIRequestContext, name: string, email: string,
  * testes validam as operações pela interface. Cada chamada usa identificadores
  * únicos para permitir execução paralela e repetida.
  */
+export interface InProgressDefense {
+  thesis: SeededThesis
+  defenseId: string
+  memberId: string
+  evaluatorEmail: string
+}
+
+/**
+ * Schedule a defense and leave it IN_PROGRESS with one non-alternate evaluator.
+ */
+export async function seedInProgressDefense(request: APIRequestContext, title: string): Promise<InProgressDefense> {
+  const thesis = await seedApprovedThesis(request, title)
+  const advisor = await devLogin(request, "Orientador E2E Defesa", thesis.advisorEmail, "ADVISOR")
+  const review = await request.post(`${API_ROOT}/theses/${thesis.thesisId}/reviews`, {
+    headers: { "X-CSRFToken": advisor.csrfToken },
+    data: { decision: "APPROVED", comments: "Aprovado para banca." },
+  })
+  expect(review.ok(), await review.text()).toBeTruthy()
+
+  const coordinator = await devLogin(request, "Coord E2E Defesa", thesis.coordinatorEmail, "COORDINATOR")
+  const coordinatorHeaders = { "X-CSRFToken": coordinator.csrfToken }
+  const when = new Date()
+  when.setDate(when.getDate() - 1)
+  const defenseResponse = await request.post(`${API_ROOT}/theses/${thesis.thesisId}/defenses`, {
+    headers: coordinatorHeaders,
+    data: {
+      scheduledDatetime: when.toISOString(),
+      durationMinutes: 90,
+      modality: "IN_PERSON",
+      location: "Sala E2E",
+    },
+  })
+  expect(defenseResponse.ok(), await defenseResponse.text()).toBeTruthy()
+  const defense = (await defenseResponse.json()) as { defense: { id: string } }
+
+  const evaluatorEmail = uniqueEmail("evaluator")
+  const evaluator = await devLogin(request, "Avaliador E2E", evaluatorEmail, "ADVISOR")
+  const memberResponse = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/members`, {
+    headers: coordinatorHeaders,
+    data: { userId: evaluator.userId, role: "MEMBER" },
+  })
+  expect(memberResponse.ok(), await memberResponse.text()).toBeTruthy()
+  const member = (await memberResponse.json()) as { member: { id: string } }
+
+  const availability = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/members/${member.member.id}/availability`, {
+    headers: { "X-CSRFToken": evaluator.csrfToken },
+    data: { status: "CONFIRMED" },
+  })
+  expect(availability.ok(), await availability.text()).toBeTruthy()
+  const start = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/start`, { headers: coordinatorHeaders })
+  expect(start.ok(), await start.text()).toBeTruthy()
+
+  return { thesis, defenseId: defense.defense.id, memberId: member.member.id, evaluatorEmail }
+}
+
 export interface AcademicContext {
   courseId: string
   courseCode: string
