@@ -1,10 +1,17 @@
 import { defineConfig, devices } from "@playwright/test"
 
 /**
- * Smoke contra o stack real (docker compose), sem subir servidores de teste.
- * Backend em :8000, frontend em :3000 e Mailpit em :8025.
+ * Smoke ponta a ponta no stack isolado de teste (scripts/smoke-stack.sh).
+ * Portas vêm das variáveis do script; os defaults permitem rodar contra o
+ * stack de desenvolvimento se necessário.
  */
-process.env.E2E_API_URL ??= "http://localhost:8000/api/v1"
+const backendPort = process.env.BACKEND_PORT ?? "8000"
+const frontendPort = process.env.FRONTEND_PORT ?? "3000"
+const mailpitPort = process.env.MAILPIT_PORT ?? "8025"
+
+process.env.E2E_API_URL ??= `http://localhost:${backendPort}/api/v1`
+process.env.E2E_BASE_URL ??= `http://localhost:${frontendPort}`
+process.env.MAILPIT_URL ??= `http://localhost:${mailpitPort}`
 
 export default defineConfig({
   testDir: "./e2e",
@@ -16,7 +23,7 @@ export default defineConfig({
   timeout: 120_000,
   reporter: "list",
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    baseURL: process.env.E2E_BASE_URL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     ...devices["Desktop Chrome"],
