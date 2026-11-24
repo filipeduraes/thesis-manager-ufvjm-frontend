@@ -105,6 +105,19 @@ export default function Icon({ name, size = 18 }: IconProps) {
     ),
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
+    star: <path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />,
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" />
+      </>
+    ),
+    warning: (
+      <>
+        <path d="M12 3 2 20h20z" />
+        <path d="M12 9v5M12 17h.01" />
+      </>
+    ),
   }
 
   return (

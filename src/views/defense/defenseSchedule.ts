@@ -139,7 +139,7 @@ export function scheduleSummary(draft: Pick<DefenseScheduleDraft, "date" | "star
 }
 
 /** Builds the scheduling payload from a draft; `null` when a required field is missing or invalid. */
-export function draftToScheduleInput(draft: DefenseScheduleDraft): ScheduleDefenseInput | null {
+export function draftToScheduleInput(draft: DefenseScheduleDraft): Omit<ScheduleDefenseInput, "members" | "acknowledgeScheduleWarning"> | null {
   const scheduledDatetime = saoPauloInputsToIso(draft.date, draft.startTime)
   const durationMinutes = parseDurationMinutes(draft.duration)
   if (!scheduledDatetime || durationMinutes === null || !draft.modality) return null

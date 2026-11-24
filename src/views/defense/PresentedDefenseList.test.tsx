@@ -114,7 +114,7 @@ test("does not offer editing for closed defenses or members without permission",
   expect(screen.getAllByText("Parecer enviado")).toHaveLength(2)
 })
 
-test("labels the defense link by viewerPermissions.canManage", async () => {
+test("shows the manage action only for viewers with permission", async () => {
   const managed = buildDefense("a", "Banca do meu curso", {}, "manager")
   const asMember = buildDefense("b", "Banca de outro curso", { isMember: true, roleLabel: "Membro" }, "none")
   listDefenses.mockResolvedValue(page([managed, asMember]))
@@ -122,7 +122,7 @@ test("labels the defense link by viewerPermissions.canManage", async () => {
 
   expect(await screen.findByText("Banca do meu curso")).toBeTruthy()
   expect(screen.getAllByRole("button", { name: "Gerenciar banca" })).toHaveLength(1)
-  expect(screen.getAllByRole("button", { name: "Ver banca" })).toHaveLength(1)
+  expect(screen.queryByRole("button", { name: "Ver banca" })).toBeNull()
 })
 
 test("shows the empty state when the backend returns no defenses", async () => {

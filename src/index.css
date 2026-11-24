@@ -52,6 +52,8 @@
   --soft: #EAF1ED;
   --danger: #9B1C31;
   --danger-soft: #FFF1F3;
+  --warning: #B7791F;
+  --warning-soft: #FFF8E6;
 
   /* RGB channels of the palette, for translucent shades: rgba(var(--navy-rgb), .5) */
   --navy-rgb: 1, 25, 54;
@@ -937,6 +939,22 @@ textarea:focus {
   margin-top: 13px
 }
 
+.schedule-warning-banner ul {
+  margin: 6px 0 0;
+  padding-left: 18px
+}
+
+.schedule-warning-list {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  color: var(--slate);
+  font-size: var(--font-size-sm)
+}
+
+.schedule-warning-list li + li {
+  margin-top: 6px
+}
+
 .stepper {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1542,6 +1560,51 @@ textarea:focus {
 
 .validation-list .ok>.icon {
   background: var(--green)
+}
+
+.validation-list .danger {
+  color: var(--danger)
+}
+
+.validation-list .danger>.icon {
+  background: var(--danger);
+  color: var(--white)
+}
+
+.validation-list .warning {
+  color: var(--warning)
+}
+
+.validation-list .warning>.icon {
+  background: var(--warning);
+  color: var(--white)
+}
+
+.schedule-conflicts {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px
+}
+
+.schedule-conflicts li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: var(--font-size-xxs)
+}
+
+.schedule-conflicts li.danger {
+  background: var(--danger-soft);
+  color: var(--danger)
+}
+
+.schedule-conflicts li.warning {
+  background: var(--warning-soft);
+  color: var(--warning)
 }
 
 .validation-list>div>.icon {
@@ -3048,7 +3111,7 @@ footer .logo {
    linhas são <div> (contêm botões) e têm colunas próprias; os rótulos mobile de lá
    miram button.row e não se aplicam aqui. */
 .defense-table .row {
-  grid-template-columns: 1.8fr 1.1fr .9fr .7fr .8fr auto
+  grid-template-columns: 1.8fr 1.1fr .9fr .7fr .8fr 84px
 }
 
 .defense-table .row>span {

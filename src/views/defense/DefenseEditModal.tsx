@@ -1,6 +1,6 @@
 import { useState } from "react"
-import { ApiError, defenseApi, type DefenseData } from "../../api/client"
-import { Button, Icon, Modal } from "../../components/common"
+import { ApiError, defenseApi, type DefenseData, type ScheduleWarning } from "../../api/client"
+import { Button, Icon, Modal, ScheduleWarningDialog } from "../../components/common"
 import type { DefenseScheduleDraft } from "../../types"
 import DefenseScheduleFields from "./DefenseScheduleFields"
 import { changedScheduleFields, defenseToDraft, isFutureStart, locationError } from "./defenseSchedule"
@@ -31,6 +31,7 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
   const [draft, setDraft] = useState<DefenseScheduleDraft>(original)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState("")
+  const [pendingWarning, setPendingWarning] = useState<{ warnings: ScheduleWarning[]; retry: () => Promise<void> } | null>(null)
   const changes = changedScheduleFields(original, draft)
   const hasChanges = changes !== null && Object.keys(changes).length > 0
   const startInPast = changes?.scheduledDatetime !== undefined && !isFutureStart(changes.scheduledDatetime)
@@ -48,12 +49,24 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
       await defenseApi.update(defense.id, changes)
       onSaved()
     } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "SCHEDULE_WARNING" && reason.warnings.length > 0) {
+        setPendingWarning({
+          warnings: reason.warnings,
+          retry: async () => {
+            await defenseApi.update(defense.id, { ...changes, acknowledgeScheduleWarning: true })
+            onSaved()
+          },
+        })
+        setSaving(false)
+        return
+      }
       setSaveError(saveErrorMessage(reason))
       setSaving(false)
     }
   }
 
   return (
+    <>
     <Modal className="admin-modal invite-modal" onClose={onClose} labelledBy="edit-defense-title">
       <div className="section-head">
         <div>
@@ -94,5 +107,23 @@ export default function DefenseEditModal({ defense, onClose, onSaved }: DefenseE
         </Button>
       </div>
     </Modal>
+    {pendingWarning && (
+      <ScheduleWarningDialog
+        warnings={pendingWarning.warnings}
+        defenseStart={changes?.scheduledDatetime ?? defense.scheduledDatetime}
+        defenseDurationMinutes={changes?.durationMinutes ?? defense.durationMinutes}
+        onCancel={() => setPendingWarning(null)}
+        onConfirm={() => {
+          const retry = pendingWarning.retry
+          setPendingWarning(null)
+          setSaving(true)
+          void retry().catch((reason: unknown) => {
+            setSaveError(saveErrorMessage(reason))
+            setSaving(false)
+          })
+        }}
+      />
+    )}
+    </>
   )
 }

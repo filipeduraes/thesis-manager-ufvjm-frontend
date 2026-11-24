@@ -7,6 +7,7 @@ import {
   NO_DEFENSE_PERMISSIONS,
   type DefenseCommitteeMember,
   type DefenseData,
+  type ScheduleWarning,
 } from "../api/client"
 import {
   Avatar,
@@ -18,6 +19,7 @@ import {
   Icon,
   InstitutionalMemberModal,
   PageTitle,
+  ScheduleWarningDialog,
 } from "../components/common"
 import { availabilityStatusBadge, defenseDecisionTone, defenseStatusTone } from "../data/defenseStatus"
 import type { BadgeTone } from "../data/thesisStatus"
@@ -77,6 +79,7 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [addModal, setAddModal] = useState<AddModalKind>(null)
+  const [pendingWarning, setPendingWarning] = useState<{ warnings: ScheduleWarning[]; retry: () => Promise<void> } | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
@@ -153,22 +156,39 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
     loadDefense()
   }
 
-  // Erros são propagados para o modal, que exibe a mensagem do backend.
+  // O aviso amarelo não é autorização: o backend continua decidindo permissões e conflito real.
+  const runWithScheduleWarning = async (submit: (acknowledge: boolean) => Promise<void>) => {
+    try {
+      await submit(false)
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "SCHEDULE_WARNING" && reason.warnings.length > 0) {
+        setPendingWarning({ warnings: reason.warnings, retry: () => submit(true) })
+        return
+      }
+      throw reason
+    }
+  }
+
   const addInstitutionalMember = async (draft: InstitutionalMemberDraft) => {
-    await defenseApi.addInstitutionalMember(defenseId, { role: draft.role, userId: draft.userId })
-    loadDefense()
+    await runWithScheduleWarning(async (acknowledge) => {
+      await defenseApi.addInstitutionalMember(defenseId, { role: draft.role, userId: draft.userId, acknowledgeScheduleWarning: acknowledge })
+      loadDefense()
+    })
   }
 
   const addExternalMember = async (draft: ExternalMemberDraft) => {
-    const response = await defenseApi.addExternalMember(defenseId, {
-      role: draft.role,
-      name: draft.name,
-      email: draft.email,
-      institution: draft.institution || undefined,
+    await runWithScheduleWarning(async (acknowledge) => {
+      const response = await defenseApi.addExternalMember(defenseId, {
+        role: draft.role,
+        name: draft.name,
+        email: draft.email,
+        institution: draft.institution || undefined,
+        acknowledgeScheduleWarning: acknowledge,
+      })
+      setInvitationError("")
+      setInvitationNotice(`Membro adicionado. O convite com o código de acesso será enviado para ${response.member.email}.`)
+      loadDefense()
     })
-    setInvitationError("")
-    setInvitationNotice(`Membro adicionado. O convite com o código de acesso será enviado para ${response.member.email}.`)
-    loadDefense()
   }
 
   const resendInvitation = async (member: DefenseCommitteeMember) => {
@@ -337,6 +357,23 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
         items={[{ label: "Bancas", onClick: goBack }, { label: "Gerenciar banca" }]}
       />
       <PageTitle eyebrow="Banca de defesa" title="Gerenciar banca" />
+
+      {defense.scheduleWarnings && defense.scheduleWarnings.length > 0 && (
+        <div className="inline-alert" role="status">
+          <Icon name="alert" />
+          <div className="schedule-warning-banner">
+            <strong>Horário próximo de outra banca</strong>
+            <ul>
+              {defense.scheduleWarnings.map((warning, index) => (
+                <li key={`${warning.defenseId}-${warning.memberName}-${index}`}>
+                  {warning.memberName} participa de outra banca em{" "}
+                  {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }).format(new Date(warning.scheduledDatetime))}.
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <DefenseThesisCard summary={defense.thesisSummary} />
 
@@ -678,6 +715,20 @@ export default function DefenseCommittee({ defenseId, goBack }: DefenseCommittee
           error={revertError}
           onConfirm={(revertReason) => void doRevertStatus(revertReason)}
           onClose={closeStatusModal}
+        />
+      )}
+
+      {pendingWarning && (
+        <ScheduleWarningDialog
+          warnings={pendingWarning.warnings}
+          defenseStart={defense.scheduledDatetime}
+          defenseDurationMinutes={defense.durationMinutes}
+          onCancel={() => setPendingWarning(null)}
+          onConfirm={() => {
+            const retry = pendingWarning.retry
+            setPendingWarning(null)
+            void retry()
+          }}
         />
       )}
     </div>

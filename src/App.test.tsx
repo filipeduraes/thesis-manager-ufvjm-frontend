@@ -7,6 +7,7 @@ import {
   defenseApi,
   reportsApi,
   repositoryApi,
+  usersApi,
   type DefenseData,
   type DefenseListItem,
   type SessionPayload,
@@ -22,6 +23,7 @@ const getDefense = jest.spyOn(defenseApi, "get")
 const scheduleDefense = jest.spyOn(defenseApi, "schedule")
 const updateDefense = jest.spyOn(defenseApi, "update")
 const cancelDefense = jest.spyOn(defenseApi, "cancel")
+const suggestUsers = jest.spyOn(usersApi, "suggest")
 // O coordenador abre na tela inicial, que consulta os relatórios.
 const reportsOverview = jest.spyOn(reportsApi, "overview")
 const searchRepository = jest.spyOn(repositoryApi, "search")
@@ -90,6 +92,7 @@ function page<T>(results: T[]) {
 beforeEach(() => {
   window.sessionStorage.clear()
   jest.clearAllMocks()
+  suggestUsers.mockResolvedValue({ results: [{ id: "user-1", name: "Orientador Teste", email: "orientador@ufvjm.edu.br", avatarUrl: null }] })
   getSession.mockResolvedValue(COORDINATOR_SESSION)
   listDefenses.mockResolvedValue(page([LIST_ITEM]))
   listSchedulable.mockResolvedValue(page([]))
@@ -183,6 +186,11 @@ test("schedules, edits and cancels a defense, then returns to the list", async (
   userEvent.click(screen.getByRole("button", { name: "2h" }))
   userEvent.click(screen.getByRole("radio", { name: "Presencial" }))
   expect(screen.getByText("Término previsto: 19:00")).toBeTruthy()
+  userEvent.click(screen.getByRole("button", { name: "Adicionar membro interno" }))
+  const memberDialog = screen.getByRole("dialog")
+  await userEvent.type(within(memberDialog).getByRole("combobox", { name: "Usuário ou e-mail institucional" }), "orientador@ufvjm.edu.br")
+  await userEvent.click(await within(memberDialog).findByRole("option", { name: /orientador@ufvjm.edu.br/ }))
+  await userEvent.click(within(memberDialog).getByRole("button", { name: "Adicionar membro" }))
   userEvent.click(screen.getByRole("button", { name: "Confirmar agendamento" }))
 
   await waitFor(() => expect(scheduleDefense).toHaveBeenCalledTimes(1))

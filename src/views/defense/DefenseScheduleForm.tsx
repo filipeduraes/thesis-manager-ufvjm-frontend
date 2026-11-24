@@ -3,6 +3,8 @@ import {
   ApiError,
   COMMITTEE_ROLE_LABELS,
   defenseApi,
+  type ScheduleConflict,
+  type ScheduleWarning,
   type ThesisListItem,
 } from "../../api/client"
 import {
@@ -14,6 +16,7 @@ import {
   Icon,
   InstitutionalMemberModal,
   Modal,
+  ScheduleWarningDialog,
 } from "../../components/common"
 import type {
   DefenseScheduleDraft,
@@ -95,6 +98,8 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
   const [submitStep, setSubmitStep] = useState("")
   const [submitError, setSubmitError] = useState("")
   const [outcome, setOutcome] = useState<ScheduledOutcome | null>(null)
+  const [pendingWarning, setPendingWarning] = useState<{ warnings: ScheduleWarning[]; retry: () => Promise<void> } | null>(null)
+  const [conflicts, setConflicts] = useState<ScheduleConflict[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -126,7 +131,36 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
   const startInPast = scheduleInput !== null && !isFutureStart(scheduleInput.scheduledDatetime)
   const invalidLocation = locationError(scheduleDraft) !== null
   const modalityReady = Boolean(scheduleDraft.modality) && !invalidLocation
-  const canConfirm = Boolean(selectedThesis && scheduleInput) && !startInPast && !invalidLocation && !formLocked
+  const canConfirm = Boolean(selectedThesis && scheduleInput && members.length > 0 && !conflicts.some((item) => item.level === "RED")) && !startInPast && !invalidLocation && !formLocked
+
+  const memberPayloads = () =>
+    members.map((member) =>
+      member.kind === "institutional"
+        ? { role: member.draft.role, userId: member.draft.userId }
+        : { role: member.draft.role, name: member.draft.name, email: member.draft.email, institution: member.draft.institution || "" },
+    )
+
+  const hasRedConflict = conflicts.some((item) => item.level === "RED")
+  const hasYellowConflict = conflicts.some((item) => item.level === "YELLOW")
+  const checkKey = JSON.stringify({ schedule: scheduleInput, members })
+  useEffect(() => {
+    if (!scheduleInput || members.length === 0) {
+      setConflicts([])
+      return
+    }
+    let cancelled = false
+    defenseApi
+      .checkSchedule({ ...scheduleInput, members: memberPayloads() })
+      .then((response) => {
+        if (!cancelled) setConflicts(response.conflicts)
+      })
+      .catch(() => {
+        if (!cancelled) setConflicts([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [checkKey])
 
   const addPendingMember = (member: PendingMember) => {
     if (members.some((current) => current.key === member.key)) {
@@ -154,64 +188,43 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
     setOutcome(null)
   }
 
-  /** Sends one member; resolves with the invited e-mail for external members. */
-  const sendMember = async (defenseId: string, member: PendingMember): Promise<string | null> => {
-    if (member.kind === "institutional") {
-      await defenseApi.addInstitutionalMember(defenseId, { role: member.draft.role, userId: member.draft.userId })
-      return null
-    }
-    const response = await defenseApi.addExternalMember(defenseId, {
-      role: member.draft.role,
-      name: member.draft.name,
-      email: member.draft.email,
-      institution: member.draft.institution || undefined,
-    })
-    return response.member.email
-  }
-
+  /** Banca e comissão são enviadas juntas: uma transação só, sem membro parcial. */
   const confirmSchedule = async () => {
-    if (!selectedThesis || !scheduleInput || formLocked) return
+    if (!selectedThesis || !scheduleInput || members.length === 0 || formLocked) return
     setSubmitting(true)
     setSubmitError("")
-    setSubmitStep("Agendando banca…")
-    let defenseId: string
+    setSubmitStep("Agendando banca e comissão…")
+
+    const finish = (defenseId: string) => {
+      const invitedEmails = members.flatMap((member) => (member.kind === "external" ? [member.draft.email] : []))
+      setSubmitting(false)
+      setSubmitStep("")
+      if (invitedEmails.length === 0) {
+        onOpenCommittee(defenseId)
+        return
+      }
+      setOutcome({ defenseId, failures: [], invitedEmails })
+    }
+
+    const submit = async (acknowledge: boolean) => {
+      const body = { ...scheduleInput, members: memberPayloads(), acknowledgeScheduleWarning: acknowledge }
+      const response = await defenseApi.schedule(selectedThesis.id, body)
+      finish(response.defense.id)
+    }
+
     try {
-      const response = await defenseApi.schedule(selectedThesis.id, scheduleInput)
-      defenseId = response.defense.id
+      await submit(false)
     } catch (reason) {
+      if (reason instanceof ApiError && reason.code === "SCHEDULE_WARNING" && reason.warnings.length > 0) {
+        setPendingWarning({ warnings: reason.warnings, retry: () => submit(true) })
+        setSubmitting(false)
+        setSubmitStep("")
+        return
+      }
       setSubmitError(errorMessage(reason, "Não foi possível agendar a banca."))
       setSubmitting(false)
       setSubmitStep("")
-      return
     }
-
-    // Envio sequencial: o backend verifica conflito de horário por membro, e a ordem
-    // previsível facilita identificar qual inclusão falhou.
-    const failures: MemberFailure[] = []
-    const invitedEmails: string[] = []
-    for (let index = 0; index < members.length; index += 1) {
-      const member = members[index]
-      if (!member) continue
-      setSubmitStep(`Adicionando membros (${index + 1} de ${members.length})…`)
-      try {
-        const invitedEmail = await sendMember(defenseId, member)
-        if (invitedEmail) invitedEmails.push(invitedEmail)
-      } catch (reason) {
-        failures.push({
-          key: member.key,
-          name: member.draft.name,
-          message: errorMessage(reason, "Não foi possível adicionar o membro."),
-        })
-      }
-    }
-    setSubmitting(false)
-    setSubmitStep("")
-    if (failures.length === 0 && invitedEmails.length === 0) {
-      onOpenCommittee(defenseId)
-      return
-    }
-    // Com convites, a tela informa para onde foram antes de abrir a comissão.
-    setOutcome({ defenseId, failures, invitedEmails })
   }
 
   const thesesCount = thesesState.status === "ready" ? thesesState.count : 0
@@ -273,14 +286,15 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
             <div className="section-head">
               <div>
                 <h2>Comissão avaliadora</h2>
-                <p>Os membros são enviados logo após o agendamento da banca.</p>
               </div>
               <Button variant="outline" icon="plus" disabled={formLocked} onClick={() => setMemberModal("external")}>
                 Convidar externo
               </Button>
             </div>
             {members.length === 0 ? (
-              <p>Nenhum membro incluído.</p>
+              <p>
+                Nenhum membro incluído. Adicione ao menos um avaliador antes de confirmar o agendamento.
+              </p>
             ) : (
               <div className="member-list">
                 {members.map((member) => (
@@ -338,19 +352,26 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
                   <small>{modalityText(scheduleDraft)}</small>
                 </span>
               </div>
-              <div className={members.length > 0 ? "ok" : ""}>
-                <Icon name={members.length > 0 ? "check" : "users"} />
+              <div className={hasRedConflict ? "danger" : hasYellowConflict ? "warning" : members.length > 0 ? "ok" : ""}>
+                <Icon name={hasRedConflict ? "close" : hasYellowConflict ? "warning" : members.length > 0 ? "check" : "users"} />
                 <span>
                   <strong>Comissão</strong>
                   <small>
-                    {members.length === 1 ? "1 membro a enviar" : `${members.length} membros a enviar`}
+                    {members.length === 1 ? "1 membro" : `${members.length} membros`}
                   </small>
                 </span>
               </div>
             </div>
-            <p className="immutable-note">
-              Conflitos de horário são verificados pelo sistema ao incluir cada membro.
-            </p>
+            {(hasRedConflict || hasYellowConflict) && (
+              <ul className="schedule-conflicts" aria-live="polite">
+                {conflicts.map((conflict) => (
+                  <li key={`${conflict.memberName}-${conflict.level}`} className={conflict.level === "RED" ? "danger" : "warning"}>
+                    <Icon name={conflict.level === "RED" ? "close" : "warning"} size={16} />
+                    <span>{conflict.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {submitStep && <p aria-live="polite">{submitStep}</p>}
             {submitError && (
@@ -453,6 +474,20 @@ export default function DefenseScheduleForm({ onOpenCommittee }: DefenseSchedule
       )}
       {memberModal === "external" && (
         <ExternalMemberModal onClose={() => setMemberModal(null)} onSubmit={addExternalDraft} />
+      )}
+
+      {pendingWarning && scheduleInput && (
+        <ScheduleWarningDialog
+          warnings={pendingWarning.warnings}
+          defenseStart={scheduleInput.scheduledDatetime}
+          defenseDurationMinutes={scheduleInput.durationMinutes}
+          onCancel={() => setPendingWarning(null)}
+          onConfirm={() => {
+            const retry = pendingWarning.retry
+            setPendingWarning(null)
+            void retry()
+          }}
+        />
       )}
     </>
   )

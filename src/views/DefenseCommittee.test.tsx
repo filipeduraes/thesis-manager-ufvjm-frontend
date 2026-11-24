@@ -53,6 +53,15 @@ afterAll(() => {
   jest.restoreAllMocks()
 })
 
+test("mostra aviso amarelo persistente no detalhe da banca", async () => {
+  const defense = buildDefense("SCHEDULED")
+  defense.scheduleWarnings = [{ memberName: "Profa. Membro", defenseId: "defense-2", scheduledDatetime: "2026-12-10T14:00:00Z", scheduledEndDatetime: "2026-12-10T16:00:00Z" }]
+  renderCommittee(defense, "manager")
+
+  expect(await screen.findByText("Horário próximo de outra banca")).toBeTruthy()
+  expect(screen.getByText(/Profa\. Membro participa de outra banca/)).toBeTruthy()
+})
+
 test("coordinator sees edit and cancel actions and the defense details for a scheduled defense", async () => {
   renderCommittee(buildDefense("SCHEDULED"), "manager")
 
@@ -426,10 +435,34 @@ test("adding an external member announces the e-mail and never shows an access c
     name: "Paula Externa",
     email: "ext@externo.org",
     institution: undefined,
+    acknowledgeScheduleWarning: false,
   })
   expect(await screen.findByText(/Envio do convite para ext@externo.org em processamento/)).toBeTruthy()
   expect(screen.queryByRole("dialog")).toBeNull()
   expect(document.body.textContent).not.toMatch(TOKEN_PATTERN)
+})
+
+test("asks for confirmation before keeping a yellow-zone external member", async () => {
+  resetInvitationMocks()
+  const created = externalMember("ext", "Paula Externa", { email: "ext@externo.org", invitationSentAt: null })
+  addExternalMember.mockRejectedValueOnce(new ApiError("Banca próxima de outra defesa.", 409, {
+    code: "SCHEDULE_WARNING",
+    warnings: [{ memberName: "Paula Externa", defenseId: "defense-2", scheduledDatetime: "2026-12-10T14:00:00Z", scheduledEndDatetime: "2026-12-10T16:00:00Z" }],
+  }))
+  addExternalMember.mockResolvedValueOnce({ member: created })
+  renderCommittee(buildDefense("SCHEDULED"), "manager")
+
+  userEvent.click(await screen.findByRole("button", { name: "Membro externo" }))
+  userEvent.type(screen.getByPlaceholderText("Nome do avaliador"), "Paula Externa")
+  userEvent.type(screen.getByPlaceholderText("avaliador@email.com"), "ext@externo.org")
+  userEvent.click(screen.getByRole("button", { name: "Adicionar membro externo" }))
+
+  expect(await screen.findByRole("dialog", { name: "Possível conflito de horário" })).toBeTruthy()
+  expect(screen.getByText(/Paula Externa participa de outra banca/)).toBeTruthy()
+  userEvent.click(screen.getByRole("button", { name: "Continuar mesmo assim" }))
+
+  await waitFor(() => expect(addExternalMember).toHaveBeenCalledTimes(2))
+  expect(addExternalMember.mock.calls[1][1]).toMatchObject({ acknowledgeScheduleWarning: true })
 })
 
 test("shows where the invitation was sent and offers Reenviar convite while it is valid", async () => {

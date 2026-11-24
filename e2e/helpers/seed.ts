@@ -72,6 +72,8 @@ export async function seedInProgressDefense(request: APIRequestContext, title: s
   })
   expect(review.ok(), await review.text()).toBeTruthy()
 
+  const evaluatorEmail = uniqueEmail("evaluator")
+  const evaluator = await devLogin(request, "Avaliador E2E", evaluatorEmail, "ADVISOR")
   const coordinator = await devLogin(request, "Coord E2E Defesa", thesis.coordinatorEmail, "COORDINATOR")
   const coordinatorHeaders = { "X-CSRFToken": coordinator.csrfToken }
   const when = new Date()
@@ -83,20 +85,13 @@ export async function seedInProgressDefense(request: APIRequestContext, title: s
       durationMinutes: 90,
       modality: "IN_PERSON",
       location: "Sala E2E",
+      members: [{ userId: evaluator.userId, role: "MEMBER" }],
     },
   })
   expect(defenseResponse.ok(), await defenseResponse.text()).toBeTruthy()
-  const defense = (await defenseResponse.json()) as { defense: { id: string } }
-
-  const evaluatorEmail = uniqueEmail("evaluator")
-  const evaluator = await devLogin(request, "Avaliador E2E", evaluatorEmail, "ADVISOR")
-  const coordinatorAgain = await devLogin(request, "Coord E2E Defesa", thesis.coordinatorEmail, "COORDINATOR")
-  const memberResponse = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/members`, {
-    headers: { "X-CSRFToken": coordinatorAgain.csrfToken },
-    data: { userId: evaluator.userId, role: "MEMBER" },
-  })
-  expect(memberResponse.ok(), await memberResponse.text()).toBeTruthy()
-  const member = (await memberResponse.json()) as { member: { id: string } }
+  const defense = (await defenseResponse.json()) as { defense: { id: string; members: Array<{ id: string }> } }
+  const member = { member: { id: defense.defense.members[0]?.id ?? "" } }
+  expect(member.member.id).toBeTruthy()
 
   const evaluatorAgain = await devLogin(request, "Avaliador E2E", evaluatorEmail, "ADVISOR")
   const availability = await request.post(`${API_ROOT}/defenses/${defense.defense.id}/members/${member.member.id}/availability`, {

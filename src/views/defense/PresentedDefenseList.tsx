@@ -244,11 +244,13 @@ export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: Pr
               <span>Local</span>
               <span>Status</span>
               <span>Minha participação</span>
-              <span />
+              <span>Ação</span>
             </div>
             {listState.defenses.map((defense) => {
               const membership = defense.viewerMembership
-              const openLabel = defense.viewerPermissions.canManage ? "Gerenciar banca" : "Ver banca"
+              const canManage = defense.viewerPermissions.canManage
+              const canEvaluate = membership.isMember && membership.canEvaluate && defense.status !== "COMPLETED" && defense.status !== "CANCELLED"
+              const evaluationLabel = membership.hasEvaluated ? "Editar minha avaliação" : "Minha avaliação"
               const scheduledDate = DATE_FORMATTER.format(new Date(defense.scheduledDatetime))
               const timeRange = formatDefenseTimeRange(defense.scheduledDatetime, defense.durationMinutes)
               return (
@@ -264,24 +266,34 @@ export default function PresentedDefenseList({ onEvaluate, onOpenCommittee }: Pr
                   <span>
                     <Badge tone={defenseStatusTone(defense.status)}>{defense.statusLabel}</Badge>
                   </span>
-                  <span>{membership.isMember ? membership.roleLabel ?? "—" : "—"}</span>
-                  <span className="row-actions">
+                  <span>
+                    {membership.isMember ? membership.roleLabel ?? "—" : "—"}
                     {membership.hasEvaluated && <Badge tone="success">Parecer enviado</Badge>}
-                    {membership.canEvaluate && defense.status !== "COMPLETED" &&
-                      defense.status !== "CANCELLED" && (!membership.hasEvaluated || defense.status === "IN_PROGRESS") && (
-                      <Button variant="outline" onClick={() => onEvaluate(defense.id)}>
-                        {membership.hasEvaluated ? "Editar minha avaliação" : "Minha avaliação"}
-                      </Button>
+                  </span>
+                  <span className="row-actions">
+                    {canEvaluate && (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={evaluationLabel}
+                        title={defense.status === "IN_PROGRESS" ? evaluationLabel : "A avaliação começa quando a banca for iniciada"}
+                        disabled={defense.status !== "IN_PROGRESS"}
+                        onClick={() => onEvaluate(defense.id)}
+                      >
+                        <Icon name="star" />
+                      </button>
                     )}
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label={openLabel}
-                      title={openLabel}
-                      onClick={() => onOpenCommittee(defense.id)}
-                    >
-                      <Icon name="arrow" />
-                    </button>
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label="Gerenciar banca"
+                        title="Gerenciar banca"
+                        onClick={() => onOpenCommittee(defense.id)}
+                      >
+                        <Icon name="settings" />
+                      </button>
+                    )}
                   </span>
                 </div>
               )

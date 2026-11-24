@@ -16,12 +16,29 @@ import { normalizeErrorBody } from "./errors"
 const API_ORIGIN = process.env.REACT_APP_API_BASE_URL ?? "http://localhost:8000"
 const API_ROOT = `${API_ORIGIN}/api/v1`
 
+export interface ScheduleConflict {
+  memberName: string
+  level: "RED" | "YELLOW"
+  message: string
+}
+
+export interface ScheduleWarning {
+  memberName: string
+  defenseId: string
+  scheduledDatetime: string
+  scheduledEndDatetime: string
+}
+
 export class ApiError extends Error {
   status: number
+  code?: string
+  warnings: ScheduleWarning[]
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, payload?: Record<string, unknown>) {
     super(message)
     this.status = status
+    this.code = payload && typeof payload.code === "string" ? payload.code : undefined
+    this.warnings = payload && Array.isArray(payload.warnings) ? (payload.warnings as ScheduleWarning[]) : []
   }
 }
 
@@ -63,7 +80,7 @@ async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
     const detail = normalizeErrorBody(body, "Não foi possível concluir a solicitação.")
-    throw new ApiError(detail, response.status)
+    throw new ApiError(detail, response.status, body as Record<string, unknown>)
   }
   return body as T
 }
@@ -647,6 +664,8 @@ export interface DefenseData {
    * ninguém está pendente.
    */
   pendingConfirmations?: DefensePendingConfirmation[] | null
+  /** Avisos da zona amarela de agenda, visíveis só para quem gerencia a banca. */
+  scheduleWarnings?: ScheduleWarning[]
   /** Só no detalhe (e na listagem): vínculo do usuário autenticado ou da sessão externa. */
   viewerMembership?: DefenseViewerMembership
   /** Só no detalhe e na listagem: ações que o backend aceita deste usuário nesta banca. */
@@ -702,6 +721,15 @@ export interface SubmitEvaluationResponse {
   defenseStatusLabel: string
 }
 
+/** Membro enviado junto com o agendamento, na mesma transação do backend. */
+export interface ScheduledMemberInput {
+  role: string
+  userId?: string
+  name?: string
+  email?: string
+  institution?: string
+}
+
 /** Corpo de POST /theses/{thesisId}/defenses (ScheduleDefenseSerializer). */
 export interface ScheduleDefenseInput {
   /** ISO 8601 com deslocamento explícito (ex.: 2026-11-20T14:00:00-03:00). */
@@ -710,10 +738,12 @@ export interface ScheduleDefenseInput {
   modality: DefenseModalityCode
   location: string
   notes?: string
+  members: ScheduledMemberInput[]
+  acknowledgeScheduleWarning?: boolean
 }
 
 /** Corpo de PATCH /defenses/{id} (UpdateDefenseSerializer): todos os campos são opcionais. */
-export type UpdateDefenseInput = Partial<ScheduleDefenseInput>
+export type UpdateDefenseInput = Partial<ScheduleDefenseInput> & { acknowledgeScheduleWarning?: boolean }
 
 /** Situação do usuário autenticado na banca, calculada pelo backend. */
 export interface DefenseViewerMembership {
@@ -780,12 +810,18 @@ export const defenseApi = {
       { method: "POST", body: JSON.stringify(body) },
     ),
 
+  checkSchedule: (body: ScheduleDefenseInput) =>
+    apiRequest<{ conflicts: ScheduleConflict[] }>("/defenses/check-schedule", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   get: (defenseId: string) =>
     apiRequest<{ defense: DefenseData }>(`/defenses/${defenseId}`),
 
   addInstitutionalMember: (
     defenseId: string,
-    body: { role: string; userId: string; conflictReason?: string },
+    body: { role: string; userId: string; conflictReason?: string; acknowledgeScheduleWarning?: boolean },
   ) =>
     apiRequest<{ member: DefenseCommitteeMember }>(
       `/defenses/${defenseId}/members`,
@@ -800,6 +836,7 @@ export const defenseApi = {
       email: string
       institution?: string
       conflictReason?: string
+      acknowledgeScheduleWarning?: boolean
     },
   ) =>
     apiRequest<ExternalMemberResponse>(
